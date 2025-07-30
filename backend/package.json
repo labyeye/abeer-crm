@@ -1,0 +1,26 @@
+{
+  "name": "photoerp-backend",
+  "version": "1.0.0",
+  "description": "Backend for PhotoERP System",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "create-users": "node scripts/createDemoUsers.js",
+    "create-companies": "node scripts/createDemoCompanies.js",
+    "create-inventory": "node scripts/createDemoInventory.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "colors": "^1.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^7.4.3",
+    "mongoose-paginate-v2": "^1.9.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
