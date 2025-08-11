@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     enum: [
       'quotation_created',
-      'quotation_followup',
+      'quotation_followup_7days',
       'appointment_reminder',
       'appointment_missed',
       'booking_confirmed',
@@ -25,9 +25,13 @@ const notificationSchema = new mongoose.Schema({
       'review_request',
       'task_assigned',
       'task_completed',
+      'task_skipped',
       'expense_approved',
       'salary_paid',
-      'attendance_alert'
+      'attendance_alert',
+      'staff_assignment',
+      'equipment_assignment',
+      'travel_details'
     ],
     required: true
   },
@@ -150,6 +154,46 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
     default: 'medium'
+  },
+  smartLink: {
+    token: {
+      type: String,
+      unique: true,
+      sparse: true
+    },
+    url: String,
+    expiresAt: Date,
+    accessCount: {
+      type: Number,
+      default: 0
+    },
+    maxAccess: {
+      type: Number,
+      default: 10
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  },
+  automation: {
+    isAutomated: {
+      type: Boolean,
+      default: false
+    },
+    trigger: {
+      type: String,
+      enum: [
+        'quotation_created',
+        'booking_confirmed', 
+        'payment_due',
+        'task_assigned',
+        'followup_scheduled',
+        'appointment_scheduled'
+      ]
+    },
+    followUpDays: Number,
+    nextFollowUp: Date
   },
   status: {
     type: String,

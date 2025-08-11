@@ -12,7 +12,7 @@ import {
   X
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
-import { bookingAPI, clientAPI, staffAPI, inventoryAPI, companyAPI } from '../../services/api';
+import { bookingAPI, clientAPI, staffAPI, inventoryAPI } from '../../services/api';
 
 interface Booking {
   _id: string;
@@ -95,7 +95,7 @@ const BookingManagement = () => {
   const [clients, setClients] = useState<Client[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -128,20 +128,17 @@ const BookingManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, clientsRes, staffRes, inventoryRes, companiesRes] = await Promise.all([
+      const [bookingsRes, clientsRes, staffRes, inventoryRes] = await Promise.all([
         bookingAPI.getBookings(),
         clientAPI.getClients(),
         staffAPI.getStaff(),
-        inventoryAPI.getInventory(),
-        companyAPI.getCompanies()
+        inventoryAPI.getInventory()
       ]);
       
       setBookings(bookingsRes.data.data || []);
       setClients(clientsRes.data.data || []);
       setStaff(staffRes.data.data || []);
       setInventory(inventoryRes.data.data || []);
-      // For now, use companies as branches since branches are part of companies
-      setBranches(companiesRes.data.data || []);
     } catch (error: any) {
       addNotification({
         type: 'error',

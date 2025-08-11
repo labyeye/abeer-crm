@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { useAuth } from '../../contexts/AuthContext';
 import Dashboard from '../dashboard/Dashboard';
 import StaffManagement from '../staff/StaffManagement';
 import BookingManagement from '../bookings/BookingManagement';
@@ -14,11 +13,18 @@ import QuotationManagement from '../quotations/QuotationManagement';
 import CompanyManagement from '../company/CompanyManagement';
 import ReportsAndAnalytics from '../reports/ReportsAndAnalytics';
 import ProfilePage from '../profile/ProfilePage';
+import TaskManagement from '../tasks/TaskManagement';
+import ProductionWorkflow from '../production/ProductionWorkflow';
+import VendorManagement from '../vendors/VendorManagement';
+import AdvancedAnalytics from '../analytics/AdvancedAnalytics';
+import { AIInsights } from '../ai/AIInsights';
+import { MobileApp } from '../mobile/MobileApp';
+import { EnhancedAutomation } from '../automation/EnhancedAutomation';
+import { SystemIntegration } from '../integration/SystemIntegration';
 
 const DashboardLayout = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user } = useAuth();
 
   const renderContent = () => {
     switch (activeTab) {
@@ -40,6 +46,22 @@ const DashboardLayout = () => {
         return <AttendanceManagement />;
       case 'quotations':
         return <QuotationManagement />;
+      case 'tasks':
+        return <TaskManagement />;
+      case 'production':
+        return <ProductionWorkflow />;
+      case 'vendors':
+        return <VendorManagement />;
+      case 'analytics':
+        return <AdvancedAnalytics />;
+      case 'ai-insights':
+        return <AIInsights />;
+      case 'mobile-app':
+        return <MobileApp />;
+      case 'automation':
+        return <EnhancedAutomation />;
+      case 'integrations':
+        return <SystemIntegration />;
       case 'company':
         return <CompanyManagement />;
       case 'reports':

@@ -339,4 +339,436 @@ export const rentalAPI = {
   }
 };
 
+export const notificationAPI = {
+  getNotifications: async (params?: any) => {
+    const response = await api.get('/notifications', { params });
+    return response.data;
+  },
+  
+  getNotificationStats: async () => {
+    const response = await api.get('/notifications/stats');
+    return response.data;
+  },
+  
+  markAsRead: async (id: string) => {
+    const response = await api.put(`/notifications/${id}/read`);
+    return response.data;
+  },
+  
+  sendManualNotification: async (notificationData: any) => {
+    const response = await api.post('/notifications/send', notificationData);
+    return response.data;
+  },
+  
+  accessSmartLink: async (token: string) => {
+    const response = await api.get(`/notifications/link/${token}`);
+    return response.data;
+  },
+  
+  previewSmartLink: async (token: string) => {
+    const response = await api.get(`/notifications/preview/${token}`);
+    return response.data;
+  }
+};
+
+export const taskAPI = {
+  getTasks: async (params?: any) => {
+    const response = await api.get('/tasks', { params });
+    return response.data;
+  },
+  
+  getTask: async (id: string) => {
+    const response = await api.get(`/tasks/${id}`);
+    return response.data;
+  },
+  
+  createTask: async (taskData: any) => {
+    const response = await api.post('/tasks', taskData);
+    return response.data;
+  },
+  
+  updateTask: async (id: string, taskData: any) => {
+    const response = await api.put(`/tasks/${id}`, taskData);
+    return response.data;
+  },
+  
+  autoAssignTasks: async (bookingId: string) => {
+    const response = await api.post(`/tasks/auto-assign/${bookingId}`);
+    return response.data;
+  },
+  
+  assignStaffToTask: async (taskId: string, assignmentData: any) => {
+    const response = await api.post(`/tasks/${taskId}/assign`, assignmentData);
+    return response.data;
+  },
+  
+  skipTask: async (taskId: string, reason: string) => {
+    const response = await api.post(`/tasks/${taskId}/skip`, { reason });
+    return response.data;
+  },
+  
+  completeTask: async (taskId: string, completionData: any) => {
+    const response = await api.post(`/tasks/${taskId}/complete`, completionData);
+    return response.data;
+  },
+  
+  getMyTasks: async (params?: any) => {
+    const response = await api.get('/tasks/my-tasks', { params });
+    return response.data;
+  },
+  
+  getTaskStats: async () => {
+    const response = await api.get('/tasks/stats');
+    return response.data;
+  }
+};
+
+export const quotationAPI = {
+  getQuotations: async (params?: any) => {
+    const response = await api.get('/quotations', { params });
+    return response.data;
+  },
+  
+  getQuotation: async (id: string) => {
+    const response = await api.get(`/quotations/${id}`);
+    return response.data;
+  },
+  
+  createQuotation: async (quotationData: any) => {
+    const response = await api.post('/quotations', quotationData);
+    return response.data;
+  },
+  
+  updateQuotation: async (id: string, quotationData: any) => {
+    const response = await api.put(`/quotations/${id}`, quotationData);
+    return response.data;
+  },
+  
+  deleteQuotation: async (id: string) => {
+    const response = await api.delete(`/quotations/${id}`);
+    return response.data;
+  },
+  
+  convertToBooking: async (id: string) => {
+    const response = await api.post(`/quotations/${id}/convert-to-booking`);
+    return response.data;
+  },
+  
+  sendFollowUp: async (id: string) => {
+    const response = await api.post(`/quotations/${id}/follow-up`);
+    return response.data;
+  },
+  
+  getQuotationStats: async () => {
+    const response = await api.get('/quotations/stats');
+    return response.data;
+  }
+};
+
+// Production API calls
+export const productionAPI = {
+  getProjects: async (params?: any) => {
+    const response = await api.get('/production/projects', { params });
+    return response.data;
+  },
+  
+  getProject: async (id: string) => {
+    const response = await api.get(`/production/projects/${id}`);
+    return response.data;
+  },
+  
+  createProject: async (projectData: any) => {
+    const response = await api.post('/production/projects', projectData);
+    return response.data;
+  },
+  
+  updateProject: async (id: string, projectData: any) => {
+    const response = await api.put(`/production/projects/${id}`, projectData);
+    return response.data;
+  },
+  
+  deleteProject: async (id: string) => {
+    const response = await api.delete(`/production/projects/${id}`);
+    return response.data;
+  },
+  
+  updateProjectStage: async (id: string, stage: string) => {
+    const response = await api.put(`/production/projects/${id}/stage`, { stage });
+    return response.data;
+  },
+  
+  assignTeamMember: async (id: string, memberId: string) => {
+    const response = await api.post(`/production/projects/${id}/assign`, { memberId });
+    return response.data;
+  },
+  
+  getProductionStats: async () => {
+    const response = await api.get('/production/stats');
+    return response.data;
+  }
+};
+
+// Vendor API calls
+export const vendorAPI = {
+  getVendors: async (params?: any) => {
+    const response = await api.get('/vendors', { params });
+    return response.data;
+  },
+  
+  getVendor: async (id: string) => {
+    const response = await api.get(`/vendors/${id}`);
+    return response.data;
+  },
+  
+  createVendor: async (vendorData: any) => {
+    const response = await api.post('/vendors', vendorData);
+    return response.data;
+  },
+  
+  updateVendor: async (id: string, vendorData: any) => {
+    const response = await api.put(`/vendors/${id}`, vendorData);
+    return response.data;
+  },
+  
+  deleteVendor: async (id: string) => {
+    const response = await api.delete(`/vendors/${id}`);
+    return response.data;
+  },
+  
+  updateVendorRating: async (id: string, rating: number) => {
+    const response = await api.put(`/vendors/${id}/rating`, { rating });
+    return response.data;
+  },
+  
+  getVendorStats: async () => {
+    const response = await api.get('/vendors/stats');
+    return response.data;
+  }
+};
+
+// Analytics API calls
+export const analyticsAPI = {
+  getDashboardData: async (params?: any) => {
+    const response = await api.get('/analytics/dashboard', { params });
+    return response.data;
+  },
+  
+  getRevenueAnalytics: async (params?: any) => {
+    const response = await api.get('/analytics/revenue', { params });
+    return response.data;
+  },
+  
+  getOperationalAnalytics: async (params?: any) => {
+    const response = await api.get('/analytics/operations', { params });
+    return response.data;
+  },
+  
+  getClientAnalytics: async (params?: any) => {
+    const response = await api.get('/analytics/clients', { params });
+    return response.data;
+  },
+  
+  getTeamAnalytics: async (params?: any) => {
+    const response = await api.get('/analytics/team', { params });
+    return response.data;
+  },
+  
+  getMarketingAnalytics: async (params?: any) => {
+    const response = await api.get('/analytics/marketing', { params });
+    return response.data;
+  },
+  
+  getForecastingData: async (params?: any) => {
+    const response = await api.get('/analytics/forecasting', { params });
+    return response.data;
+  },
+  
+  exportAnalytics: async (type: string, params?: any) => {
+    const response = await api.get(`/analytics/export/${type}`, { params });
+    return response.data;
+  }
+};
+
+// Phase 3 - AI API calls
+export const aiAPI = {
+  getInsights: async (params?: any) => {
+    const response = await api.get('/ai/insights', { params });
+    return response.data;
+  },
+  
+  getPredictions: async (params?: any) => {
+    const response = await api.get('/ai/predictions', { params });
+    return response.data;
+  },
+  
+  generateInsights: async (data: any) => {
+    const response = await api.post('/ai/generate', data);
+    return response.data;
+  },
+  
+  getRecommendations: async (params?: any) => {
+    const response = await api.get('/ai/recommendations', { params });
+    return response.data;
+  },
+  
+  implementRecommendation: async (id: string) => {
+    const response = await api.post(`/ai/recommendations/${id}/implement`);
+    return response.data;
+  },
+  
+  getAIAnalytics: async () => {
+    const response = await api.get('/ai/analytics');
+    return response.data;
+  }
+};
+
+// Mobile App API calls
+export const mobileAPI = {
+  getFeatures: async (params?: any) => {
+    const response = await api.get('/mobile/features', { params });
+    return response.data;
+  },
+  
+  getAnalytics: async () => {
+    const response = await api.get('/mobile/analytics');
+    return response.data;
+  },
+  
+  updateFeature: async (id: string, data: any) => {
+    const response = await api.put(`/mobile/features/${id}`, data);
+    return response.data;
+  },
+  
+  getDeviceStats: async () => {
+    const response = await api.get('/mobile/device-stats');
+    return response.data;
+  },
+  
+  generateQR: async (data?: any) => {
+    const response = await api.post('/mobile/generate-qr', data);
+    return response.data;
+  },
+  
+  deployUpdate: async (data: any) => {
+    const response = await api.post('/mobile/deploy', data);
+    return response.data;
+  },
+  
+  getFeedback: async (params?: any) => {
+    const response = await api.get('/mobile/feedback', { params });
+    return response.data;
+  },
+  
+  getPerformance: async () => {
+    const response = await api.get('/mobile/performance');
+    return response.data;
+  }
+};
+
+// Automation API calls
+export const automationAPI = {
+  getRules: async (params?: any) => {
+    const response = await api.get('/automation/rules', { params });
+    return response.data;
+  },
+  
+  createRule: async (data: any) => {
+    const response = await api.post('/automation/rules', data);
+    return response.data;
+  },
+  
+  updateRule: async (id: string, data: any) => {
+    const response = await api.put(`/automation/rules/${id}`, data);
+    return response.data;
+  },
+  
+  toggleRule: async (id: string) => {
+    const response = await api.post(`/automation/rules/${id}/toggle`);
+    return response.data;
+  },
+  
+  getTemplates: async (params?: any) => {
+    const response = await api.get('/automation/templates', { params });
+    return response.data;
+  },
+  
+  installTemplate: async (id: string) => {
+    const response = await api.post(`/automation/templates/${id}/install`);
+    return response.data;
+  },
+  
+  getStats: async () => {
+    const response = await api.get('/automation/stats');
+    return response.data;
+  },
+  
+  getAIRecommendations: async () => {
+    const response = await api.get('/automation/ai-recommendations');
+    return response.data;
+  },
+  
+  executeRule: async (id: string) => {
+    const response = await api.post(`/automation/rules/${id}/execute`);
+    return response.data;
+  }
+};
+
+// Integration API calls
+export const integrationAPI = {
+  getIntegrations: async (params?: any) => {
+    const response = await api.get('/integrations', { params });
+    return response.data;
+  },
+  
+  createIntegration: async (data: any) => {
+    const response = await api.post('/integrations', data);
+    return response.data;
+  },
+  
+  updateIntegration: async (id: string, data: any) => {
+    const response = await api.put(`/integrations/${id}`, data);
+    return response.data;
+  },
+  
+  toggleIntegration: async (id: string) => {
+    const response = await api.post(`/integrations/${id}/toggle`);
+    return response.data;
+  },
+  
+  syncIntegration: async (id: string) => {
+    const response = await api.post(`/integrations/${id}/sync`);
+    return response.data;
+  },
+  
+  getApiEndpoints: async (params?: any) => {
+    const response = await api.get('/integrations/api/endpoints', { params });
+    return response.data;
+  },
+  
+  getApiStats: async () => {
+    const response = await api.get('/integrations/api/stats');
+    return response.data;
+  },
+  
+  testEndpoint: async (id: string) => {
+    const response = await api.post(`/integrations/api/endpoints/${id}/test`);
+    return response.data;
+  },
+  
+  getWebhooks: async (params?: any) => {
+    const response = await api.get('/integrations/webhooks', { params });
+    return response.data;
+  },
+  
+  testWebhook: async (id: string) => {
+    const response = await api.post(`/integrations/webhooks/${id}/test`);
+    return response.data;
+  },
+  
+  getIntegrationStats: async () => {
+    const response = await api.get('/integrations/stats');
+    return response.data;
+  }
+};
+
 export default api; 

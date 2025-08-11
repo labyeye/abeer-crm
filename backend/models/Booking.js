@@ -61,6 +61,23 @@ const bookingSchema = new mongoose.Schema({
       required: true
     }
   }],
+  serviceNeeded: {
+    type: String,
+    required: true
+  },
+  inventorySelection: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Inventory'
+  }],
+  assignedStaff: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Staff'
+  }],
+  bookingBranch: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Branch',
+    required: true
+  },
   pricing: {
     subtotal: {
       type: Number,

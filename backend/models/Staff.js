@@ -16,6 +16,69 @@ const staffSchema = new mongoose.Schema({
     ref: 'Branch',
     required: true
   },
+  name: {
+    type: String,
+    required: true
+  },
+  phone: {
+    type: String,
+    required: true
+  },
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    pincode: String
+  },
+  fatherName: {
+    type: String,
+    required: true
+  },
+  motherName: {
+    type: String,
+    required: true
+  },
+  aadharNumbers: {
+    staff: {
+      type: String,
+      required: true
+    },
+    father: {
+      type: String,
+      required: true
+    },
+    mother: {
+      type: String,
+      required: true
+    }
+  },
+  contacts: {
+    staff: {
+      type: String,
+      required: true
+    },
+    father: {
+      type: String,
+      required: true
+    },
+    mother: {
+      type: String,
+      required: true
+    }
+  },
+  referredBy: {
+    type: String
+  },
+  userId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
   employeeId: {
     type: String,
     required: true,
@@ -98,21 +161,45 @@ const staffSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
-    loanAmount: {
-      type: Number,
-      default: 0
-    },
-    emiAmount: {
-      type: Number,
-      default: 0
-    },
-    remainingAmount: {
-      type: Number,
-      default: 0
-    },
-    financeCompany: String,
+    amount: Number,
+    interestRate: Number,
+    emiAmount: Number,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    purpose: String,
+    guarantor: String
+  },
+  skills: [{
+    type: String,
+    enum: [
+      'photography',
+      'videography', 
+      'drone_operation',
+      'equipment_handling',
+      'data_management',
+      'basic_editing',
+      'advanced_editing',
+      'sound_recording',
+      'lighting',
+      'customer_service',
+      'event_coordination',
+      'album_design',
+      'photo_retouching'
+    ]
+  }],
+  availability: {
+    workingDays: [{
+      type: String,
+      enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    }],
+    workingHours: {
+      start: String,
+      end: String
+    },
+    isAvailableForTravel: {
+      type: Boolean,
+      default: true
+    }
   },
   status: {
     type: String,

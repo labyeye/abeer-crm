@@ -59,6 +59,30 @@ const inventorySchema = new mongoose.Schema({
       trim: true
     }
   },
+  branch: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Branch',
+    required: true
+  },
+  buyingMethod: {
+    type: String,
+    enum: ['cash', 'emi'],
+    required: true
+  },
+  emiDetails: {
+    months: {
+      type: Number,
+      required: function() { return this.buyingMethod === 'emi'; }
+    },
+    downPayment: {
+      type: Number,
+      required: function() { return this.buyingMethod === 'emi'; }
+    },
+    monthlyAmount: {
+      type: Number,
+      required: function() { return this.buyingMethod === 'emi'; }
+    }
+  },
   quantity: {
     type: Number,
     required: [true, 'Quantity is required'],

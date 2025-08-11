@@ -31,16 +31,20 @@ const clientSchema = new mongoose.Schema({
     name: String,
     phone: String
   },
-  gstStatus: {
-    type: String,
-    enum: ['with_gst', 'without_gst'],
-    default: 'without_gst'
-  },
-  gstNumber: String,
   category: {
     type: String,
-    enum: ['individual', 'corporate', 'government'],
+    enum: ['individual', 'professional'],
     default: 'individual'
+  },
+  userId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
   },
   status: {
     type: String,

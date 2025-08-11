@@ -34,8 +34,21 @@ const branchSchema = new mongoose.Schema({
     email: String,
     whatsapp: String
   },
-  gstNumber: String,
+  gstNumber: {
+    type: String,
+    required: true
+  },
   panNumber: String,
+  userId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
   admin: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

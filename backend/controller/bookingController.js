@@ -4,6 +4,8 @@ const Staff = require('../models/Staff');
 const Inventory = require('../models/Inventory');
 const Quotation = require('../models/Quotation');
 const Invoice = require('../models/Invoice');
+const automatedMessaging = require('../services/automatedMessaging');
+const taskAutoAssignment = require('../services/taskAutoAssignment');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 
@@ -61,6 +63,31 @@ const getBooking = asyncHandler(async (req, res) => {
 // @access  Private
 const createBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.create(req.body);
+  
+  // Populate necessary fields for notifications
+  await booking.populate([
+    { path: 'client' },
+    { path: 'company' },
+    { path: 'branch' }
+  ]);
+  
+  // Send booking confirmation notification
+  try {
+    await automatedMessaging.sendBookingConfirmed({
+      client: booking.client,
+      booking: booking,
+      company: booking.company,
+      branch: booking.branch,
+      staffDetails: 'जल्द ही भेजी जाएगी' // Will be updated when staff is assigned
+    });
+    
+    // Auto-assign tasks for this booking
+    await taskAutoAssignment.autoAssignTasks(booking._id);
+  } catch (error) {
+    console.error('Error in automated processes:', error);
+    // Don't fail the booking creation if automation fails
+  }
+  
   res.status(201).json({ success: true, data: booking });
 });
 

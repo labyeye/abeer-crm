@@ -8,24 +8,41 @@ import {
   Phone,
   Mail,
   Calendar,
-  Star,
   DollarSign,
-  MoreVertical,
   Edit,
   Trash2,
-  Eye,
   X,
-  Loader2
+  Loader2,
+  Building2
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { staffAPI } from '../../services/api';
-import LoadingSpinner from '../ui/LoadingSpinner';
-import NeomorphicModal from '../ui/NeomorphicModal';
+import { staffAPI, companyAPI } from '../../services/api';
 
 interface StaffMember {
   _id: string;
   employeeId: string;
+  name: string;
+  phone: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
+  fatherName: string;
+  motherName: string;
+  aadharNumbers: {
+    staff: string;
+    father: string;
+    mother: string;
+  };
+  contacts: {
+    staff: string;
+    father: string;
+    mother: string;
+  };
+  referredBy?: string;
+  userId: string;
   user: {
     _id: string;
     name: string;
@@ -41,32 +58,57 @@ interface StaffMember {
     allowances: number;
     total: number;
   };
-  performance: {
-    score: number;
-    totalTasks: number;
-    completedTasks: number;
-    lateArrivals: number;
-    absences: number;
-  };
-  status: 'active' | 'inactive' | 'terminated';
   branch: {
     _id: string;
     name: string;
     code: string;
   };
+  status: 'active' | 'inactive' | 'terminated';
+}
+
+interface Branch {
+  _id: string;
+  name: string;
+  code: string;
 }
 
 const StaffManagement = () => {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterBranch, setFilterBranch] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [formData, setFormData] = useState({
     userId: '',
     employeeId: '',
+    name: '',
+    phone: '',
+    address: {
+      street: '',
+      city: '',
+      state: '',
+      pincode: ''
+    },
+    fatherName: '',
+    motherName: '',
+    aadharNumbers: {
+      staff: '',
+      father: '',
+      mother: ''
+    },
+    contacts: {
+      staff: '',
+      father: '',
+      mother: ''
+    },
+    referredBy: '',
+    staffUserId: '',
+    password: '',
+    branch: '',
     staffType: 'monthly',
     designation: '',
     department: '',
@@ -80,50 +122,64 @@ const StaffManagement = () => {
       ifscCode: '',
       bankName: '',
       branchName: ''
-    },
-    contactInfo: {
-      emergencyContact: '',
-      emergencyPhone: '',
-      address: '',
-      city: '',
-      state: '',
-      pincode: ''
-    },
-    documents: {
-      aadharNumber: '',
-      panNumber: '',
-      drivingLicense: ''
     }
   });
   const [submitting, setSubmitting] = useState(false);
   
   const { addNotification } = useNotification();
-  const { user } = useAuth();
 
   useEffect(() => {
-    fetchStaffMembers();
+    fetchData();
   }, []);
 
-  const fetchStaffMembers = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await staffAPI.getStaff();
-      setStaffMembers(response.data);
-    } catch (error) {
+      const [staffResponse, branchResponse] = await Promise.all([
+        staffAPI.getStaff(),
+        companyAPI.getCompanies()
+      ]);
+      setStaffMembers(staffResponse.data.data || []);
+      setBranches(branchResponse.data.data || []);
+    } catch (error: any) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: 'Failed to fetch staff members'
+        message: error.message || 'Failed to fetch data'
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddStaff = () => {
+  const resetForm = () => {
     setFormData({
       userId: '',
       employeeId: '',
+      name: '',
+      phone: '',
+      address: {
+        street: '',
+        city: '',
+        state: '',
+        pincode: ''
+      },
+      fatherName: '',
+      motherName: '',
+      aadharNumbers: {
+        staff: '',
+        father: '',
+        mother: ''
+      },
+      contacts: {
+        staff: '',
+        father: '',
+        mother: ''
+      },
+      referredBy: '',
+      staffUserId: '',
+      password: '',
+      branch: '',
       staffType: 'monthly',
       designation: '',
       department: '',
@@ -137,21 +193,12 @@ const StaffManagement = () => {
         ifscCode: '',
         bankName: '',
         branchName: ''
-      },
-      contactInfo: {
-        emergencyContact: '',
-        emergencyPhone: '',
-        address: '',
-        city: '',
-        state: '',
-        pincode: ''
-      },
-      documents: {
-        aadharNumber: '',
-        panNumber: '',
-        drivingLicense: ''
       }
     });
+  };
+
+  const handleAddStaff = () => {
+    resetForm();
     setShowAddModal(true);
   };
 
@@ -160,29 +207,30 @@ const StaffManagement = () => {
     setFormData({
       userId: staff.user._id || '',
       employeeId: staff.employeeId,
+      name: staff.name,
+      phone: staff.phone,
+      address: staff.address,
+      fatherName: staff.fatherName,
+      motherName: staff.motherName,
+      aadharNumbers: staff.aadharNumbers,
+      contacts: staff.contacts,
+      referredBy: staff.referredBy || '',
+      staffUserId: staff.userId,
+      password: '', // Don't pre-fill password
+      branch: staff.branch?._id || '',
       staffType: staff.staffType,
       designation: staff.designation,
       department: staff.department,
       joiningDate: staff.joiningDate.split('T')[0],
-      salary: staff.salary,
+      salary: {
+        basic: staff.salary.basic,
+        allowances: staff.salary.allowances
+      },
       bankDetails: {
         accountNumber: '',
         ifscCode: '',
         bankName: '',
         branchName: ''
-      },
-      contactInfo: {
-        emergencyContact: '',
-        emergencyPhone: '',
-        address: '',
-        city: '',
-        state: '',
-        pincode: ''
-      },
-      documents: {
-        aadharNumber: '',
-        panNumber: '',
-        drivingLicense: ''
       }
     });
     setShowEditModal(true);
@@ -193,606 +241,627 @@ const StaffManagement = () => {
     setSubmitting(true);
 
     try {
-      if (showEditModal && selectedStaff) {
+      if (selectedStaff) {
         await staffAPI.updateStaff(selectedStaff._id, formData);
         addNotification({
           type: 'success',
           title: 'Success',
           message: 'Staff member updated successfully'
         });
-        setShowEditModal(false);
       } else {
         await staffAPI.createStaff(formData);
         addNotification({
           type: 'success',
           title: 'Success',
-          message: 'Staff member added successfully'
+          message: 'Staff member created successfully'
         });
-        setShowAddModal(false);
       }
       
-      fetchStaffMembers();
-      setFormData({
-        userId: '',
-        employeeId: '',
-        staffType: 'monthly',
-        designation: '',
-        department: '',
-        joiningDate: '',
-        salary: {
-          basic: 0,
-          allowances: 0
-        },
-        bankDetails: {
-          accountNumber: '',
-          ifscCode: '',
-          bankName: '',
-          branchName: ''
-        },
-        contactInfo: {
-          emergencyContact: '',
-          emergencyPhone: '',
-          address: '',
-          city: '',
-          state: '',
-          pincode: ''
-        },
-        documents: {
-          aadharNumber: '',
-          panNumber: '',
-          drivingLicense: ''
-        }
-      });
+      fetchData();
+      setShowAddModal(false);
+      setShowEditModal(false);
+      setSelectedStaff(null);
+      resetForm();
     } catch (error: any) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.response?.data?.message || 'Failed to save staff member'
+        message: error.message || 'Failed to save staff member'
       });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteStaff = async (staffId: string) => {
-    if (window.confirm('Are you sure you want to delete this staff member?')) {
+  const handleDeleteStaff = async (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete ${name}?`)) {
       try {
-        await staffAPI.deleteStaff(staffId);
+        await staffAPI.deleteStaff(id);
         addNotification({
           type: 'success',
           title: 'Success',
           message: 'Staff member deleted successfully'
         });
-        fetchStaffMembers();
+        fetchData();
       } catch (error: any) {
         addNotification({
           type: 'error',
           title: 'Error',
-          message: error.response?.data?.message || 'Failed to delete staff member'
+          message: error.message || 'Failed to delete staff member'
         });
       }
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-emerald-50 text-emerald-700';
-      case 'inactive': return 'bg-amber-50 text-amber-700';
-      case 'terminated': return 'bg-red-50 text-red-700';
-      default: return 'bg-gray-50 text-gray-700';
-    }
-  };
-
   const filteredStaff = staffMembers.filter(staff => {
-    const matchesSearch = staff.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staff.designation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staff.employeeId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || staff.status === filterStatus;
-    return matchesSearch && matchesFilter;
+    const matchesSearch = staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         staff.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         staff.designation.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || staff.status === filterStatus;
+    const matchesBranch = filterBranch === 'all' || staff.branch?._id === filterBranch;
+    return matchesSearch && matchesStatus && matchesBranch;
   });
 
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-          <p className="text-gray-600 mt-1">Manage your team members, track performance, and handle payroll</p>
+          <p className="text-gray-600 mt-1">Manage your team members and their information</p>
         </div>
         <button
           onClick={handleAddStaff}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center"
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5 mr-2" />
           Add Staff Member
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Staff</p>
-              <p className="text-2xl font-bold text-gray-900">{staffMembers.length}</p>
-            </div>
-          </div>
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            placeholder="Search staff members..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
-        
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-emerald-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {staffMembers.filter(s => s.status === 'active').length}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-amber-500 p-3 rounded-lg">
-              <Star className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Avg Performance</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {staffMembers.length > 0 
-                  ? (staffMembers.reduce((sum, s) => sum + s.performance.score, 0) / staffMembers.length).toFixed(1)
-                  : '0.0'
-                }
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-purple-500 p-3 rounded-lg">
-              <DollarSign className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Monthly Payroll</p>
-              <p className="text-2xl font-bold text-gray-900">
-                ₹{staffMembers.reduce((sum, s) => sum + s.salary.total, 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
+        <div className="flex items-center space-x-2">
+          <Filter className="w-5 h-5 text-gray-400" />
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="terminated">Terminated</option>
+          </select>
+          
+          <select
+            value={filterBranch}
+            onChange={(e) => setFilterBranch(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Branches</option>
+            {branches.map((branch) => (
+              <option key={branch._id} value={branch._id}>
+                {branch.name} ({branch.code})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search staff members..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="terminated">Terminated</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Staff List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Staff Member
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Performance
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Salary
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredStaff.map((staff) => (
-                <tr key={staff._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
-                        <span className="text-white font-medium text-sm">
-                          {staff.user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{staff.user.name}</div>
-                        <div className="text-sm text-gray-500">{staff.designation}</div>
-                        <div className="text-xs text-gray-400">ID: {staff.employeeId}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 flex items-center">
-                      <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                      {staff.user.email}
-                    </div>
-                    <div className="text-sm text-gray-500 flex items-center">
-                      <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                      {staff.user.phone}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 flex items-center">
-                      <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                      {staff.branch?.name || 'N/A'}
-                    </div>
-                    <div className="text-sm text-gray-500 flex items-center">
-                      <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                      Joined {new Date(staff.joiningDate).toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                      <span className="text-sm font-medium text-gray-900">{staff.performance.score}</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {staff.performance.completedTasks}/{staff.performance.totalTasks} tasks
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ₹{staff.salary.total.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(staff.status)}`}>
-                      {staff.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-gray-900 capitalize">{staff.staffType.replace('_', ' ')}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button 
-                        onClick={() => handleEditStaff(staff)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteStaff(staff._id)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add Staff Modal */}
-      <NeomorphicModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="Add New Staff Member"
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee ID *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.employeeId}
-                onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="EMP001"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Staff Type *
-              </label>
-              <select
-                required
-                value={formData.staffType}
-                onChange={(e) => setFormData({...formData, staffType: e.target.value as any})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="monthly">Monthly</option>
-                <option value="per_day">Per Day</option>
-                <option value="per_task">Per Task</option>
-              </select>
+      {/* Staff Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredStaff.map((staff) => (
+          <div key={staff._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">
+                    {staff.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{staff.name}</h3>
+                  <p className="text-sm text-gray-600">{staff.employeeId}</p>
+                </div>
+              </div>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                staff.status === 'active' ? 'bg-green-100 text-green-700' :
+                staff.status === 'inactive' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-red-100 text-red-700'
+              }`}>
+                {staff.status}
+              </span>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Designation *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.designation}
-                onChange={(e) => setFormData({...formData, designation: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Senior Photographer"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Department *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.department}
-                onChange={(e) => setFormData({...formData, department: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Photography"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Joining Date *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.joiningDate}
-                onChange={(e) => setFormData({...formData, joiningDate: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Basic Salary *
-              </label>
-              <input
-                type="number"
-                required
-                value={formData.salary.basic}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  salary: {...formData.salary, basic: parseFloat(e.target.value)}
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="50000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Allowances
-              </label>
-              <input
-                type="number"
-                value={formData.salary.allowances}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  salary: {...formData.salary, allowances: parseFloat(e.target.value) || 0}
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="5000"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Add Staff Member'
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center text-sm text-gray-600">
+                <MapPin className="w-4 h-4 mr-2" />
+                {staff.designation} - {staff.department}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <Phone className="w-4 h-4 mr-2" />
+                {staff.phone}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <Mail className="w-4 h-4 mr-2" />
+                {staff.user.email}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <Calendar className="w-4 h-4 mr-2" />
+                Joined: {new Date(staff.joiningDate).toLocaleDateString()}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <DollarSign className="w-4 h-4 mr-2" />
+                ₹{staff.salary.total?.toLocaleString() || 'N/A'}
+              </div>
+              {staff.branch && (
+                <div className="flex items-center text-sm text-gray-600">
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Branch: {staff.branch.name} ({staff.branch.code})
+                </div>
               )}
-            </button>
-          </div>
-        </form>
-      </NeomorphicModal>
-
-      {/* Edit Staff Modal */}
-      <NeomorphicModal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title="Edit Staff Member"
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee ID *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.employeeId}
-                onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="EMP001"
-              />
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Staff Type *
-              </label>
-              <select
-                required
-                value={formData.staffType}
-                onChange={(e) => setFormData({...formData, staffType: e.target.value as any})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+
+            <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => handleEditStaff(staff)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Edit Staff"
               >
-                <option value="monthly">Monthly</option>
-                <option value="per_day">Per Day</option>
-                <option value="per_task">Per Task</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Designation *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.designation}
-                onChange={(e) => setFormData({...formData, designation: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Senior Photographer"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Department *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.department}
-                onChange={(e) => setFormData({...formData, department: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Photography"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Joining Date *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.joiningDate}
-                onChange={(e) => setFormData({...formData, joiningDate: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Basic Salary *
-              </label>
-              <input
-                type="number"
-                required
-                value={formData.salary.basic}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  salary: {...formData.salary, basic: parseFloat(e.target.value)}
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="50000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Allowances
-              </label>
-              <input
-                type="number"
-                value={formData.salary.allowances}
-                onChange={(e) => setFormData({
-                  ...formData, 
-                  salary: {...formData.salary, allowances: parseFloat(e.target.value) || 0}
-                })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="5000"
-              />
+                <Edit className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDeleteStaff(staff._id, staff.name)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete Staff"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
+        ))}
+      </div>
 
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => setShowEditModal(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Update Staff Member'
-              )}
-            </button>
+      {filteredStaff.length === 0 && (
+        <div className="text-center py-12">
+          <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No staff members found</h3>
+          <p className="text-gray-600">Get started by adding your first staff member.</p>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {(showAddModal || showEditModal) && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">
+                {selectedStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setShowEditModal(false);
+                  setSelectedStaff(null);
+                  resetForm();
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.phone}
+                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.employeeId}
+                      onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Designation *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.designation}
+                      onChange={(e) => setFormData({...formData, designation: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.department}
+                      onChange={(e) => setFormData({...formData, department: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Branch Assignment *</label>
+                    <select
+                      required
+                      value={formData.branch}
+                      onChange={(e) => setFormData({...formData, branch: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select a branch</option>
+                      {branches.map((branch) => (
+                        <option key={branch._id} value={branch._id}>
+                          {branch.name} ({branch.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Joining Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.joiningDate}
+                      onChange={(e) => setFormData({...formData, joiningDate: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Address</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Street Address *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address.street}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        address: {...formData.address, street: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address.city}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        address: {...formData.address, city: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">State *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address.state}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        address: {...formData.address, state: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">PIN Code *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address.pincode}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        address: {...formData.address, pincode: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Family Information */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Family Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Father's Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.fatherName}
+                      onChange={(e) => setFormData({...formData, fatherName: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mother's Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.motherName}
+                      onChange={(e) => setFormData({...formData, motherName: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Aadhar Numbers */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Aadhar Numbers</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Staff Aadhar *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.aadharNumbers.staff}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        aadharNumbers: {...formData.aadharNumbers, staff: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Father's Aadhar *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.aadharNumbers.father}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        aadharNumbers: {...formData.aadharNumbers, father: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mother's Aadhar *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.aadharNumbers.mother}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        aadharNumbers: {...formData.aadharNumbers, mother: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Numbers */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Numbers</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Staff Contact *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.contacts.staff}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        contacts: {...formData.contacts, staff: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Father's Contact *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.contacts.father}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        contacts: {...formData.contacts, father: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mother's Contact *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.contacts.mother}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        contacts: {...formData.contacts, mother: e.target.value}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Login Credentials */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Login Credentials</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">User ID *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.staffUserId}
+                      onChange={(e) => setFormData({...formData, staffUserId: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Password {selectedStaff ? '' : '*'}
+                    </label>
+                    <input
+                      type="password"
+                      required={!selectedStaff}
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder={selectedStaff ? "Leave blank to keep current password" : ""}
+                      minLength={6}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Referred By</label>
+                    <input
+                      type="text"
+                      value={formData.referredBy}
+                      onChange={(e) => setFormData({...formData, referredBy: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Employment Details */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Employment Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Staff Type *</label>
+                    <select
+                      required
+                      value={formData.staffType}
+                      onChange={(e) => setFormData({...formData, staffType: e.target.value as any})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="per_day">Per Day</option>
+                      <option value="per_task">Per Task</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Basic Salary *</label>
+                    <input
+                      type="number"
+                      required
+                      value={formData.salary.basic}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        salary: {...formData.salary, basic: Number(e.target.value)}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Allowances</label>
+                    <input
+                      type="number"
+                      value={formData.salary.allowances}
+                      onChange={(e) => setFormData({
+                        ...formData, 
+                        salary: {...formData.salary, allowances: Number(e.target.value)}
+                      })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setShowEditModal(false);
+                    setSelectedStaff(null);
+                    resetForm();
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
+                >
+                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {selectedStaff ? 'Update Staff' : 'Add Staff'}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </NeomorphicModal>
+        </div>
+      )}
     </div>
   );
 };
