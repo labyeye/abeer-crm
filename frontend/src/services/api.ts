@@ -31,7 +31,7 @@ interface QueryParams {
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:3500/api',
+  baseURL: 'https://abeer-crm.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
