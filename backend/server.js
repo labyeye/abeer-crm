@@ -38,7 +38,19 @@ const app = express();
 app.use(express.json());
 
 // Enable CORS
-app.use(cors());
+const corsOptions = {
+  origin: [
+    'http://localhost:3000', // Local development
+    'http://localhost:5173', // Vite dev server
+    'https://abeer-crm.vercel.app', // Production frontend
+    'https://abeer-crm.onrender.com' // Production backend (for API calls)
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 
 // Mount routers
 app.use('/api/auth', auth);
