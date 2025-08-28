@@ -77,13 +77,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       permission: 'inventory',
       roles: ['chairman', 'company_admin', 'branch_head']
     },
-    {
-      id: 'rentals',
-      name: 'Rental Management',
-      icon: Package,
-      permission: 'rentals',
-      roles: ['chairman', 'company_admin', 'branch_head']
-    },
+    
     {
       id: 'attendance',
       name: 'Attendance',
