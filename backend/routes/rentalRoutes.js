@@ -17,7 +17,7 @@ const router = express.Router();
 router.use(protect);
 
 // Authorize specific roles
-router.use(authorize('chairman', 'company_admin', 'branch_admin', 'staff'));
+router.use(authorize('chairman', 'admin', 'manager', 'staff'));
 
 router.route('/')
   .get(getAllRentals)

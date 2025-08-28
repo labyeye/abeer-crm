@@ -8,6 +8,7 @@ const automatedMessaging = require('../services/automatedMessaging');
 const taskAutoAssignment = require('../services/taskAutoAssignment');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
+const { updateBranchRevenue } = require('../utils/branchUtils');
 
 // @desc    Get all bookings
 // @route   GET /api/bookings
@@ -32,6 +33,8 @@ const getAllBookings = asyncHandler(async (req, res) => {
     .populate('company', 'name')
     .populate('branch', 'name code')
     .populate('client', 'name phone email')
+    .populate('assignedStaff', 'name designation employeeId')
+    .populate('inventorySelection', 'name category quantity')
     .populate('staffAssignment.staff', 'user designation department')
     .populate('equipmentAssignment.equipment', 'name sku category')
     .populate('quotation')
@@ -48,6 +51,8 @@ const getBooking = asyncHandler(async (req, res) => {
     .populate('company', 'name')
     .populate('branch', 'name code')
     .populate('client', 'name phone email')
+    .populate('assignedStaff', 'name designation employeeId')
+    .populate('inventorySelection', 'name category quantity')
     .populate('staffAssignment.staff', 'user designation department')
     .populate('equipmentAssignment.equipment', 'name sku category')
     .populate('quotation')
@@ -63,12 +68,13 @@ const getBooking = asyncHandler(async (req, res) => {
 // @access  Private
 const createBooking = asyncHandler(async (req, res) => {
   const booking = await Booking.create(req.body);
-  
-  // Populate necessary fields for notifications
+  // Populate necessary fields for notifications and response
   await booking.populate([
-    { path: 'client' },
-    { path: 'company' },
-    { path: 'branch' }
+    { path: 'client', select: 'name phone email' },
+    { path: 'company', select: 'name' },
+    { path: 'branch', select: 'name code' },
+    { path: 'assignedStaff', select: 'name designation employeeId' },
+    { path: 'inventorySelection', select: 'name category quantity' }
   ]);
   
   // Send booking confirmation notification
@@ -95,9 +101,25 @@ const createBooking = asyncHandler(async (req, res) => {
 // @route   PUT /api/bookings/:id
 // @access  Private
 const updateBooking = asyncHandler(async (req, res) => {
-  const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-  if (!booking) {
+  const oldBooking = await Booking.findById(req.params.id);
+  if (!oldBooking) {
     return res.status(404).json({ success: false, message: 'Booking not found' });
+  }
+  
+  const oldStatus = oldBooking.status;
+  
+  const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+  // Populate for response
+  await booking.populate([
+    { path: 'client', select: 'name phone email' },
+    { path: 'company', select: 'name' },
+    { path: 'branch', select: 'name code' },
+    { path: 'assignedStaff', select: 'name designation employeeId' },
+    { path: 'inventorySelection', select: 'name category quantity' }
+  ]);
+  // Update branch revenue if status changed to 'completed'
+  if (req.body.status === 'completed' && oldStatus !== 'completed') {
+    await updateBranchRevenue(booking.branch);
   }
   res.status(200).json({ success: true, data: booking });
 });

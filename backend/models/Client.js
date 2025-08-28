@@ -1,14 +1,10 @@
 const mongoose = require('mongoose');
 
 const clientSchema = new mongoose.Schema({
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Branch'
+    ref: 'Branch',
+    required: true
   },
   name: {
     type: String,
@@ -62,6 +58,9 @@ const clientSchema = new mongoose.Schema({
   lastBookingDate: Date,
   notes: String,
   tags: [String],
+  // Government IDs
+  aadharNumber: String,
+  panNumber: String,
   isDeleted: {
     type: Boolean,
     default: false
@@ -71,7 +70,7 @@ const clientSchema = new mongoose.Schema({
 });
 
 // Index for efficient queries
-clientSchema.index({ company: 1, branch: 1 });
+clientSchema.index({ branch: 1 });
 clientSchema.index({ phone: 1 });
 clientSchema.index({ email: 1 });
 

@@ -1,5 +1,34 @@
 import axios from 'axios';
 
+// Common interfaces
+interface CompanyData {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  [key: string]: unknown;
+}
+
+interface InventoryItem {
+  name: string;
+  category: string;
+  quantity: number;
+  price: number;
+  [key: string]: unknown;
+}
+
+interface StaffData {
+  name: string;
+  email: string;
+  phone: string;
+  designation: string;
+  [key: string]: unknown;
+}
+
+interface QueryParams {
+  [key: string]: unknown;
+}
+
 // Create axios instance
 const api = axios.create({
   baseURL: 'http://localhost:3500/api',
@@ -38,7 +67,9 @@ api.interceptors.response.use(
 // Auth API calls
 export const authAPI = {
   login: async (email: string, password: string) => {
+    console.log('🚀 Frontend: Attempting login for:', email);
     const response = await api.post('/auth/login', { email, password });
+    console.log('✅ Frontend: Login response received:', response.data);
     return response.data;
   },
   
@@ -61,38 +92,44 @@ export const authAPI = {
 
 export const companyAPI = {
   getCompanies: async () => {
-    const response = await api.get('/companies');
+    const response = await api.get('/branches');
     return response.data;
   },
-  
   getCompany: async (id: string) => {
-    const response = await api.get(`/companies/${id}`);
+    const response = await api.get(`/branches/${id}`);
     return response.data;
   },
   
-  createCompany: async (companyData: any) => {
-    const response = await api.post('/companies', companyData);
+  createCompany: async (companyData: CompanyData) => {
+    const response = await api.post('/branches', companyData);
     return response.data;
   },
   
-  updateCompany: async (id: string, companyData: any) => {
-    const response = await api.put(`/companies/${id}`, companyData);
+  updateCompany: async (id: string, companyData: CompanyData) => {
+    const response = await api.put(`/branches/${id}`, companyData);
     return response.data;
   },
   
   deleteCompany: async (id: string) => {
-    const response = await api.delete(`/companies/${id}`);
+    const response = await api.delete(`/branches/${id}`);
     return response.data;
   },
   
   getCompanyStats: async () => {
-    const response = await api.get('/companies/stats');
+    const response = await api.get('/branches/stats');
     return response.data;
   },
 };
 
+export const branchAPI = {
+  getBranches: async (params?: QueryParams) => {
+    const response = await api.get('/branches', { params });
+    return response.data;
+  }
+};
+
 export const inventoryAPI = {
-  getInventory: async (params?: any) => {
+  getInventory: async (params?: QueryParams) => {
     const response = await api.get('/inventory', { params });
     return response.data;
   },
@@ -102,12 +139,12 @@ export const inventoryAPI = {
     return response.data;
   },
   
-  createInventoryItem: async (itemData: any) => {
+  createInventoryItem: async (itemData: InventoryItem) => {
     const response = await api.post('/inventory', itemData);
     return response.data;
   },
   
-  updateInventoryItem: async (id: string, itemData: any) => {
+  updateInventoryItem: async (id: string, itemData: InventoryItem) => {
     const response = await api.put(`/inventory/${id}`, itemData);
     return response.data;
   },
@@ -117,7 +154,7 @@ export const inventoryAPI = {
     return response.data;
   },
   
-  updateQuantity: async (id: string, quantityData: any) => {
+  updateQuantity: async (id: string, quantityData: { quantity: number; [key: string]: unknown }) => {
     const response = await api.patch(`/inventory/${id}/quantity`, quantityData);
     return response.data;
   },
@@ -135,7 +172,7 @@ export const inventoryAPI = {
 
 // Staff API calls
 export const staffAPI = {
-  getStaff: async (params?: any) => {
+  getStaff: async (params?: QueryParams) => {
     const response = await api.get('/staff', { params });
     return response.data;
   },
@@ -145,12 +182,12 @@ export const staffAPI = {
     return response.data;
   },
   
-  createStaff: async (staffData: any) => {
+  createStaff: async (staffData: StaffData) => {
     const response = await api.post('/staff', staffData);
     return response.data;
   },
   
-  updateStaff: async (id: string, staffData: any) => {
+  updateStaff: async (id: string, staffData: StaffData) => {
     const response = await api.put(`/staff/${id}`, staffData);
     return response.data;
   },
@@ -160,22 +197,22 @@ export const staffAPI = {
     return response.data;
   },
   
-  getStaffAttendance: async (id: string, params?: any) => {
+  getStaffAttendance: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/staff/${id}/attendance`, { params });
     return response.data;
   },
   
-  getStaffPerformance: async (id: string, params?: any) => {
+  getStaffPerformance: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/staff/${id}/performance`, { params });
     return response.data;
   },
   
-  updateStaffPerformance: async (id: string, performanceData: any) => {
+  updateStaffPerformance: async (id: string, performanceData: { [key: string]: unknown }) => {
     const response = await api.put(`/staff/${id}/performance`, performanceData);
     return response.data;
   },
   
-  getStaffSalary: async (id: string, params?: any) => {
+  getStaffSalary: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/staff/${id}/salary`, { params });
     return response.data;
   },
@@ -183,8 +220,13 @@ export const staffAPI = {
 
 // Attendance API calls
 export const attendanceAPI = {
-  getAttendance: async (params?: any) => {
+  getAttendance: async (params?: QueryParams) => {
     const response = await api.get('/attendance', { params });
+    return response.data;
+  },
+
+  getMyAttendance: async (params?: QueryParams) => {
+    const response = await api.get('/attendance/my-attendance', { params });
     return response.data;
   },
   

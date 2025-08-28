@@ -7,7 +7,6 @@ import {
   DollarSign, 
   Package, 
   Building2, 
-  BarChart3,
   X,
   Camera,
   Clock,
@@ -15,11 +14,7 @@ import {
   CheckSquare,
   Clapperboard,
   Truck,
-  TrendingUp,
-  Brain,
-  Smartphone,
-  Zap,
-  Link
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -31,7 +26,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
-  const { user, hasPermission } = useAuth();
+  const { user } = useAuth();
 
   const menuItems = [
     {
@@ -45,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       name: 'Branch Management',
       icon: Building2,
       permission: 'company_manage',
-      roles: ['chairman', 'company_admin']
+      roles: ['chairman'] // Removed 'branch_head' so branch users can't see this
     },
     {
       id: 'staff',
@@ -94,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       name: 'Attendance',
       icon: Clock,
       permission: 'attendance',
-      roles: ['chairman', 'company_admin', 'branch_head']
+      roles: ['chairman', 'company_admin', 'branch_head', 'staff']
     },
     {
       id: 'quotations',

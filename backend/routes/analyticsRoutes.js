@@ -5,7 +5,7 @@ const { protect, authorize } = require('../middleware/auth');
 // @desc    Get advanced analytics data
 // @route   GET /api/analytics
 // @access  Private
-router.get('/', protect, authorize(['chairman', 'company_admin', 'branch_head']), async (req, res) => {
+router.get('/', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
@@ -138,7 +138,7 @@ router.get('/', protect, authorize(['chairman', 'company_admin', 'branch_head'])
 // @desc    Export analytics report
 // @route   GET /api/analytics/export
 // @access  Private
-router.get('/export', protect, authorize(['chairman', 'company_admin', 'branch_head']), async (req, res) => {
+router.get('/export', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const { format = 'pdf', type = 'comprehensive' } = req.query;
 

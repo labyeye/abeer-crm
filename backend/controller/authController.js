@@ -45,17 +45,25 @@ exports.register = asyncHandler(async (req, res, next) => {
 exports.login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
 
+  console.log('🔐 Login attempt for email:', email);
+
   // Check for user
   const user = await User.findOne({ email }).select('+password');
   if (!user) {
+    console.log('❌ User not found for email:', email);
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
+
+  console.log('✅ User found:', user.name, 'Role:', user.role);
 
   // Check if password matches
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
+    console.log('❌ Password mismatch for user:', user.name);
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
+
+  console.log('✅ Password match successful');
 
   // Update last login
   user.lastLogin = Date.now();
@@ -63,6 +71,8 @@ exports.login = asyncHandler(async (req, res, next) => {
 
   // Generate token
   const token = generateToken(user._id, user.role);
+
+  console.log('🎫 Token generated for user:', user.name, 'Role:', user.role);
 
   res.status(200).json({
     success: true,
@@ -72,7 +82,8 @@ exports.login = asyncHandler(async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      phone: user.phone
+      phone: user.phone,
+      branchId: user.branch
     }
   });
 });
@@ -85,6 +96,13 @@ exports.getMe = asyncHandler(async (req, res, next) => {
   
   res.status(200).json({
     success: true,
-    user
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      branchId: user.branch
+    }
   });
 });

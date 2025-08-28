@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Package, 
   Search, 
@@ -14,19 +14,25 @@ import {
   XCircle,
   Phone,
   MoreVertical,
-  Building,
   Camera,
   Truck,
-  Plus,
-  Edit,
-  Trash2,
   Loader2
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { rentalAPI, inventoryAPI } from '../../services/api';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import NeomorphicModal from '../ui/NeomorphicModal';
+
+interface InventoryItem {
+  _id: string;
+  name: string;
+  category: string;
+  type?: string;
+  quantity: number;
+  price: number;
+  condition: string;
+  notes: string;
+}
 
 interface Rental {
   _id: string;
@@ -82,7 +88,7 @@ const RentalManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [rentals, setRentals] = useState<Rental[]>([]);
-  const [inventory, setInventory] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -118,14 +124,8 @@ const RentalManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   
   const { addNotification } = useNotification();
-  const { user } = useAuth();
 
-  useEffect(() => {
-    fetchRentals();
-    fetchInventory();
-  }, []);
-
-  const fetchRentals = async () => {
+  const fetchRentals = useCallback(async () => {
     try {
       setLoading(true);
       const response = await rentalAPI.getRentals();
@@ -135,7 +135,12 @@ const RentalManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [addNotification]);
+
+  useEffect(() => {
+    fetchRentals();
+    fetchInventory();
+  }, [fetchRentals]);
 
   const fetchInventory = async () => {
     try {
@@ -143,6 +148,7 @@ const RentalManagement = () => {
       setInventory(response.data);
     } catch (error) {
       console.error('Failed to fetch inventory:', error);
+      addNotification({ type: 'error', title: 'Error', message: 'Failed to fetch inventory' });
     }
   };
 
@@ -223,7 +229,9 @@ const RentalManagement = () => {
       addNotification({ 
         type: 'error', 
         title: 'Error', 
-        message: error.response?.data?.message || 'Failed to save rental' 
+        message: error instanceof Error && 'response' in error 
+          ? (error as any).response?.data?.message || error.message
+          : 'Failed to save rental' 
       });
     } finally {
       setSubmitting(false);
@@ -236,11 +244,13 @@ const RentalManagement = () => {
         await rentalAPI.deleteRental(rentalId);
         addNotification({ type: 'success', title: 'Success', message: 'Rental deleted successfully' });
         fetchRentals();
-      } catch (error: any) {
+      } catch (error: unknown) {
         addNotification({ 
           type: 'error', 
           title: 'Error', 
-          message: error.response?.data?.message || 'Failed to delete rental' 
+          message: error instanceof Error && 'response' in error 
+            ? (error as any).response?.data?.message || error.message
+            : 'Failed to delete rental' 
         });
       }
     }
@@ -253,7 +263,7 @@ const RentalManagement = () => {
         ...formData,
         equipment: equipmentId,
         equipmentName: selectedEquipment.name,
-        equipmentType: selectedEquipment.type
+        equipmentType: selectedEquipment.type || ''
       });
     }
   };

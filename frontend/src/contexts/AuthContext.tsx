@@ -29,6 +29,18 @@ export const useAuth = () => {
   return context;
 };
 
+// Helper function to map backend roles to frontend roles
+const mapBackendRoleToFrontend = (backendRole: string): User['role'] => {
+  switch (backendRole) {
+    case 'admin':
+      return 'company_admin';
+    case 'manager':
+      return 'branch_head';
+    default:
+      return backendRole as User['role'];
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,9 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           // Verify token with backend
           const response = await authAPI.getMe();
-          setUser(response.user);
+          const mappedUser = {
+            ...response.user,
+            role: mapBackendRoleToFrontend(response.user.role)
+          };
+          setUser(mappedUser);
         } catch (error) {
           // Token is invalid, clear storage
+          console.error('Token verification failed:', error);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
         }
@@ -56,18 +73,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
+    console.log('🔐 AuthContext: Starting login process for:', email);
     setLoading(true);
     
     try {
+      console.log('📡 AuthContext: Calling authAPI.login...');
       const response = await authAPI.login(email, password);
+      console.log('📨 AuthContext: Login response:', response);
       
       // Store token and user data
       localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      const mappedUser = {
+        ...response.user,
+        role: mapBackendRoleToFrontend(response.user.role)
+      };
+      console.log('👤 AuthContext: Mapped user:', mappedUser);
+      localStorage.setItem('user', JSON.stringify(mappedUser));
       
-      setUser(response.user);
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Login failed');
+      setUser(mappedUser);
+      console.log('✅ AuthContext: User state set successfully');
+    } catch (error: unknown) {
+      console.error('❌ AuthContext: Login failed:', error);
+      const message = error instanceof Error && 'response' in error 
+        ? (error as any).response?.data?.message || error.message
+        : 'Login failed';
+      throw new Error(message);
     } finally {
       setLoading(false);
     }

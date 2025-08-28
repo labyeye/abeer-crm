@@ -6,11 +6,6 @@ const staffSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -69,16 +64,6 @@ const staffSchema = new mongoose.Schema({
   referredBy: {
     type: String
   },
-  userId: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  password: {
-    type: String,
-    required: true,
-    minlength: 6
-  },
   employeeId: {
     type: String,
     required: true,
@@ -102,121 +87,80 @@ const staffSchema = new mongoose.Schema({
     required: true
   },
   salary: {
-    basic: {
-      type: Number,
-      required: true
-    },
-    allowances: {
-      type: Number,
-      default: 0
-    },
-    total: {
-      type: Number,
-      required: true
-    }
+    type: Number,
+    required: true
   },
-  bankDetails: {
-    accountNumber: String,
-    ifscCode: String,
-    bankName: String,
-    branchName: String
-  },
-  contactInfo: {
-    emergencyContact: String,
-    emergencyPhone: String,
-    address: String,
-    city: String,
-    state: String,
-    pincode: String
-  },
-  documents: {
-    aadharNumber: String,
-    panNumber: String,
-    drivingLicense: String
-  },
-  performance: {
-    score: {
-      type: Number,
-      default: 100
-    },
-    totalTasks: {
-      type: Number,
-      default: 0
-    },
-    completedTasks: {
-      type: Number,
-      default: 0
-    },
-    lateArrivals: {
-      type: Number,
-      default: 0
-    },
-    absences: {
-      type: Number,
-      default: 0
-    }
-  },
-  loanDetails: {
-    hasLoan: {
-      type: Boolean,
-      default: false
-    },
-    amount: Number,
-    interestRate: Number,
-    emiAmount: Number,
-    startDate: Date,
-    endDate: Date,
-    purpose: String,
-    guarantor: String
-  },
-  skills: [{
+  // New fields added for staff information
+  maritalStatus: {
     type: String,
-    enum: [
-      'photography',
-      'videography', 
-      'drone_operation',
-      'equipment_handling',
-      'data_management',
-      'basic_editing',
-      'advanced_editing',
-      'sound_recording',
-      'lighting',
-      'customer_service',
-      'event_coordination',
-      'album_design',
-      'photo_retouching'
-    ]
-  }],
-  availability: {
-    workingDays: [{
+    enum: ['married', 'unmarried'],
+    default: 'unmarried'
+  },
+  children: {
+    boys: {
+      count: {
+        type: Number,
+        default: 0
+      },
+      names: [{
+        type: String,
+        trim: true
+      }]
+    },
+    girls: {
+      count: {
+        type: Number,
+        default: 0
+      },
+      names: [{
+        type: String,
+        trim: true
+      }]
+    }
+  },
+  grandfatherName: {
+    type: String,
+    trim: true
+  },
+  education: [{
+    institution: {
       type: String,
-      enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    }],
-    workingHours: {
-      start: String,
-      end: String
+      required: true,
+      trim: true
     },
-    isAvailableForTravel: {
-      type: Boolean,
-      default: true
+    type: {
+      type: String,
+      enum: ['school', 'college', 'university'],
+      required: true
+    },
+    passingYear: {
+      type: Number,
+      min: 1900,
+      max: new Date().getFullYear()
+    },
+    marks: {
+      type: Number,
+      min: 0,
+      max: 100
+    },
+    division: {
+      type: String,
+      enum: ['first', 'second', 'third', 'pass']
     }
-  },
-  status: {
-    type: String,
-    enum: ['active', 'inactive', 'terminated'],
-    default: 'active'
-  },
-  isDeleted: {
+  }],
+  isActive: {
     type: Boolean,
-    default: false
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true
 });
 
 // Index for efficient queries
-staffSchema.index({ company: 1, branch: 1 });
+staffSchema.index({ branch: 1 });
 staffSchema.index({ employeeId: 1 });
-staffSchema.index({ user: 1 });
+staffSchema.index({ userId: 1 });
 
 module.exports = mongoose.model('Staff', staffSchema); 

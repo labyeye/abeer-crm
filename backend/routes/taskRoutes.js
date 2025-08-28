@@ -20,7 +20,7 @@ router.use(protect);
 // Routes
 router.route('/')
   .get(getAllTasks)
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), createTask);
+  .post(authorize('chairman', 'admin', 'manager'), createTask);
 
 router.route('/stats')
   .get(getTaskStats);
@@ -29,14 +29,14 @@ router.route('/my-tasks')
   .get(authorize('staff'), getMyTasks);
 
 router.route('/auto-assign/:bookingId')
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), autoAssignTasks);
+  .post(authorize('chairman', 'admin', 'manager'), autoAssignTasks);
 
 router.route('/:id')
   .get(getTask)
   .put(updateTask);
 
 router.route('/:id/assign')
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), assignStaffToTask);
+  .post(authorize('chairman', 'admin', 'manager'), assignStaffToTask);
 
 router.route('/:id/skip')
   .post(skipTask);

@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   User, 
-  Mail, 
-  Phone, 
   MapPin, 
   Calendar, 
   Camera, 
@@ -15,10 +13,7 @@ import {
   TrendingUp,
   Clock,
   DollarSign,
-  Users,
-  Settings,
   Shield,
-  Bell,
   Eye,
   EyeOff
 } from 'lucide-react';

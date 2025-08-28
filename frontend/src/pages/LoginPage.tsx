@@ -23,11 +23,11 @@ const LoginPage = () => {
         title: 'Login Successful',
         message: 'Welcome to PhotoERP System!'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Login Failed',
-        message: error.message || 'Please check your credentials and try again.'
+        message: error instanceof Error ? error.message : 'Please check your credentials and try again.'
       });
     } finally {
       setIsLoading(false);

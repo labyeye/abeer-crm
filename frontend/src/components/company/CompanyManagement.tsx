@@ -87,23 +87,16 @@ const CompanyManagement = () => {
   // Check if user has access to company management
   const hasAccess = user && ['chairman', 'admin'].includes(user.role);
 
-  useEffect(() => {
-    if (hasAccess) {
-      fetchCompanies();
-      fetchStats();
-    }
-  }, [hasAccess]);
-
   const fetchCompanies = async () => {
     try {
       setLoading(true);
       const response = await companyAPI.getCompanies();
       setCompanies(response.data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to fetch companies'
+        message: error instanceof Error ? error.message : 'Failed to fetch companies'
       });
     } finally {
       setLoading(false);
@@ -114,10 +107,17 @@ const CompanyManagement = () => {
     try {
       const response = await companyAPI.getCompanyStats();
       setStats(response.data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch stats:', error);
     }
   };
+
+  useEffect(() => {
+    if (hasAccess) {
+      fetchCompanies();
+      fetchStats();
+    }
+  }, [hasAccess]);
 
   const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,11 +139,11 @@ const CompanyManagement = () => {
       resetForm();
       fetchCompanies();
       fetchStats();
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to create company'
+        message: error instanceof Error ? error.message : 'Failed to create company'
       });
     }
   };
@@ -170,11 +170,11 @@ const CompanyManagement = () => {
       resetForm();
       fetchCompanies();
       fetchStats();
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to update company'
+        message: error instanceof Error ? error.message : 'Failed to update company'
       });
     }
   };
@@ -191,11 +191,11 @@ const CompanyManagement = () => {
       });
       fetchCompanies();
       fetchStats();
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to delete company'
+        message: error instanceof Error ? error.message : 'Failed to delete company'
       });
     }
   };
@@ -372,7 +372,7 @@ const CompanyManagement = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${stats.overview.totalRevenue ? stats.overview.totalRevenue.toLocaleString() : '0'}
+                  Rs.{stats.overview.totalRevenue ? stats.overview.totalRevenue.toLocaleString() : '0'}
                 </p>
               </div>
             </div>
@@ -620,7 +620,7 @@ const CompanyManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Employee Count</label>
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     value={formData.employeeCount}
                     onChange={(e) => setFormData({...formData, employeeCount: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

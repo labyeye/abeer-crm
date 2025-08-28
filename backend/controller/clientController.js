@@ -9,11 +9,10 @@ const ErrorResponse = require('../utils/ErrorResponse');
 // @route   GET /api/clients
 // @access  Private
 const getAllClients = asyncHandler(async (req, res) => {
-  const { company, branch, status, category, search } = req.query;
+  const { branch, status, category, search } = req.query;
   
   let query = { isDeleted: false };
   
-  if (company) query.company = company;
   if (branch) query.branch = branch;
   if (status) query.status = status;
   if (category) query.category = category;
@@ -28,7 +27,6 @@ const getAllClients = asyncHandler(async (req, res) => {
   }
   
   const clients = await Client.find(query)
-    .populate('company', 'name')
     .populate('branch', 'name code')
     .sort({ createdAt: -1 });
   
@@ -44,7 +42,6 @@ const getAllClients = asyncHandler(async (req, res) => {
 // @access  Private
 const getClient = asyncHandler(async (req, res) => {
   const client = await Client.findById(req.params.id)
-    .populate('company', 'name')
     .populate('branch', 'name code');
   
   if (!client || client.isDeleted) {
@@ -70,13 +67,17 @@ const createClient = asyncHandler(async (req, res) => {
     reference,
     gstStatus,
     gstNumber,
-    category
+    category,
+    aadharNumber,
+    panNumber,
+    userId,
+    password
   } = req.body;
   
   // Check if client with same phone already exists
   const existingClient = await Client.findOne({ 
-    phone, 
-    company: req.user.companyId,
+    phone,
+    branch: req.body.branch || req.user.branchId,
     isDeleted: false 
   });
   
@@ -94,8 +95,11 @@ const createClient = asyncHandler(async (req, res) => {
     gstStatus: gstStatus || 'without_gst',
     gstNumber,
     category: category || 'individual',
-    company: req.user.companyId,
-    branch: req.user.branchId
+    aadharNumber,
+    panNumber,
+    userId,
+    password,
+    branch: req.body.branch || req.user.branchId
   };
   
   const client = await Client.create(clientData);

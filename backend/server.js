@@ -14,9 +14,9 @@ connectDB();
 
 // Route files
 const auth = require('./routes/authRoutes');
-const companies = require('./routes/companyRoutes');
 const inventory = require('./routes/inventoryRoutes');
 const staff = require('./routes/staffRoutes');
+const branches = require('./routes/branchRoutes');
 const attendance = require('./routes/attendanceRoutes');
 const clients = require('./routes/clientRoutes');
 const rentals = require('./routes/rentalRoutes');
@@ -42,9 +42,9 @@ app.use(cors());
 
 // Mount routers
 app.use('/api/auth', auth);
-app.use('/api/companies', companies);
 app.use('/api/inventory', inventory);
 app.use('/api/staff', staff);
+app.use('/api/branches', branches);
 app.use('/api/attendance', attendance);
 app.use('/api/clients', clients);
 app.use('/api/rentals', rentals);

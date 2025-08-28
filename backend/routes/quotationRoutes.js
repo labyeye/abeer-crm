@@ -17,21 +17,21 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getAllQuotations)
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), createQuotation);
+  .get(authorize('chairman', 'admin', 'manager'), getAllQuotations)
+  .post(authorize('chairman', 'admin', 'manager'), createQuotation);
 
 router.route('/stats')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getQuotationStats);
+  .get(authorize('chairman', 'admin', 'manager'), getQuotationStats);
 
 router.route('/:id')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getQuotation)
-  .put(authorize('chairman', 'company_admin', 'branch_admin'), updateQuotation)
-  .delete(authorize('chairman', 'company_admin'), deleteQuotation);
+  .get(authorize('chairman', 'admin', 'manager'), getQuotation)
+  .put(authorize('chairman', 'admin', 'manager'), updateQuotation)
+  .delete(authorize('chairman', 'admin'), deleteQuotation);
 
 router.route('/:id/convert-to-booking')
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), convertToBooking);
+  .post(authorize('chairman', 'admin', 'manager'), convertToBooking);
 
 router.route('/:id/follow-up')
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), sendFollowUp);
+  .post(authorize('chairman', 'admin', 'manager'), sendFollowUp);
 
 module.exports = router;

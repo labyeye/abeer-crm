@@ -1,21 +1,17 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   BarChart3, 
   Plus, 
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Users,
   Calendar,
   Camera,
   Download,
   Filter,
-  Eye,
   PieChart,
-  LineChart,
   Target,
   Award,
-  Clock,
   MapPin
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';

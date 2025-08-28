@@ -12,7 +12,7 @@ import {
   X
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
-import { bookingAPI, clientAPI, staffAPI, inventoryAPI, companyAPI } from '../../services/api';
+import { bookingAPI, clientAPI, staffAPI, inventoryAPI, branchAPI } from '../../services/api';
 
 interface Booking {
   _id: string;
@@ -121,37 +121,35 @@ const BookingManagement = () => {
   
   const { addNotification } = useNotification();
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, clientsRes, staffRes, inventoryRes, companiesRes] = await Promise.all([
+      const [bookingsRes, clientsRes, staffRes, inventoryRes, branchesRes] = await Promise.all([
         bookingAPI.getBookings(),
         clientAPI.getClients(),
         staffAPI.getStaff(),
         inventoryAPI.getInventory(),
-        companyAPI.getCompanies()
+        branchAPI.getBranches()
       ]);
-      
       setBookings(bookingsRes.data.data || []);
       setClients(clientsRes.data.data || []);
       setStaff(staffRes.data.data || []);
       setInventory(inventoryRes.data.data || []);
-      // For now, use companies as branches since branches are part of companies
-      setBranches(companiesRes.data.data || []);
-    } catch (error: any) {
+      setBranches(branchesRes.data.data || []);
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to fetch data'
+        message: error instanceof Error ? error.message : 'Failed to fetch data'
       });
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -252,11 +250,11 @@ const BookingManagement = () => {
       setShowEditModal(false);
       setSelectedBooking(null);
       resetForm();
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to save booking'
+        message: error instanceof Error ? error.message : 'Failed to save booking'
       });
     } finally {
       setSubmitting(false);
@@ -273,11 +271,11 @@ const BookingManagement = () => {
           message: 'Booking deleted successfully'
         });
         fetchData();
-      } catch (error: any) {
+      } catch (error: unknown) {
         addNotification({
           type: 'error',
           title: 'Error',
-          message: error.message || 'Failed to delete booking'
+          message: error instanceof Error ? error.message : 'Failed to delete booking'
         });
       }
     }

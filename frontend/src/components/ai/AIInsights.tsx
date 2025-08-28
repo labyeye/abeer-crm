@@ -153,13 +153,13 @@ export const AIInsights: React.FC = () => {
       {/* Tabs */}
       <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg">
         {[
-          { key: 'insights', label: 'AI Insights', icon: '🤖' },
-          { key: 'predictions', label: 'Predictions', icon: '🔮' },
-          { key: 'recommendations', label: 'Recommendations', icon: '💡' }
+          { key: 'insights' as const, label: 'AI Insights', icon: '🤖' },
+          { key: 'predictions' as const, label: 'Predictions', icon: '🔮' },
+          { key: 'recommendations' as const, label: 'Recommendations', icon: '💡' }
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => setActiveTab(tab.key)}
             className={`flex-1 flex items-center justify-center space-x-2 px-4 py-2 rounded-md transition-all ${
               activeTab === tab.key
                 ? 'bg-white shadow-md text-blue-600'

@@ -6,11 +6,12 @@ const attendanceSchema = new mongoose.Schema({
     ref: 'Staff',
     required: true
   },
-  company: {
+  client: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
+    ref: 'Client',
+    required: false
   },
+  // Removed company field; use branch for multi-tenancy
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -22,12 +23,10 @@ const attendanceSchema = new mongoose.Schema({
   },
   checkIn: {
     time: {
-      type: Date,
-      required: true
+      type: Date
     },
     photo: {
-      type: String,
-      required: true
+      type: String
     },
     location: {
       latitude: Number,

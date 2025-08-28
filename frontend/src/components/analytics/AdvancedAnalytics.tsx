@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -14,7 +14,6 @@ import {
   Download,
   RefreshCw
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import NeomorphicCard from '../ui/NeomorphicCard';
 import NeomorphicButton from '../ui/NeomorphicButton';
@@ -100,7 +99,6 @@ interface AnalyticsData {
 }
 
 const AdvancedAnalytics = () => {
-  const { user } = useAuth();
   const { addNotification } = useNotification();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,11 +109,7 @@ const AdvancedAnalytics = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'revenue' | 'operations' | 'clients' | 'team' | 'marketing' | 'forecasting'>('overview');
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchAnalyticsData();
-  }, [dateRange]);
-
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
       // API call would go here
@@ -251,16 +245,20 @@ const AdvancedAnalytics = () => {
         }
       };
       setAnalyticsData(mockData);
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: 'Failed to fetch analytics data'
+        message: error instanceof Error ? error.message : 'Failed to fetch analytics data'
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [addNotification]);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [dateRange, fetchAnalyticsData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -353,19 +351,19 @@ const AdvancedAnalytics = () => {
       <NeomorphicCard className="p-2">
         <div className="flex items-center space-x-1 overflow-x-auto">
           {[
-            { id: 'overview', label: 'Overview', icon: BarChart3 },
-            { id: 'revenue', label: 'Revenue', icon: DollarSign },
-            { id: 'operations', label: 'Operations', icon: Target },
-            { id: 'clients', label: 'Clients', icon: Users },
-            { id: 'team', label: 'Team', icon: Award },
-            { id: 'marketing', label: 'Marketing', icon: TrendingUp },
-            { id: 'forecasting', label: 'Forecasting', icon: Calendar }
+            { id: 'overview' as const, label: 'Overview', icon: BarChart3 },
+            { id: 'revenue' as const, label: 'Revenue', icon: DollarSign },
+            { id: 'operations' as const, label: 'Operations', icon: Target },
+            { id: 'clients' as const, label: 'Clients', icon: Users },
+            { id: 'team' as const, label: 'Team', icon: Award },
+            { id: 'marketing' as const, label: 'Marketing', icon: TrendingUp },
+            { id: 'forecasting' as const, label: 'Forecasting', icon: Calendar }
           ].map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center space-x-2 ${
                   activeTab === tab.id
                     ? 'bg-blue-500 text-white shadow-sm'

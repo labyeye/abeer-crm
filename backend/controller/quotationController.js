@@ -1,10 +1,10 @@
 const Quotation = require('../models/Quotation');
 const Client = require('../models/Client');
-const Company = require('../models/Company');
 const Branch = require('../models/Branch');
 const automatedMessaging = require('../services/automatedMessaging');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
+const { updateBranchRevenue } = require('../utils/branchUtils');
 
 // @desc    Get all quotations
 // @route   GET /api/quotations
@@ -136,11 +136,18 @@ const updateQuotation = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized to update this quotation', 403));
   }
   
+  const oldStatus = quotation.status;
+  
   quotation = await Quotation.findByIdAndUpdate(
     req.params.id,
     req.body,
     { new: true, runValidators: true }
   ).populate('client company branch');
+  
+  // Update branch revenue if status changed to 'accepted'
+  if (req.body.status === 'accepted' && oldStatus !== 'accepted') {
+    await updateBranchRevenue(quotation.branch);
+  }
   
   res.status(200).json({
     success: true,

@@ -18,22 +18,22 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getAllStaff)
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), createStaff);
+  .get(authorize('chairman', 'admin', 'manager'), getAllStaff)
+  .post(authorize('chairman', 'admin', 'manager'), createStaff);
 
 router.route('/:id')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getStaff)
-  .put(authorize('chairman', 'company_admin', 'branch_admin'), updateStaff)
-  .delete(authorize('chairman', 'company_admin'), deleteStaff);
+  .get(authorize('chairman', 'admin', 'manager'), getStaff)
+  .put(authorize('chairman', 'admin', 'manager'), updateStaff)
+  .delete(authorize('chairman', 'admin'), deleteStaff);
 
 router.route('/:id/attendance')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getStaffAttendance);
+  .get(authorize('chairman', 'admin', 'manager'), getStaffAttendance);
 
 router.route('/:id/performance')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getStaffPerformance)
-  .put(authorize('chairman', 'company_admin', 'branch_admin'), updateStaffPerformance);
+  .get(authorize('chairman', 'admin', 'manager'), getStaffPerformance)
+  .put(authorize('chairman', 'admin', 'manager'), updateStaffPerformance);
 
 router.route('/:id/salary')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getStaffSalary);
+  .get(authorize('chairman', 'admin', 'manager'), getStaffSalary);
 
 module.exports = router; 

@@ -35,7 +35,7 @@ export const EnhancedAutomation: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'rules' | 'templates' | 'workflows' | 'insights'>('rules');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedRule, setSelectedRule] = useState<AutomationRule | null>(null);
+  const [, setSelectedRule] = useState<AutomationRule | null>(null);
 
   useEffect(() => {
     loadAutomationData();

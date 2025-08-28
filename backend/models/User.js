@@ -30,10 +30,6 @@ const userSchema = new mongoose.Schema({
     enum: ['chairman', 'admin', 'manager', 'staff', 'client'],
     default: 'staff'
   },
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company'
-  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch'

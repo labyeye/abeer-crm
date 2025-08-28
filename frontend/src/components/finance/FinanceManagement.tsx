@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   DollarSign, 
   Plus, 
@@ -7,12 +7,8 @@ import {
   CreditCard,
   Wallet,
   PieChart,
-  Calendar,
-  Filter,
   Download,
-  Receipt,
-  Building,
-  Users
+  Receipt
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
 

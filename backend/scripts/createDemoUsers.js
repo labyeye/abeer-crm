@@ -19,14 +19,14 @@ const demoUsers = [
     email: 'admin@photoerp.com',
     password: 'demo321',
     phone: '+1234567891',
-    role: 'admin'
+    role: 'admin' // This will be mapped to 'company_admin' in frontend
   },
   {
-    name: 'Mike Manager',
-    email: 'manager@photoerp.com',
-    password: 'demo4567',
+    name: 'Mike Branch Manager',
+    email: 'branch@photoerp.com',
+    password: 'branch123',
     phone: '+1234567892',
-    role: 'manager'
+    role: 'manager' // This will be mapped to 'branch_head' in frontend
   },
   {
     name: 'Lisa Staff',

@@ -1,697 +1,730 @@
-import React, { useState } from 'react';
-import { 
-  Clock, 
-  Plus, 
-  Search, 
-  Filter,
-  MapPin,
-  Camera,
-  Calendar,
-  User,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Eye,
-  Download,
-  Users,
-  TrendingUp,
-  Target,
-  Award
-} from 'lucide-react';
-import { useNotification } from '../../contexts/NotificationContext';
+import { useState, useEffect } from "react";
+import { X, Clock, Calendar, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { useNotification } from "../../contexts/NotificationContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { attendanceAPI, staffAPI } from "../../services/api";
+
+interface Staff {
+  _id: string;
+  name: string;
+  employeeId?: string;
+  designation?: string;
+  branch?: {
+    name: string;
+  };
+}
+
+interface AttendanceRecord {
+  _id?: string;
+  date: string;
+  status: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  checkIn?: {
+    time: string;
+  };
+  checkOut?: {
+    time: string;
+  };
+  workingHours?: string;
+}
+
+interface AttendanceDetailsRecord {
+  _id?: string;
+  date: string;
+  status: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  checkIn?: {
+    time: string;
+  };
+  checkOut?: {
+    time: string;
+  };
+  workingHours?: string;
+}
 
 const AttendanceManagement = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterDate, setFilterDate] = useState('today');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [activeTab, setActiveTab] = useState('daily');
+  const [staffList, setStaffList] = useState<Staff[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceModalStaff, setAttendanceModalStaff] = useState<Staff | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [staffSearchTerm, setStaffSearchTerm] = useState("");
+  const [attendanceDetailsModalStaff, setAttendanceDetailsModalStaff] = useState<Staff | null>(null);
+  const [attendanceDetailsHistory, setAttendanceDetailsHistory] = useState<AttendanceDetailsRecord[]>([]);
+  const [attendanceDetailsLoading, setAttendanceDetailsLoading] = useState(false);
+  const [myAttendanceHistory, setMyAttendanceHistory] = useState<AttendanceRecord[]>([]);
+  const [myAttendanceLoading, setMyAttendanceLoading] = useState(false);
   const { addNotification } = useNotification();
+  const { user } = useAuth();
 
-  const todayAttendance = [
-    {
-      id: 1,
-      staffName: 'Alex Rodriguez',
-      role: 'Senior Photographer',
-      checkIn: '09:00 AM',
-      checkOut: '06:30 PM',
-      workingHours: '9h 30m',
-      status: 'present',
-      location: 'Manhattan Branch',
-      gpsLocation: '40.7589, -73.9851',
-      photo: 'https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?w=150',
-      tasks: ['Wedding Shoot - Johnson Family', 'Equipment Check'],
-      overtime: '1h 30m',
-      breaks: '1h 00m'
-    },
-    {
-      id: 2,
-      staffName: 'Sarah Chen',
-      role: 'Video Editor',
-      checkIn: '09:15 AM',
-      checkOut: '06:00 PM',
-      workingHours: '8h 45m',
-      status: 'present',
-      location: 'Brooklyn Branch',
-      gpsLocation: '40.6892, -73.9442',
-      photo: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?w=150',
-      tasks: ['Video Editing - Corporate Event', 'Client Review'],
-      overtime: '0h 45m',
-      breaks: '1h 00m'
-    },
-    {
-      id: 3,
-      staffName: 'Mike Johnson',
-      role: 'Assistant Photographer',
-      checkIn: '08:45 AM',
-      checkOut: null,
-      workingHours: '8h 15m',
-      status: 'present',
-      location: 'Queens Branch',
-      gpsLocation: '40.7282, -73.7949',
-      photo: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?w=150',
-      tasks: ['Portrait Session Setup', 'Equipment Maintenance'],
-      overtime: '0h 15m',
-      breaks: '0h 45m'
-    },
-    {
-      id: 4,
-      staffName: 'Emma Wilson',
-      role: 'Event Coordinator',
-      checkIn: null,
-      checkOut: null,
-      workingHours: '0h 00m',
-      status: 'absent',
-      location: 'Miami Branch',
-      gpsLocation: null,
-      photo: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?w=150',
-      tasks: [],
-      overtime: '0h 00m',
-      breaks: '0h 00m',
-      reason: 'Sick Leave'
-    },
-    {
-      id: 5,
-      staffName: 'David Kim',
-      role: 'Senior Photographer',
-      checkIn: '09:30 AM',
-      checkOut: null,
-      workingHours: '7h 30m',
-      status: 'late',
-      location: 'Los Angeles Branch',
-      gpsLocation: '34.0522, -118.2437',
-      photo: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?w=150',
-      tasks: ['Fashion Shoot', 'Client Meeting'],
-      overtime: '0h 00m',
-      breaks: '0h 30m',
-      lateBy: '30 minutes'
+  useEffect(() => {
+    if (user?.role === 'staff') {
+      fetchMyAttendance();
+    } else {
+      fetchStaff();
     }
-  ];
+  }, []);
 
-  const weeklyAttendance = [
-    {
-      staffName: 'Alex Rodriguez',
-      daysPresent: 5,
-      totalHours: '47h 30m',
-      overtime: '7h 30m',
-      avgCheckIn: '08:55 AM',
-      punctuality: 100,
-      performance: 4.8
-    },
-    {
-      staffName: 'Sarah Chen',
-      daysPresent: 5,
-      totalHours: '43h 45m',
-      overtime: '3h 45m',
-      avgCheckIn: '09:10 AM',
-      punctuality: 80,
-      performance: 4.6
-    },
-    {
-      staffName: 'Mike Johnson',
-      daysPresent: 4,
-      totalHours: '35h 20m',
-      overtime: '3h 20m',
-      avgCheckIn: '08:50 AM',
-      punctuality: 90,
-      performance: 4.4
-    },
-    {
-      staffName: 'Emma Wilson',
-      daysPresent: 3,
-      totalHours: '24h 00m',
-      overtime: '0h 00m',
-      avgCheckIn: '09:00 AM',
-      punctuality: 75,
-      performance: 4.2
-    },
-    {
-      staffName: 'David Kim',
-      daysPresent: 5,
-      totalHours: '41h 15m',
-      overtime: '1h 15m',
-      avgCheckIn: '09:20 AM',
-      punctuality: 60,
-      performance: 4.5
+  const fetchStaff = async () => {
+    try {
+      const res = await staffAPI.getStaff();
+      console.log("Staff API response:", res);
+      setStaffList(res.data?.data || res.data || []);
+    } catch {
+      setStaffList([]);
     }
-  ];
+  };
 
-  const attendanceReports = [
-    {
-      month: 'January 2024',
-      totalWorkingDays: 22,
-      avgAttendance: 92,
-      totalHours: 1760,
-      overtimeHours: 156,
-      lateArrivals: 8,
-      earlyDepartures: 3,
-      absentDays: 12
-    },
-    {
-      month: 'December 2023',
-      totalWorkingDays: 21,
-      avgAttendance: 89,
-      totalHours: 1680,
-      overtimeHours: 142,
-      lateArrivals: 12,
-      earlyDepartures: 5,
-      absentDays: 15
-    },
-    {
-      month: 'November 2023',
-      totalWorkingDays: 22,
-      avgAttendance: 94,
-      totalHours: 1848,
-      overtimeHours: 168,
-      lateArrivals: 6,
-      earlyDepartures: 2,
-      absentDays: 8
+  const fetchMyAttendance = async () => {
+    setMyAttendanceLoading(true);
+    try {
+      const res = await attendanceAPI.getMyAttendance();
+      setMyAttendanceHistory(res.data?.data || res.data || []);
+    } catch (error: any) {
+      console.error("Failed to fetch my attendance:", error);
+      setMyAttendanceHistory([]);
+      addNotification({
+        type: "error",
+        title: "Error",
+        message: "Failed to load your attendance records",
+      });
+    } finally {
+      setMyAttendanceLoading(false);
     }
-  ];
+  };
+
+  const handleCheckIn = async (staffId: string) => {
+    setAttendanceLoading(true);
+    try {
+      await attendanceAPI.checkIn({ staffId });
+      addNotification({
+        type: "success",
+        title: "Check In",
+        message: "Check-in marked successfully.",
+      });
+      if (user?.role === 'staff') {
+        fetchMyAttendance(); // Refresh staff's own attendance
+      }
+    } catch (error: unknown) {
+      addNotification({
+        type: "error",
+        title: "Check In",
+        message: error instanceof Error ? error.message : "Failed to mark check-in.",
+      });
+    } finally {
+      setAttendanceLoading(false);
+      setShowCheckInModal(false);
+    }
+  };
+
+  const handleCheckOut = async (staffId: string) => {
+    setAttendanceLoading(true);
+    try {
+      await attendanceAPI.checkOut({ staffId });
+      addNotification({
+        type: "success",
+        title: "Check Out",
+        message: "Check-out marked successfully.",
+      });
+      if (user?.role === 'staff') {
+        fetchMyAttendance(); // Refresh staff's own attendance
+      }
+    } catch (error: unknown) {
+      addNotification({
+        type: "error",
+        title: "Check Out",
+        message: error instanceof Error ? error.message : "Failed to mark check-out.",
+      });
+    } finally {
+      setAttendanceLoading(false);
+      setShowCheckOutModal(false);
+    }
+  };
+
+  const filteredStaffList = staffList.filter((staff: Staff) => {
+    const term = staffSearchTerm.toLowerCase();
+    return (
+      staff.name.toLowerCase().includes(term) ||
+      staff.employeeId?.toLowerCase().includes(term) ||
+      staff.designation?.toLowerCase().includes(term)
+    );
+  });
+
+  const handleViewAttendanceDetails = async (staff: Staff) => {
+    setAttendanceDetailsModalStaff(staff);
+    setAttendanceDetailsLoading(true);
+    try {
+      const res = await attendanceAPI.getAttendance({ staff: staff._id });
+      setAttendanceDetailsHistory(res.data || []);
+    } catch {
+      setAttendanceDetailsHistory([]);
+    } finally {
+      setAttendanceDetailsLoading(false);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'present': return CheckCircle;
       case 'absent': return XCircle;
       case 'late': return AlertTriangle;
-      case 'half-day': return Clock;
-      default: return User;
+      default: return Clock;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'present': return 'bg-emerald-50 text-emerald-700';
-      case 'absent': return 'bg-red-50 text-red-700';
-      case 'late': return 'bg-amber-50 text-amber-700';
-      case 'half-day': return 'bg-blue-50 text-blue-700';
-      default: return 'bg-gray-50 text-gray-700';
+      case 'present': return 'text-green-600 bg-green-50';
+      case 'absent': return 'text-red-600 bg-red-50';
+      case 'late': return 'text-yellow-600 bg-yellow-50';
+      default: return 'text-gray-600 bg-gray-50';
     }
   };
 
-  const handleMarkAttendance = () => {
-    addNotification({
-      type: 'info',
-      title: 'Mark Attendance',
-      message: 'Attendance marking form opened'
-    });
-  };
+  // Staff View
+  if (user?.role === 'staff') {
+    return (
+      <div className="space-y-6">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white p-8">
+          <h1 className="text-3xl font-bold">My Attendance</h1>
+          <p className="text-blue-100 mt-2">Track your daily attendance and working hours</p>
+        </div>
 
-  const handleExportReport = () => {
-    addNotification({
-      type: 'success',
-      title: 'Report Exported',
-      message: 'Attendance report has been exported successfully'
-    });
-  };
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Present Days</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {myAttendanceHistory.filter(a => a.status === 'present').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center">
+              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Late Days</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {myAttendanceHistory.filter(a => a.status === 'late').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center">
+              <Clock className="w-8 h-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Hours</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {myAttendanceHistory.reduce((sum, a) => sum + (parseFloat(a.workingHours || '0')), 0).toFixed(1)}h
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-  const handleViewDetails = (staffName: string) => {
-    addNotification({
-      type: 'info',
-      title: 'View Details',
-      message: `Detailed attendance for ${staffName} opened`
-    });
-  };
+        <div className="flex gap-4 mb-6">
+          <button
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+            onClick={() => setShowCheckInModal(true)}
+          >
+            <CheckCircle className="w-5 h-5 mr-2" />
+            Check In
+          </button>
+          <button
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            onClick={() => setShowCheckOutModal(true)}
+          >
+            <Clock className="w-5 h-5 mr-2" />
+            Check Out
+          </button>
+        </div>
 
-  const filteredAttendance = todayAttendance.filter(record => {
-    const matchesSearch = record.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.role.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || record.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900">Attendance History</h2>
+          </div>
+          <div className="p-6">
+            {myAttendanceLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Loading your attendance...</p>
+              </div>
+            ) : myAttendanceHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No attendance records</h3>
+                <p className="text-gray-600">Your attendance records will appear here once you start checking in.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {myAttendanceHistory.map((record) => {
+                  const StatusIcon = getStatusIcon(record.status);
+                  return (
+                    <div key={record._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center">
+                        <div className={`p-2 rounded-lg mr-4 ${getStatusColor(record.status)}`}>
+                          <StatusIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {new Date(record.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </p>
+                          <p className="text-sm text-gray-600 capitalize">{record.status.replace('_', ' ')}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-gray-900">
+                          {record.checkIn?.time ? new Date(record.checkIn.time).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          }) : 'Not checked in'}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {record.checkOut?.time ? `Out: ${new Date(record.checkOut.time).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}` : 'Not checked out'}
+                        </p>
+                        {record.workingHours && (
+                          <p className="text-sm font-medium text-blue-600">{record.workingHours}h worked</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
 
-  const attendanceStats = {
-    totalStaff: todayAttendance.length,
-    present: todayAttendance.filter(r => r.status === 'present' || r.status === 'late').length,
-    absent: todayAttendance.filter(r => r.status === 'absent').length,
-    late: todayAttendance.filter(r => r.status === 'late').length,
-    avgWorkingHours: '8h 24m',
-    totalOvertime: todayAttendance.reduce((sum, r) => {
-      const overtime = parseFloat(r.overtime.replace('h', '').replace('m', '')) || 0;
-      return sum + overtime;
-    }, 0)
-  };
+        {/* Staff Check In Modal */}
+        {showCheckInModal && user?.role === 'staff' && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-md p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Check In</h2>
+                <button
+                  onClick={() => setShowCheckInModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="text-center">
+                <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Check In</h3>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to check in for today? This will mark your attendance as present.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCheckInModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      // For staff, we need to find their staff record first
+                      // This is a simplified version - in real implementation, 
+                      // you'd need to get the staff ID from the user's profile
+                      setShowCheckInModal(false);
+                      addNotification({
+                        type: "info",
+                        title: "Check In",
+                        message: "Please contact your manager to set up your staff profile for check-in functionality.",
+                      });
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Check In
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
+        {/* Staff Check Out Modal */}
+        {showCheckOutModal && user?.role === 'staff' && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-md p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Check Out</h2>
+                <button
+                  onClick={() => setShowCheckOutModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="text-center">
+                <Clock className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Check Out</h3>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to check out for today? This will calculate your working hours.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCheckOutModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowCheckOutModal(false);
+                      addNotification({
+                        type: "info",
+                        title: "Check Out",
+                        message: "Please contact your manager to set up your staff profile for check-out functionality.",
+                      });
+                    }}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Check Out
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Management View (for non-staff users)
   return (
     <div className="space-y-6">
-      
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Attendance Management</h1>
-          <p className="text-gray-600 mt-1">Track staff attendance, working hours, and performance</p>
-        </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={handleExportReport}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-all duration-200 flex items-center"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export Report
-          </button>
-          <button
-            onClick={handleMarkAttendance}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Mark Attendance
-          </button>
-        </div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">
+        Attendance Management
+      </h1>
+      <div className="flex gap-4 mb-4">
+        <button
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          onClick={() => setShowCheckInModal(true)}
+        >
+          Mark Check In
+        </button>
+        <button
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          onClick={() => setShowCheckOutModal(true)}
+        >
+          Mark Check Out
+        </button>
       </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="bg-blue-500 p-2 rounded-lg">
-              <Users className="w-5 h-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-600">Total Staff</p>
-              <p className="text-xl font-bold text-gray-900">{attendanceStats.totalStaff}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="bg-emerald-500 p-2 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-600">Present</p>
-              <p className="text-xl font-bold text-gray-900">{attendanceStats.present}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="bg-red-500 p-2 rounded-lg">
-              <XCircle className="w-5 h-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-600">Absent</p>
-              <p className="text-xl font-bold text-gray-900">{attendanceStats.absent}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="bg-amber-500 p-2 rounded-lg">
-              <AlertTriangle className="w-5 h-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-600">Late</p>
-              <p className="text-xl font-bold text-gray-900">{attendanceStats.late}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="bg-purple-500 p-2 rounded-lg">
-              <Clock className="w-5 h-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-600">Avg Hours</p>
-              <p className="text-xl font-bold text-gray-900">{attendanceStats.avgWorkingHours}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-          <div className="flex items-center">
-            <div className="bg-indigo-500 p-2 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-white" />
-            </div>
-            <div className="ml-3">
-              <p className="text-xs font-medium text-gray-600">Overtime</p>
-              <p className="text-xl font-bold text-gray-900">{attendanceStats.totalOvertime.toFixed(1)}h</p>
-            </div>
-          </div>
-        </div>
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search staff by name, ID, or designation..."
+          value={staffSearchTerm}
+          onChange={(e) => setStaffSearchTerm(e.target.value)}
+          className="border p-2 rounded w-full"
+        />
       </div>
-
-      {/* Tab Navigation */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
-            {[
-              { id: 'daily', name: 'Daily Attendance', icon: Calendar },
-              { id: 'weekly', name: 'Weekly Summary', icon: Target },
-              { id: 'reports', name: 'Monthly Reports', icon: Award }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {tab.name}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Filters and Search */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search staff..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div className="flex items-center space-x-4">
-              <select
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-sm border">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="p-2">Name</th>
+              <th className="p-2">Employee ID</th>
+              <th className="p-2">Designation</th>
+              <th className="p-2">Branch</th>
+              <th className="p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredStaffList.map((staff: Staff) => (
+              <tr key={staff._id} className="border-b">
+                <td className="p-2 whitespace-nowrap">{staff.name}</td>
+                <td className="p-2 whitespace-nowrap">{staff.employeeId}</td>
+                <td className="p-2 whitespace-nowrap">{staff.designation}</td>
+                <td className="p-2 whitespace-nowrap">
+                  {staff.branch?.name ?? "-"}
+                </td>
+                <td className="p-2 whitespace-nowrap">
+                  <button
+                    className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
+                    onClick={() => handleViewAttendanceDetails(staff)}
+                  >
+                    View Attendance Details
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* Check In Modal */}
+      {showCheckInModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Mark Check In</h2>
+              <button
+                onClick={() => setShowCheckInModal(false)}
+                className="text-gray-400 hover:text-gray-600"
               >
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-              </select>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="present">Present</option>
-                <option value="absent">Absent</option>
-                <option value="late">Late</option>
-                <option value="half-day">Half Day</option>
-              </select>
+                <X className="w-6 h-6" />
+              </button>
             </div>
-          </div>
-        </div>
-
-        <div className="p-6">
-          {activeTab === 'daily' && (
-            <div className="space-y-4">
-              {filteredAttendance.map((record) => {
-                const StatusIcon = getStatusIcon(record.status);
-                
-                return (
-                  <div key={record.id} className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center">
-                        <img
-                          className="w-12 h-12 rounded-full object-cover mr-4"
-                          src={record.photo}
-                          alt={record.staffName}
-                        />
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{record.staffName}</h3>
-                          <p className="text-sm text-gray-600">{record.role}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {record.status}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Time Details</h4>
-                        <div className="text-sm space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Check In:</span>
-                            <span className="font-medium text-gray-900">{record.checkIn || 'Not checked in'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Check Out:</span>
-                            <span className="font-medium text-gray-900">{record.checkOut || 'Not checked out'}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Working Hours:</span>
-                            <span className="font-medium text-gray-900">{record.workingHours}</span>
-                          </div>
-                          {record.overtime !== '0h 00m' && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">Overtime:</span>
-                              <span className="font-medium text-emerald-600">{record.overtime}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Location</h4>
-                        <div className="text-sm space-y-1">
-                          <div className="flex items-center text-gray-600">
-                            <MapPin className="w-4 h-4 mr-2" />
-                            {record.location}
-                          </div>
-                          {record.gpsLocation && (
-                            <div className="flex items-center text-gray-600">
-                              <Camera className="w-4 h-4 mr-2" />
-                              GPS: {record.gpsLocation}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Tasks</h4>
-                        <div className="text-sm space-y-1">
-                          {record.tasks.length > 0 ? (
-                            record.tasks.map((task, index) => (
-                              <div key={index} className="text-gray-600">• {task}</div>
-                            ))
-                          ) : (
-                            <div className="text-gray-500">No tasks assigned</div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900">Additional Info</h4>
-                        <div className="text-sm space-y-1">
-                          {record.reason && (
-                            <div className="text-red-600">Reason: {record.reason}</div>
-                          )}
-                          {record.lateBy && (
-                            <div className="text-amber-600">Late by: {record.lateBy}</div>
-                          )}
-                          <div className="flex justify-between">
-                            <span className="text-gray-600">Breaks:</span>
-                            <span className="font-medium text-gray-900">{record.breaks}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
-                      <button 
-                        onClick={() => handleViewDetails(record.staffName)}
-                        className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors flex items-center"
+            <table className="min-w-full text-sm border">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2">Name</th>
+                  <th className="p-2">Employee ID</th>
+                  <th className="p-2">Designation</th>
+                  <th className="p-2">Branch</th>
+                  <th className="p-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffList.map((staff: Staff) => (
+                  <tr key={staff._id} className="border-b">
+                    <td className="p-2 whitespace-nowrap">{staff.name}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      {staff.employeeId}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      {staff.designation}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      {staff.branch?.name ?? "-"}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      <button
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        onClick={() => handleCheckIn(staff._id)}
+                        disabled={attendanceLoading}
                       >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Details
+                        Check In
                       </button>
-                    </div>
-                  </div>
-                );
-              })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {/* Check Out Modal */}
+      {showCheckOutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Mark Check Out
+              </h2>
+              <button
+                onClick={() => setShowCheckOutModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
-          )}
-
-          {activeTab === 'weekly' && (
-            <div className="space-y-4">
+            <table className="min-w-full text-sm border">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2">Name</th>
+                  <th className="p-2">Employee ID</th>
+                  <th className="p-2">Designation</th>
+                  <th className="p-2">Branch</th>
+                  <th className="p-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staffList.map((staff: Staff) => (
+                  <tr key={staff._id} className="border-b">
+                    <td className="p-2 whitespace-nowrap">{staff.name}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      {staff.employeeId}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      {staff.designation}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      {staff.branch?.name ?? "-"}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">
+                      <button
+                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        onClick={() => handleCheckOut(staff._id)}
+                        disabled={attendanceLoading}
+                      >
+                        Check Out
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {attendanceModalStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Attendance History - {attendanceModalStaff.name}
+              </h2>
+              <button
+                onClick={() => {
+                  setAttendanceModalStaff(null);
+                  setAttendanceHistory([]);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            {attendanceLoading ? (
+              <div className="w-8 h-8 animate-spin border-4 border-t-transparent rounded-full border-blue-600 mx-auto"></div>
+            ) : attendanceHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-600">
+                No attendance records found.
+              </div>
+            ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Staff Member
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Days Present
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total Hours
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Overtime
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Avg Check-in
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Punctuality
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Performance
-                      </th>
+                <table className="min-w-full text-sm border">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="p-2">Date</th>
+                      <th className="p-2">Status</th>
+                      <th className="p-2">Marked At</th>
+                      <th className="p-2">Check In</th>
+                      <th className="p-2">Check Out</th>
+                      <th className="p-2">Working Hours</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {weeklyAttendance.map((record, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{record.staffName}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{record.daysPresent}/5</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{record.totalHours}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-emerald-600 font-medium">{record.overtime}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{record.avgCheckIn}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="text-sm font-medium text-gray-900">{record.punctuality}%</div>
-                            <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full ${
-                                  record.punctuality >= 90 ? 'bg-emerald-500' :
-                                  record.punctuality >= 70 ? 'bg-amber-500' : 'bg-red-500'
-                                }`}
-                                style={{ width: `${record.punctuality}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Award className="w-4 h-4 text-yellow-400 mr-1" />
-                            <span className="text-sm font-medium text-gray-900">{record.performance}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody>
+                    {attendanceHistory.map(
+                      (att: AttendanceRecord, idx: number) => (
+                        <tr key={att._id || idx} className="border-b">
+                          <td className="p-2 whitespace-nowrap">
+                            {new Date(att.date).toLocaleDateString()}
+                          </td>
+                          <td className="p-2 font-semibold whitespace-nowrap">
+                            {att.status === "present"
+                              ? "Present"
+                              : att.status === "absent"
+                              ? "Absent"
+                              : att.status.charAt(0).toUpperCase() +
+                                att.status.slice(1)}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.checkIn?.time
+                              ? new Date(att.checkIn.time).toLocaleString()
+                              : "-"}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.checkIn?.time
+                              ? new Date(att.checkIn.time).toLocaleTimeString()
+                              : "-"}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.checkOut?.time
+                              ? new Date(att.checkOut.time).toLocaleTimeString()
+                              : "-"}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.workingHours ?? "-"}
+                          </td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'reports' && (
-            <div className="space-y-6">
-              {attendanceReports.map((report, index) => (
-                <div key={index} className="bg-gray-50 rounded-xl border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">{report.month}</h3>
-                    <div className="flex items-center text-emerald-600">
-                      <TrendingUp className="w-4 h-4 mr-1" />
-                      <span className="text-sm font-medium">{report.avgAttendance}% Attendance</span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-gray-900">Working Days</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Total Days:</span>
-                          <span className="font-medium text-gray-900">{report.totalWorkingDays}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Avg Attendance:</span>
-                          <span className="font-medium text-emerald-600">{report.avgAttendance}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Absent Days:</span>
-                          <span className="font-medium text-red-600">{report.absentDays}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-gray-900">Working Hours</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Total Hours:</span>
-                          <span className="font-medium text-gray-900">{report.totalHours}h</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Overtime:</span>
-                          <span className="font-medium text-blue-600">{report.overtimeHours}h</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-gray-900">Punctuality</h4>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Late Arrivals:</span>
-                          <span className="font-medium text-amber-600">{report.lateArrivals}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Early Departures:</span>
-                          <span className="font-medium text-purple-600">{report.earlyDepartures}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-gray-900">Actions</h4>
-                      <div className="space-y-2">
-                        <button 
-                          onClick={() => handleViewDetails(report.month)}
-                          className="w-full px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-                        >
-                          View Detailed Report
-                        </button>
-                        <button 
-                          onClick={handleExportReport}
-                          className="w-full px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm"
-                        >
-                          Export PDF
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
+      {attendanceDetailsModalStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Attendance History - {attendanceDetailsModalStaff.name}
+              </h2>
+              <button
+                onClick={() => {
+                  setAttendanceDetailsModalStaff(null);
+                  setAttendanceDetailsHistory([]);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            {attendanceDetailsLoading ? (
+              <div className="w-8 h-8 animate-spin border-4 border-t-transparent rounded-full border-blue-600 mx-auto"></div>
+            ) : attendanceDetailsHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-600">
+                No attendance records found.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="p-2">Date</th>
+                      <th className="p-2">Status</th>
+                      <th className="p-2">Check In</th>
+                      <th className="p-2">Check Out</th>
+                      <th className="p-2">Working Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceDetailsHistory.map(
+                      (att: AttendanceDetailsRecord, idx: number) => (
+                        <tr key={att._id || idx} className="border-b">
+                          <td className="p-2 whitespace-nowrap">
+                            {new Date(att.date).toLocaleDateString()}
+                          </td>
+                          <td className="p-2 font-semibold whitespace-nowrap">
+                            {att.status === "present"
+                              ? "Present"
+                              : att.status === "absent"
+                              ? "Absent"
+                              : att.status.charAt(0).toUpperCase() +
+                                att.status.slice(1)}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.checkIn?.time
+                              ? new Date(att.checkIn.time).toLocaleString()
+                              : "-"}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.checkOut?.time
+                              ? new Date(att.checkOut.time).toLocaleTimeString()
+                              : "-"}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.workingHours ?? "-"}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

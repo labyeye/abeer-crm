@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Plus, 
-  Search, 
+import React, { useState, useEffect } from "react";
+import {
+  Users,
+  Plus,
+  Search,
   Filter,
   MapPin,
   Phone,
   Mail,
   Calendar,
-  DollarSign,
   Edit,
   Trash2,
   X,
   Loader2,
-  Building2
-} from 'lucide-react';
-import { useNotification } from '../../contexts/NotificationContext';
-import { staffAPI, companyAPI } from '../../services/api';
+  Building2,
+  IndianRupee,
+} from "lucide-react";
+import { useNotification } from "../../contexts/NotificationContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { staffAPI, branchAPI } from "../../services/api";
 
 interface StaffMember {
   _id: string;
@@ -42,7 +43,6 @@ interface StaffMember {
     mother: string;
   };
   referredBy?: string;
-  userId: string;
   user: {
     _id: string;
     name: string;
@@ -51,149 +51,337 @@ interface StaffMember {
   };
   designation: string;
   department: string;
-  staffType: 'monthly' | 'per_day' | 'per_task';
+  staffType: "monthly" | "per_day" | "per_task";
   joiningDate: string;
-  salary: {
-    basic: number;
-    allowances: number;
-    total: number;
-  };
+  salary: number;
   branch: {
     _id: string;
     name: string;
     code: string;
+    companyName: string;
   };
-  status: 'active' | 'inactive' | 'terminated';
+  isActive: boolean;
+  maritalStatus?: "married" | "unmarried";
+  children?: {
+    boys: {
+      count: number;
+      names: string[];
+    };
+    girls: {
+      count: number;
+      names: string[];
+    };
+  };
+  grandfatherName?: string;
+  education?: Array<{
+    institution: string;
+    type: "school" | "college" | "university";
+    passingYear?: number;
+    marks?: number;
+    division?: "first" | "second" | "third" | "pass";
+  }>;
 }
 
 interface Branch {
   _id: string;
   name: string;
   code: string;
+  companyName: string;
+}
+
+interface StaffFormData {
+  userId: string;
+  employeeId: string;
+  name: string;
+  phone: string;
+  email: string;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    pincode: string;
+  };
+  fatherName: string;
+  motherName: string;
+  aadharNumbers: {
+    staff: string;
+    father: string;
+    mother: string;
+  };
+  contacts: {
+    staff: string;
+    father: string;
+    mother: string;
+  };
+  referredBy: string;
+  password: string;
+  branch: string;
+  staffType: "monthly" | "per_day" | "per_task";
+  designation: string;
+  department: string;
+  joiningDate: string;
+  salary: {
+    basic: number;
+    allowances: number;
+  };
+  maritalStatus: "married" | "unmarried";
+  grandfatherName: string;
+  children: {
+    boysCount: number;
+    girlsCount: number;
+    boysNames: string[];
+    girlsNames: string[];
+  };
+  education: Array<{
+    institution: string;
+    type: "school" | "college" | "university";
+    passingYear?: number;
+    marks?: number;
+    division?: "first" | "second" | "third" | "pass";
+  }>;
+  [key: string]: unknown;
 }
 
 const StaffManagement = () => {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [staffPhoto, setStaffPhoto] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterBranch, setFilterBranch] = useState('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterBranch, setFilterBranch] = useState("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
-  const [formData, setFormData] = useState({
-    userId: '',
-    employeeId: '',
-    name: '',
-    phone: '',
+  const [formData, setFormData] = useState<StaffFormData>({
+    userId: "",
+    employeeId: "",
+    name: "",
+    phone: "",
+    email: "",
     address: {
-      street: '',
-      city: '',
-      state: '',
-      pincode: ''
+      street: "",
+      city: "",
+      state: "",
+      pincode: "",
     },
-    fatherName: '',
-    motherName: '',
+    fatherName: "",
+    motherName: "",
     aadharNumbers: {
-      staff: '',
-      father: '',
-      mother: ''
+      staff: "",
+      father: "",
+      mother: "",
     },
     contacts: {
-      staff: '',
-      father: '',
-      mother: ''
+      staff: "",
+      father: "",
+      mother: "",
     },
-    referredBy: '',
-    staffUserId: '',
-    password: '',
-    branch: '',
-    staffType: 'monthly',
-    designation: '',
-    department: '',
-    joiningDate: '',
+    referredBy: "",
+    password: "",
+    branch: "", // will store branch code now
+    staffType: "monthly",
+    designation: "",
+    department: "",
+    joiningDate: "",
     salary: {
       basic: 0,
-      allowances: 0
+      allowances: 0,
     },
-    bankDetails: {
-      accountNumber: '',
-      ifscCode: '',
-      bankName: '',
-      branchName: ''
-    }
+    maritalStatus: "unmarried",
+    grandfatherName: "",
+    children: {
+      boysCount: 0,
+      girlsCount: 0,
+      boysNames: [],
+      girlsNames: [],
+    },
+    education: [
+      {
+        institution: "",
+        type: "school",
+        passingYear: undefined,
+        marks: undefined,
+        division: undefined,
+      },
+    ],
   });
   const [submitting, setSubmitting] = useState(false);
-  
+  const [attendanceModalStaff, setAttendanceModalStaff] =
+    useState<StaffMember | null>(null);
+  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
   const { addNotification } = useNotification();
+  const { user } = useAuth();
 
   useEffect(() => {
-    fetchData();
+    fetchStaff();
+    fetchBranches();
   }, []);
 
-  const fetchData = async () => {
+  // Handle form initialization when editing staff
+  useEffect(() => {
+    if (selectedStaff) {
+      handleEditStaff(selectedStaff);
+    } else {
+      resetForm();
+    }
+  }, [selectedStaff, branches]); // Add branches as dependency
+
+  // Update branch in formData when branches load and user is branch admin/manager
+  useEffect(() => {
+    if (user && (user.role === 'company_admin' || user.role === 'branch_head') && 
+        user.branchId && branches.length > 0 && !selectedStaff) {
+      const userBranch = branches.find(b => b._id === user.branchId);
+      if (userBranch && formData.branch !== userBranch._id) {
+        setFormData(prev => ({ ...prev, branch: userBranch._id }));
+      }
+    }
+  }, [branches, user, selectedStaff, formData.branch]);
+
+  // Refetch staff when filters change
+  useEffect(() => {
+    fetchStaff();
+  }, [filterBranch, filterStatus, searchTerm]);
+
+  const fetchStaff = async () => {
     try {
       setLoading(true);
-      const [staffResponse, branchResponse] = await Promise.all([
-        staffAPI.getStaff(),
-        companyAPI.getCompanies()
-      ]);
-      setStaffMembers(staffResponse.data.data || []);
-      setBranches(branchResponse.data.data || []);
+      
+      // Prepare query parameters
+      const params: any = {};
+      if (user?.role === 'chairman' && filterBranch !== 'all') {
+        params.branch = filterBranch;
+      }
+      if (filterStatus !== 'all') {
+        params.status = filterStatus;
+      }
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      
+      const staffResponse = await staffAPI.getStaff(params);
+      console.log("Full API response:", staffResponse);
+
+      // Try different ways to access the data
+      const staffData =
+        staffResponse.data?.data || staffResponse.data || staffResponse;
+
+      console.log("Staff data:", staffData);
+
+      if (Array.isArray(staffData)) {
+        setStaffMembers(staffData);
+      } else if (staffData && Array.isArray(staffData.data)) {
+        setStaffMembers(staffData.data);
+      } else {
+        console.error("Unexpected data structure:", staffData);
+        setStaffMembers([]);
+      }
     } catch (error: any) {
       addNotification({
-        type: 'error',
-        title: 'Error',
-        message: error.message || 'Failed to fetch data'
+        type: "error",
+        title: "Error",
+        message: error.message || "Failed to fetch staff",
       });
+      setStaffMembers([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchBranches = async () => {
+    try {
+      const branchResponse = await branchAPI.getBranches();
+      const branchesFetched =
+        branchResponse?.data?.data || branchResponse?.data || [];
+      setBranches(branchesFetched);
+    } catch (error: any) {
+      addNotification({
+        type: "error",
+        title: "Error",
+        message: error.message || "Failed to fetch branches",
+      });
+    }
+  };
+
   const resetForm = () => {
+    // Auto-set branch based on user role
+    let defaultBranch = "";
+    if (user) {
+      if (user.role === 'company_admin' || user.role === 'branch_head') {
+        // For branch admin/manager, auto-select their branch
+        if (user.branchId) {
+          // If branches are loaded, find the branch
+          if (branches.length > 0) {
+            const userBranch = branches.find(b => b._id === user.branchId);
+            if (userBranch) {
+              defaultBranch = userBranch._id;
+            } else {
+              // If branch not found in list, still use the branchId
+              defaultBranch = user.branchId;
+            }
+          } else {
+            // If branches not loaded yet, use the branchId directly
+            defaultBranch = user.branchId;
+          }
+        }
+      }
+      // For chairman, leave branch empty so they can choose
+    }
+
     setFormData({
-      userId: '',
-      employeeId: '',
-      name: '',
-      phone: '',
+      userId: "",
+      employeeId: "",
+      name: "",
+      phone: "",
+      email: "",
       address: {
-        street: '',
-        city: '',
-        state: '',
-        pincode: ''
+        street: "",
+        city: "",
+        state: "",
+        pincode: "",
       },
-      fatherName: '',
-      motherName: '',
+      fatherName: "",
+      motherName: "",
       aadharNumbers: {
-        staff: '',
-        father: '',
-        mother: ''
+        staff: "",
+        father: "",
+        mother: "",
       },
       contacts: {
-        staff: '',
-        father: '',
-        mother: ''
+        staff: "",
+        father: "",
+        mother: "",
       },
-      referredBy: '',
-      staffUserId: '',
-      password: '',
-      branch: '',
-      staffType: 'monthly',
-      designation: '',
-      department: '',
-      joiningDate: '',
+      referredBy: "",
+      password: "",
+      branch: defaultBranch, // Auto-set based on user role
+      staffType: "monthly",
+      designation: "",
+      department: "",
+      joiningDate: "",
       salary: {
         basic: 0,
-        allowances: 0
+        allowances: 0,
       },
-      bankDetails: {
-        accountNumber: '',
-        ifscCode: '',
-        bankName: '',
-        branchName: ''
-      }
+      maritalStatus: "unmarried",
+      grandfatherName: "",
+      children: {
+        boysCount: 0,
+        girlsCount: 0,
+        boysNames: [],
+        girlsNames: [],
+      },
+      education: [
+        {
+          institution: "",
+          type: "school",
+          passingYear: undefined,
+          marks: undefined,
+          division: undefined,
+        },
+      ],
     });
   };
 
@@ -205,33 +393,55 @@ const StaffManagement = () => {
   const handleEditStaff = (staff: StaffMember) => {
     setSelectedStaff(staff);
     setFormData({
-      userId: staff.user._id || '',
+      userId: staff.user._id || "",
       employeeId: staff.employeeId,
       name: staff.name,
       phone: staff.phone,
+      email: staff.user.email || "",
       address: staff.address,
       fatherName: staff.fatherName,
       motherName: staff.motherName,
       aadharNumbers: staff.aadharNumbers,
       contacts: staff.contacts,
-      referredBy: staff.referredBy || '',
-      staffUserId: staff.userId,
-      password: '', // Don't pre-fill password
-      branch: staff.branch?._id || '',
+      referredBy: staff.referredBy || "",
+      password: "", // Don't pre-fill password
+      branch: staff.branch?._id || "",
       staffType: staff.staffType,
       designation: staff.designation,
       department: staff.department,
-      joiningDate: staff.joiningDate.split('T')[0],
-      salary: {
-        basic: staff.salary.basic,
-        allowances: staff.salary.allowances
+      joiningDate: staff.joiningDate.split("T")[0],
+      salary:
+        typeof staff.salary === "object"
+          ? staff.salary
+          : { basic: staff.salary || 0, allowances: 0 },
+      maritalStatus: (staff.maritalStatus || "unmarried") as
+        | "married"
+        | "unmarried",
+      grandfatherName: staff.grandfatherName || "",
+      children: {
+        boysCount: staff.children?.boys?.count || 0,
+        girlsCount: staff.children?.girls?.count || 0,
+        boysNames: staff.children?.boys?.names || [],
+        girlsNames: staff.children?.girls?.names || [],
       },
-      bankDetails: {
-        accountNumber: '',
-        ifscCode: '',
-        bankName: '',
-        branchName: ''
-      }
+      education:
+        staff.education && staff.education.length > 0
+          ? staff.education.map((e) => ({
+              institution: e.institution,
+              type: e.type,
+              passingYear: e.passingYear,
+              marks: e.marks,
+              division: e.division,
+            }))
+          : [
+              {
+                institution: "",
+                type: "school",
+                passingYear: undefined,
+                marks: undefined,
+                division: undefined,
+              },
+            ],
     });
     setShowEditModal(true);
   };
@@ -244,29 +454,28 @@ const StaffManagement = () => {
       if (selectedStaff) {
         await staffAPI.updateStaff(selectedStaff._id, formData);
         addNotification({
-          type: 'success',
-          title: 'Success',
-          message: 'Staff member updated successfully'
+          type: "success",
+          title: "Success",
+          message: "Staff member updated successfully",
         });
       } else {
         await staffAPI.createStaff(formData);
         addNotification({
-          type: 'success',
-          title: 'Success',
-          message: 'Staff member created successfully'
+          type: "success",
+          title: "Success",
+          message: "Staff member created successfully",
         });
       }
-      
-      fetchData();
+      fetchStaff();
       setShowAddModal(false);
       setShowEditModal(false);
       setSelectedStaff(null);
       resetForm();
     } catch (error: any) {
       addNotification({
-        type: 'error',
-        title: 'Error',
-        message: error.message || 'Failed to save staff member'
+        type: "error",
+        title: "Error",
+        message: error.message || "Failed to save staff member",
       });
     } finally {
       setSubmitting(false);
@@ -278,27 +487,51 @@ const StaffManagement = () => {
       try {
         await staffAPI.deleteStaff(id);
         addNotification({
-          type: 'success',
-          title: 'Success',
-          message: 'Staff member deleted successfully'
+          type: "success",
+          title: "Success",
+          message: "Staff member deleted successfully",
         });
-        fetchData();
+        fetchStaff();
       } catch (error: any) {
         addNotification({
-          type: 'error',
-          title: 'Error',
-          message: error.message || 'Failed to delete staff member'
+          type: "error",
+          title: "Error",
+          message: error.message || "Failed to delete staff member",
         });
       }
     }
   };
 
-  const filteredStaff = staffMembers.filter(staff => {
-    const matchesSearch = staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staff.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staff.designation.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || staff.status === filterStatus;
-    const matchesBranch = filterBranch === 'all' || staff.branch?._id === filterBranch;
+  const filteredStaff = staffMembers.filter((staff) => {
+    // Show all staff if filters are 'all' and search is empty
+    // For branch admins/managers, skip branch filtering since backend already filters
+    const shouldApplyBranchFilter = user?.role === 'chairman';
+    
+    if (
+      filterStatus === "all" &&
+      (!shouldApplyBranchFilter || filterBranch === "all") &&
+      searchTerm.trim() === ""
+    ) {
+      return true;
+    }
+
+    const matchesSearch =
+      searchTerm === "" ||
+      staff.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      staff.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      staff.designation?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesStatus =
+      filterStatus === "all" ||
+      (staff.isActive ? "active" : "inactive") === filterStatus;
+
+    // Only apply branch filter for chairman
+    const matchesBranch =
+      !shouldApplyBranchFilter ||
+      filterBranch === "all" ||
+      staff.branch?._id === filterBranch ||
+      staff.branch?.code === filterBranch;
+
     return matchesSearch && matchesStatus && matchesBranch;
   });
 
@@ -316,7 +549,9 @@ const StaffManagement = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
-          <p className="text-gray-600 mt-1">Manage your team members and their information</p>
+          <p className="text-gray-600 mt-1">
+            Manage your team members and their information
+          </p>
         </div>
         <button
           onClick={handleAddStaff}
@@ -351,31 +586,41 @@ const StaffManagement = () => {
             <option value="inactive">Inactive</option>
             <option value="terminated">Terminated</option>
           </select>
-          
-          <select
-            value={filterBranch}
-            onChange={(e) => setFilterBranch(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Branches</option>
-            {branches.map((branch) => (
-              <option key={branch._id} value={branch._id}>
-                {branch.name} ({branch.code})
-              </option>
-            ))}
-          </select>
+
+          {/* Only show branch filter for chairman */}
+          {user?.role === 'chairman' && (
+            <select
+              value={filterBranch}
+              onChange={(e) => setFilterBranch(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Branches</option>
+              {branches.map((branch) => (
+                <option key={branch._id} value={branch._id}>
+                  {branch.name} ({branch.code})
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
       {/* Staff Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStaff.map((staff) => (
-          <div key={staff._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div
+            key={staff._id}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+          >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
                   <span className="text-white font-bold text-sm">
-                    {staff.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    {staff.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)}
                   </span>
                 </div>
                 <div>
@@ -383,12 +628,14 @@ const StaffManagement = () => {
                   <p className="text-sm text-gray-600">{staff.employeeId}</p>
                 </div>
               </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                staff.status === 'active' ? 'bg-green-100 text-green-700' :
-                staff.status === 'inactive' ? 'bg-yellow-100 text-yellow-700' :
-                'bg-red-100 text-red-700'
-              }`}>
-                {staff.status}
+              <span
+                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  staff.isActive
+                    ? "bg-green-100 text-green-700"
+                    : "bg-yellow-100 text-yellow-700"
+                }`}
+              >
+                {staff.isActive ? "Active" : "Inactive"}
               </span>
             </div>
 
@@ -410,8 +657,8 @@ const StaffManagement = () => {
                 Joined: {new Date(staff.joiningDate).toLocaleDateString()}
               </div>
               <div className="flex items-center text-sm text-gray-600">
-                <DollarSign className="w-4 h-4 mr-2" />
-                ₹{staff.salary.total?.toLocaleString() || 'N/A'}
+                <IndianRupee className="w-4 h-4 mr-2" />₹
+                {staff.salary?.toLocaleString() || "N/A"}
               </div>
               {staff.branch && (
                 <div className="flex items-center text-sm text-gray-600">
@@ -444,8 +691,12 @@ const StaffManagement = () => {
       {filteredStaff.length === 0 && (
         <div className="text-center py-12">
           <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No staff members found</h3>
-          <p className="text-gray-600">Get started by adding your first staff member.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No staff members found
+          </h3>
+          <p className="text-gray-600">
+            Get started by adding your first staff member.
+          </p>
         </div>
       )}
 
@@ -455,7 +706,7 @@ const StaffManagement = () => {
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
-                {selectedStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
+                {selectedStaff ? "Edit Staff Member" : "Add New Staff Member"}
               </h2>
               <button
                 onClick={() => {
@@ -471,89 +722,186 @@ const StaffManagement = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Photo Upload */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Profile Photo
+                </h3>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setStaffPhoto(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="mb-4"
+                />
+                {staffPhoto && (
+                  <img
+                    src={staffPhoto}
+                    alt="Staff"
+                    className="w-24 h-24 rounded-full object-cover mb-2"
+                  />
+                )}
+              </div>
               {/* Basic Information */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Basic Information
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Full Name *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number *
+                    </label>
                     <input
                       type="tel"
                       required
                       value={formData.phone}
-                      onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Employee ID *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Employee ID *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.employeeId}
-                      onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, employeeId: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Designation *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Designation *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.designation}
-                      onChange={(e) => setFormData({...formData, designation: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          designation: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Department *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.department}
-                      onChange={(e) => setFormData({...formData, department: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, department: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Branch Assignment *</label>
-                    <select
-                      required
-                      value={formData.branch}
-                      onChange={(e) => setFormData({...formData, branch: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select a branch</option>
-                      {branches.map((branch) => (
-                        <option key={branch._id} value={branch._id}>
-                          {branch.name} ({branch.code})
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Branch Assignment *
+                    </label>
+                    {user && (user.role === 'company_admin' || user.role === 'branch_head') ? (
+                      // Show read-only branch for branch admins/managers
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                        {(() => {
+                          const userBranch = branches.find(b => b._id === user.branchId);
+                          if (userBranch) {
+                            return `${userBranch.name} (${userBranch.code})`;
+                          } else if (user.branchId) {
+                            // If branch not found in list but user has branchId, show the ID
+                            return `Branch ID: ${user.branchId}`;
+                          } else {
+                            return 'No branch assigned';
+                          }
+                        })()}
+                      </div>
+                    ) : selectedStaff ? (
+                      // When editing, show current branch as read-only for all users
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                        {(() => {
+                          const currentBranch = branches.find(b => b._id === formData.branch);
+                          if (currentBranch) {
+                            return `${currentBranch.name} (${currentBranch.code})`;
+                          } else if (formData.branch) {
+                            // If branch not found in list but formData has branch, show the ID
+                            return `Branch ID: ${formData.branch}`;
+                          } else {
+                            return 'No branch assigned';
+                          }
+                        })()}
+                      </div>
+                    ) : (
+                      // Show dropdown for chairman when adding new staff
+                      <select
+                        required
+                        value={formData.branch}
+                        onChange={(e) =>
+                          setFormData({ ...formData, branch: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select a branch</option>
+                        {branches.map((branch) => (
+                          <option key={branch._id} value={branch._id}>
+                            {branch.name} ({branch.code})
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Joining Date *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Joining Date *
+                    </label>
                     <input
                       type="date"
                       required
                       value={formData.joiningDate}
-                      onChange={(e) => setFormData({...formData, joiningDate: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          joiningDate: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -562,60 +910,90 @@ const StaffManagement = () => {
 
               {/* Address */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Address</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Address
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Street Address *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Street Address *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.address.street}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        address: {...formData.address, street: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          address: {
+                            ...formData.address,
+                            street: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      City *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.address.city}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        address: {...formData.address, city: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          address: {
+                            ...formData.address,
+                            city: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">State *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      State *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.address.state}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        address: {...formData.address, state: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          address: {
+                            ...formData.address,
+                            state: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">PIN Code *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PIN Code *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.address.pincode}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        address: {...formData.address, pincode: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          address: {
+                            ...formData.address,
+                            pincode: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -624,26 +1002,79 @@ const StaffManagement = () => {
 
               {/* Family Information */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Family Information</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Family Information
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Father's Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Father's Name *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.fatherName}
-                      onChange={(e) => setFormData({...formData, fatherName: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, fatherName: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mother's Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mother's Name *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.motherName}
-                      onChange={(e) => setFormData({...formData, motherName: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, motherName: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Personal Details */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Personal Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Marital Status
+                    </label>
+                    <select
+                      value={formData.maritalStatus}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          maritalStatus: e.target.value as any,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="unmarried">Unmarried</option>
+                      <option value="married">Married</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Grandfather Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.grandfatherName}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          grandfatherName: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -652,94 +1083,395 @@ const StaffManagement = () => {
 
               {/* Aadhar Numbers */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Aadhar Numbers</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Aadhar Numbers
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Staff Aadhar *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Staff Aadhar *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.aadharNumbers.staff}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        aadharNumbers: {...formData.aadharNumbers, staff: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          aadharNumbers: {
+                            ...formData.aadharNumbers,
+                            staff: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Father's Aadhar *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Father's Aadhar *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.aadharNumbers.father}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        aadharNumbers: {...formData.aadharNumbers, father: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          aadharNumbers: {
+                            ...formData.aadharNumbers,
+                            father: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mother's Aadhar *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mother's Aadhar *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.aadharNumbers.mother}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        aadharNumbers: {...formData.aadharNumbers, mother: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          aadharNumbers: {
+                            ...formData.aadharNumbers,
+                            mother: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
               </div>
 
+              {/* Children Details */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Children Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Boys (count)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.children?.boysCount || 0}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          children: {
+                            ...(formData.children || {}),
+                            boysCount: Number(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Boys Names (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={(formData.children?.boysNames ?? []).join(", ")}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          children: {
+                            ...(formData.children || {
+                              boysCount: 0,
+                              girlsCount: 0,
+                              boysNames: [],
+                              girlsNames: [],
+                            }),
+                            boysNames: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Girls (count)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.children?.girlsCount || 0}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          children: {
+                            ...(formData.children || {}),
+                            girlsCount: Number(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Girls Names (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={(formData.children?.girlsNames ?? []).join(", ")}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          children: {
+                            ...(formData.children || {
+                              boysCount: 0,
+                              girlsCount: 0,
+                              boysNames: [],
+                              girlsNames: [],
+                            }),
+                            girlsNames: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Education */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Education
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        education: [
+                          ...formData.education,
+                          {
+                            institution: "",
+                            type: "school",
+                            passingYear: undefined,
+                            marks: undefined,
+                            division: undefined,
+                          },
+                        ],
+                      })
+                    }
+                    className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                  >
+                    Add Education
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {formData.education.map((edu, index) => (
+                    <div
+                      key={index}
+                      className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border border-gray-200 rounded-lg"
+                    >
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Type
+                        </label>
+                        <select
+                          value={edu.type}
+                          onChange={(e) => {
+                            const education = [...formData.education];
+                            education[index] = {
+                              ...education[index],
+                              type: e.target.value as any,
+                            };
+                            setFormData({ ...formData, education });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="school">School</option>
+                          <option value="college">College</option>
+                          <option value="university">University</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Institution
+                        </label>
+                        <input
+                          type="text"
+                          value={edu.institution || ""}
+                          onChange={(e) => {
+                            const education = [...formData.education];
+                            education[index] = {
+                              ...education[index],
+                              institution: e.target.value,
+                            };
+                            setFormData({ ...formData, education });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      {/* Removed boardOrUniversity field, not in type */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Passing Year
+                        </label>
+                        <input
+                          type="number"
+                          value={edu.passingYear || ""}
+                          onChange={(e) => {
+                            const education = [...formData.education];
+                            education[index] = {
+                              ...education[index],
+                              passingYear: Number(e.target.value),
+                            };
+                            setFormData({ ...formData, education });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Marks
+                        </label>
+                        <input
+                          type="number"
+                          value={edu.marks || ""}
+                          onChange={(e) => {
+                            const education = [...formData.education];
+                            education[index] = {
+                              ...education[index],
+                              marks: Number(e.target.value),
+                            };
+                            setFormData({ ...formData, education });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Division
+                        </label>
+                        <select
+                          value={edu.division || ""}
+                          onChange={(e) => {
+                            const education = [...formData.education];
+                            education[index] = {
+                              ...education[index],
+                              division: e.target.value as any,
+                            };
+                            setFormData({ ...formData, education });
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Select</option>
+                          <option value="first">First</option>
+                          <option value="second">Second</option>
+                          <option value="third">Third</option>
+                          <option value="pass">Pass</option>
+                        </select>
+                      </div>
+                      {formData.education.length > 1 && (
+                        <div className="md:col-span-6 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const education = formData.education.filter(
+                                (_, i) => i !== index
+                              );
+                              setFormData({ ...formData, education });
+                            }}
+                            className="text-sm text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Contact Numbers */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Numbers</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Contact Numbers
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Staff Contact *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Staff Contact *
+                    </label>
                     <input
                       type="tel"
                       required
                       value={formData.contacts.staff}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        contacts: {...formData.contacts, staff: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contacts: {
+                            ...formData.contacts,
+                            staff: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Father's Contact *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Father's Contact *
+                    </label>
                     <input
                       type="tel"
                       required
                       value={formData.contacts.father}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        contacts: {...formData.contacts, father: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contacts: {
+                            ...formData.contacts,
+                            father: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mother's Contact *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mother's Contact *
+                    </label>
                     <input
                       type="tel"
                       required
                       value={formData.contacts.mother}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        contacts: {...formData.contacts, mother: e.target.value}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contacts: {
+                            ...formData.contacts,
+                            mother: e.target.value,
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -748,40 +1480,56 @@ const StaffManagement = () => {
 
               {/* Login Credentials */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Login Credentials</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Login Credentials
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">User ID *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email *
+                    </label>
                     <input
-                      type="text"
+                      type="email"
                       required
-                      value={formData.staffUserId}
-                      onChange={(e) => setFormData({...formData, staffUserId: e.target.value})}
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password {selectedStaff ? '' : '*'}
+                      Password {selectedStaff ? "" : "*"}
                     </label>
                     <input
                       type="password"
                       required={!selectedStaff}
                       value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder={selectedStaff ? "Leave blank to keep current password" : ""}
+                      placeholder={
+                        selectedStaff
+                          ? "Leave blank to keep current password"
+                          : ""
+                      }
                       minLength={6}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Referred By</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Referred By
+                    </label>
                     <input
                       type="text"
                       value={formData.referredBy}
-                      onChange={(e) => setFormData({...formData, referredBy: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, referredBy: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -790,14 +1538,23 @@ const StaffManagement = () => {
 
               {/* Employment Details */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Employment Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Employment Details
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Staff Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Staff Type *
+                    </label>
                     <select
                       required
                       value={formData.staffType}
-                      onChange={(e) => setFormData({...formData, staffType: e.target.value as any})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          staffType: e.target.value as any,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="monthly">Monthly</option>
@@ -807,28 +1564,42 @@ const StaffManagement = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Basic Salary *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Basic Salary *
+                    </label>
                     <input
                       type="number"
                       required
                       value={formData.salary.basic}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        salary: {...formData.salary, basic: Number(e.target.value)}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          salary: {
+                            ...formData.salary,
+                            basic: Number(e.target.value),
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Allowances</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Allowances
+                    </label>
                     <input
                       type="number"
                       value={formData.salary.allowances}
-                      onChange={(e) => setFormData({
-                        ...formData, 
-                        salary: {...formData.salary, allowances: Number(e.target.value)}
-                      })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          salary: {
+                            ...formData.salary,
+                            allowances: Number(e.target.value),
+                          },
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -854,11 +1625,75 @@ const StaffManagement = () => {
                   disabled={submitting}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
                 >
-                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {selectedStaff ? 'Update Staff' : 'Add Staff'}
+                  {submitting && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  {selectedStaff ? "Update Staff" : "Add Staff"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance History Modal */}
+      {attendanceModalStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Attendance History - {attendanceModalStaff.name}
+              </h2>
+              <button
+                onClick={() => {
+                  setAttendanceModalStaff(null);
+                  setAttendanceHistory([]);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            {attendanceLoading ? (
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+            ) : attendanceHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-600">
+                No attendance records found.
+              </div>
+            ) : (
+              <table className="w-full text-sm border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="p-2">Date</th>
+                    <th className="p-2">Status</th>
+                    <th className="p-2">Check In</th>
+                    <th className="p-2">Check Out</th>
+                    <th className="p-2">Working Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendanceHistory.map((att, idx) => (
+                    <tr key={att._id || idx}>
+                      <td className="p-2">
+                        {new Date(att.date).toLocaleDateString()}
+                      </td>
+                      <td className="p-2">{att.status}</td>
+                      <td className="p-2">
+                        {att.checkIn?.time
+                          ? new Date(att.checkIn.time).toLocaleTimeString()
+                          : "-"}
+                      </td>
+                      <td className="p-2">
+                        {att.checkOut?.time
+                          ? new Date(att.checkOut.time).toLocaleTimeString()
+                          : "-"}
+                      </td>
+                      <td className="p-2">{att.workingHours ?? "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

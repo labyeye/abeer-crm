@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllAttendance,
-  getAttendance,
+  getMyAttendance,
+  getAttendanceById,
   checkIn,
   checkOut,
   markAttendanceManually,
@@ -17,23 +18,26 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getAllAttendance);
+  .get(authorize('chairman', 'admin', 'manager'), getAllAttendance);
 
 router.route('/summary')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getAttendanceSummary);
+  .get(authorize('chairman', 'admin', 'manager'), getAttendanceSummary);
+
+router.route('/my-attendance')
+  .get(authorize('staff'), getMyAttendance);
 
 router.route('/checkin')
-  .post(authorize('staff', 'chairman', 'company_admin', 'branch_admin'), checkIn);
+  .post(authorize('staff', 'chairman', 'admin', 'manager'), checkIn);
 
 router.route('/checkout')
-  .post(authorize('staff', 'chairman', 'company_admin', 'branch_admin'), checkOut);
+  .post(authorize('staff', 'chairman', 'admin', 'manager'), checkOut);
 
 router.route('/manual')
-  .post(authorize('chairman', 'company_admin', 'branch_admin'), markAttendanceManually);
+  .post(authorize('chairman', 'admin', 'manager'), markAttendanceManually);
 
 router.route('/:id')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getAttendance)
-  .put(authorize('chairman', 'company_admin', 'branch_admin'), updateAttendance)
-  .delete(authorize('chairman', 'company_admin'), deleteAttendance);
+  .get(getAttendanceById)
+  .put(authorize('chairman', 'admin', 'manager'), updateAttendance)
+  .delete(authorize('chairman', 'admin'), deleteAttendance);
 
 module.exports = router; 

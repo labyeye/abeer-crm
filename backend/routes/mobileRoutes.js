@@ -54,7 +54,7 @@ const mockAnalytics = {
 // @desc    Get mobile app features
 // @route   GET /api/mobile/features
 // @access  Private (Chairman, Company Admin, Branch Head)
-router.get('/features', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
+router.get('/features', protect, authorize('chairman', 'admin', 'manager'), async (req, res) => {
   try {
     res.status(200).json({
       success: true,
@@ -70,7 +70,7 @@ router.get('/features', protect, authorize('chairman', 'company_admin', 'branch_
 // @desc    Get mobile app analytics
 // @route   GET /api/mobile/analytics
 // @access  Private (Chairman, Company Admin, Branch Head)
-router.get('/analytics', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
+router.get('/analytics', protect, authorize('chairman', 'admin', 'manager'), async (req, res) => {
   try {
     res.status(200).json({
       success: true,
@@ -85,7 +85,7 @@ router.get('/analytics', protect, authorize('chairman', 'company_admin', 'branch
 // @desc    Update feature status
 // @route   PUT /api/mobile/features/:id
 // @access  Private (Chairman, Company Admin, Branch Head)
-router.put('/features/:id', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
+router.put('/features/:id', protect, authorize('chairman', 'admin', 'manager'), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;

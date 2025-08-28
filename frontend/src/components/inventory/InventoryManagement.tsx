@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { inventoryAPI, companyAPI } from '../../services/api';
+import { inventoryAPI, branchAPI } from '../../services/api';
 
 interface InventoryItem {
   _id: string;
@@ -83,7 +83,6 @@ const InventoryManagement = () => {
   const [filterBranch, setFilterBranch] = useState('all');
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [stats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -134,32 +133,32 @@ const InventoryManagement = () => {
   // Check if user has access to inventory management
   const hasAccess = user && ['chairman', 'admin', 'manager'].includes(user.role);
 
-  useEffect(() => {
-    if (hasAccess) {
-      fetchData();
-    }
-  }, [hasAccess]);
-
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [inventoryRes, companiesRes] = await Promise.all([
+      const [inventoryRes, branchesRes] = await Promise.all([
         inventoryAPI.getInventory(),
-        companyAPI.getCompanies()
+        branchAPI.getBranches()
       ]);
       
       setInventory(inventoryRes.data.docs || inventoryRes.data.data || []);
-      setBranches(companiesRes.data.data || []);
-    } catch (error: any) {
+      setBranches(branchesRes.data.data || branchesRes.data || []);
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to fetch data'
+        message: error instanceof Error ? error.message : 'Failed to fetch data'
       });
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (hasAccess) {
+      fetchData();
+    }
+  }, [hasAccess]);
 
   const resetForm = () => {
     setFormData({
@@ -315,11 +314,11 @@ const InventoryManagement = () => {
       setShowEditModal(false);
       setSelectedItem(null);
       resetForm();
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to save inventory item'
+        message: error instanceof Error ? error.message : 'Failed to save inventory item'
       });
     } finally {
       setIsSubmitting(false);
@@ -336,11 +335,11 @@ const InventoryManagement = () => {
           message: 'Inventory item deleted successfully'
         });
         fetchData();
-      } catch (error: any) {
+      } catch (error: unknown) {
         addNotification({
           type: 'error',
           title: 'Error',
-          message: error.message || 'Failed to delete inventory item'
+          message: error instanceof Error ? error.message : 'Failed to delete inventory item'
         });
       }
     }
@@ -790,23 +789,6 @@ const InventoryManagement = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Location & Branch</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
-                    <select
-                      required
-                      value={formData.branch}
-                      onChange={(e) => setFormData({...formData, branch: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select branch</option>
-                      {branches.map((branch) => (
-                        <option key={branch._id} value={branch._id}>
-                          {branch.name} ({branch.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Warehouse *</label>
                     <input
                       type="text"
@@ -844,6 +826,23 @@ const InventoryManagement = () => {
                       })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                    <select
+                      required
+                      value={formData.branch}
+                      onChange={e => setFormData({ ...formData, branch: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Branch</option>
+                      {branches.map(branch => (
+                        <option key={branch._id} value={branch._id}>
+                          {branch.name} ({branch.code})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

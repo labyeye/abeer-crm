@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Plus, 
   Search, 
-  MapPin,
-  Phone,
-  Calendar,
   Star,
-  DollarSign,
   Loader2,
   X,
   Edit,
@@ -15,6 +11,14 @@ import {
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { clientAPI } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { branchAPI } from '../../services/api';
+
+interface Branch {
+  _id: string;
+  name: string;
+  companyName: string;
+}
 
 interface Client {
   _id: string;
@@ -48,9 +52,14 @@ interface Client {
     _id: string;
     name: string;
   };
+  aadharNumber?: string;
+  panNumber?: string;
 }
 
 const ClientManagement = () => {
+  const { user } = useAuth();
+  const isChairman = user?.role === 'chairman';
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [clients, setClients] = useState<Client[]>([]);
@@ -77,31 +86,63 @@ const ClientManagement = () => {
     userId: '',
     password: '',
     status: 'active' as 'active' | 'inactive' | 'lead',
-    notes: ''
+    notes: '',
+    aadharNumber: '',
+    panNumber: '',
+    branch: ''
   });
   const [submitting, setSubmitting] = useState(false);
   
   const { addNotification } = useNotification();
 
-  useEffect(() => {
-    fetchClients();
-  }, []);
-
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
       const response = await clientAPI.getClients();
-      setClients(response.data.data || []);
-    } catch (error: any) {
+      // Try different ways to access the data, like staff management
+      const clientData = response.data?.data || response.data || response;
+      if (Array.isArray(clientData)) {
+        setClients(clientData);
+      } else if (clientData && Array.isArray(clientData.data)) {
+        setClients(clientData.data);
+      } else {
+        setClients([]);
+      }
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to fetch clients'
+        message: error instanceof Error ? error.message : 'Failed to fetch clients'
       });
+      setClients([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [addNotification]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
+
+  const fetchBranches = useCallback(async () => {
+    try {
+      const branchResponse = await branchAPI.getBranches();
+      const branchesFetched = branchResponse?.data?.data || branchResponse?.data || [];
+      setBranches(branchesFetched);
+    } catch (error: unknown) {
+      addNotification({
+        type: 'error',
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Failed to fetch branches',
+      });
+    }
+  }, [addNotification]);
+
+  useEffect(() => {
+    if (isChairman) {
+      fetchBranches();
+    }
+  }, [isChairman, fetchBranches]);
 
   const resetForm = () => {
     setFormData({
@@ -123,7 +164,10 @@ const ClientManagement = () => {
       userId: '',
       password: '',
       status: 'active',
-      notes: ''
+      notes: '',
+      aadharNumber: '',
+      panNumber: '',
+      branch: ''
     });
   };
 
@@ -144,7 +188,10 @@ const ClientManagement = () => {
       userId: client.userId,
       password: '', // Don't pre-fill password
       status: client.status,
-      notes: client.notes || ''
+      notes: client.notes || '',
+      aadharNumber: client.aadharNumber || '',
+      panNumber: client.panNumber || '',
+      branch: client.branch?._id || ''
     });
     setShowEditModal(true);
   };
@@ -152,34 +199,40 @@ const ClientManagement = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-
+    const payload = { ...formData };
+    if (!isChairman) {
+      payload.branch = user?.branchId || '';
+    }
+    // Remove company from payload if present
+    if ('company' in payload) {
+      delete payload.company;
+    }
     try {
       if (selectedClient) {
-        await clientAPI.updateClient(selectedClient._id, formData);
+        await clientAPI.updateClient(selectedClient._id, payload);
         addNotification({
           type: 'success',
           title: 'Success',
           message: 'Client updated successfully'
         });
       } else {
-        await clientAPI.createClient(formData);
+        await clientAPI.createClient(payload);
         addNotification({
           type: 'success',
           title: 'Success',
           message: 'Client created successfully'
         });
       }
-      
       fetchClients();
       setShowAddModal(false);
       setShowEditModal(false);
       setSelectedClient(null);
       resetForm();
-    } catch (error: any) {
+    } catch (error: unknown) {
       addNotification({
         type: 'error',
         title: 'Error',
-        message: error.message || 'Failed to save client'
+        message: error instanceof Error ? error.message : 'Failed to save client'
       });
     } finally {
       setSubmitting(false);
@@ -196,11 +249,11 @@ const ClientManagement = () => {
           message: 'Client deleted successfully'
         });
         fetchClients();
-      } catch (error: any) {
+      } catch (error: unknown) {
         addNotification({
           type: 'error',
           title: 'Error',
-          message: error.message || 'Failed to delete client'
+          message: error instanceof Error ? error.message : 'Failed to delete client'
         });
       }
     }
@@ -335,81 +388,62 @@ const ClientManagement = () => {
         </select>
       </div>
 
-      {/* Clients Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredClients.map((client) => (
-          <div key={client._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">
-                    {client.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{client.name}</h3>
-                  <p className="text-sm text-gray-600">{client.category}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                client.status === 'active' ? 'bg-green-100 text-green-700' :
-                client.status === 'inactive' ? 'bg-red-100 text-red-700' :
-                'bg-yellow-100 text-yellow-700'
-              }`}>
-                {client.status}
-              </span>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center text-sm text-gray-600">
-                <Phone className="w-4 h-4 mr-2" />
-                {client.phone}
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <MapPin className="w-4 h-4 mr-2" />
-                {client.address.city}, {client.address.state}
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <Star className="w-4 h-4 mr-2" />
-                Rating: {client.rating || 'N/A'}
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <Calendar className="w-4 h-4 mr-2" />
-                Bookings: {client.totalBookings || 0}
-              </div>
-              <div className="flex items-center text-sm text-gray-600">
-                <DollarSign className="w-4 h-4 mr-2" />
-                ₹{client.totalSpent?.toLocaleString() || '0'}
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => handleEditClient(client)}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                title="Edit Client"
-              >
-                <Edit className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleDeleteClient(client._id, client.name)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete Client"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
+      {/* Clients Table */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white rounded-xl shadow-sm border border-gray-200">
+          <thead>
+            <tr>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Name</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Phone</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Email</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Category</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Status</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Branch</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">City</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Total Bookings</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Total Spent</th>
+              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredClients.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="text-center py-8 text-gray-500">No clients found</td>
+              </tr>
+            ) : (
+              filteredClients.map((client) => (
+                <tr key={client._id} className="border-b">
+                  <td className="px-4 py-2">{client.name}</td>
+                  <td className="px-4 py-2">{client.phone}</td>
+                  <td className="px-4 py-2">{client.email}</td>
+                  <td className="px-4 py-2">{client.category}</td>
+                  <td className="px-4 py-2">{client.status}</td>
+                  <td className="px-4 py-2">{client.branch?.name || '-'}</td>
+                  <td className="px-4 py-2">{client.address.city}</td>
+                  <td className="px-4 py-2">{client.totalBookings || 0}</td>
+                  <td className="px-4 py-2">₹{client.totalSpent?.toLocaleString() || '0'}</td>
+                  <td className="px-4 py-2">
+                    <button
+                      onClick={() => handleEditClient(client)}
+                      className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors mr-2"
+                      title="Edit Client"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClient(client._id, client.name)}
+                      className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Delete Client"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-
-      {filteredClients.length === 0 && (
-        <div className="text-center py-12">
-          <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No clients found</h3>
-          <p className="text-gray-600">Get started by adding your first client.</p>
-        </div>
-      )}
 
       {/* Add/Edit Modal */}
       {(showAddModal || showEditModal) && (
@@ -474,13 +508,30 @@ const ClientManagement = () => {
                     <select
                       required
                       value={formData.category}
-                      onChange={(e) => setFormData({...formData, category: e.target.value as any})}
+                      onChange={(e) => setFormData({...formData, category: e.target.value as 'individual' | 'professional'})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="individual">Individual</option>
                       <option value="professional">Professional</option>
                     </select>
                   </div>
+
+                  {isChairman && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
+                      <select
+                        required
+                        value={formData.branch}
+                        onChange={e => setFormData({ ...formData, branch: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Branch</option>
+                        {branches.map((branch) => (
+                          <option key={branch._id} value={branch._id}>{branch.companyName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -574,6 +625,31 @@ const ClientManagement = () => {
                 </div>
               </div>
 
+              {/* Government IDs */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Government IDs</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Aadhar Number</label>
+                    <input
+                      type="text"
+                      value={formData.aadharNumber}
+                      onChange={(e) => setFormData({...formData, aadharNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
+                    <input
+                      type="text"
+                      value={formData.panNumber}
+                      onChange={(e) => setFormData({...formData, panNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Reference */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Reference (Optional)</h3>
@@ -628,7 +704,7 @@ const ClientManagement = () => {
                     <select
                       required
                       value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value as any})}
+                      onChange={(e) => setFormData({...formData, status: e.target.value as 'active' | 'inactive' | 'lead'})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="active">Active</option>
