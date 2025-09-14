@@ -26,6 +26,7 @@ const quotations = require('./routes/quotationRoutes');
 const production = require('./routes/productionRoutes');
 const vendors = require('./routes/vendorRoutes');
 const analytics = require('./routes/analyticsRoutes');
+const expenses = require('./routes/expenseRoutes');
 // Phase 3 - Advanced Features
 const ai = require('./routes/aiRoutes');
 const mobile = require('./routes/mobileRoutes');
@@ -43,7 +44,7 @@ const corsOptions = {
     'http://localhost:3000', // Local development
     'http://localhost:5173', // Vite dev server
     'https://abeer-crm.vercel.app', // Production frontend
-    'https://abeer-crm.onrender.com' // Production backend (for API calls)
+    'http://localhost:2500' // Production backend (for API calls)
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -58,6 +59,8 @@ app.use('/api/inventory', inventory);
 app.use('/api/staff', staff);
 app.use('/api/branches', branches);
 app.use('/api/attendance', attendance);
+const bookings = require('./routes/bookingRoutes');
+app.use('/api/bookings', bookings);
 app.use('/api/clients', clients);
 app.use('/api/rentals', rentals);
 app.use('/api/notifications', notifications);
@@ -66,6 +69,7 @@ app.use('/api/quotations', quotations);
 app.use('/api/production', production);
 app.use('/api/vendors', vendors);
 app.use('/api/analytics', analytics);
+app.use('/api/expenses', expenses);
 // Phase 3 - Advanced Features
 app.use('/api/ai', ai);
 app.use('/api/mobile', mobile);

@@ -2,6 +2,7 @@ const Booking = require('../models/Booking');
 const Client = require('../models/Client');
 const Staff = require('../models/Staff');
 const Inventory = require('../models/Inventory');
+const Branch = require('../models/Branch');
 const Quotation = require('../models/Quotation');
 const Invoice = require('../models/Invoice');
 const automatedMessaging = require('../services/automatedMessaging');
@@ -13,7 +14,7 @@ const { updateBranchRevenue } = require('../utils/branchUtils');
 // @desc    Get all bookings
 // @route   GET /api/bookings
 // @access  Private
-const getAllBookings = asyncHandler(async (req, res) => {
+const getBookings = asyncHandler(async (req, res) => {
   const { company, branch, client, status, search, startDate, endDate } = req.query;
   let query = { isDeleted: false };
   if (company) query.company = company;
@@ -67,11 +68,21 @@ const getBooking = asyncHandler(async (req, res) => {
 // @route   POST /api/bookings
 // @access  Private
 const createBooking = asyncHandler(async (req, res) => {
+  // Set company from the branch since company info is embedded in branch
+  if (!req.body.company && req.body.branch) {
+    req.body.company = req.body.branch; // Use branch as company reference
+  }
+  
+  // If still no company and user has a branch, use user's branch
+  if (!req.body.company && req.user.branch) {
+    req.body.company = req.user.branch;
+  }
+  
   const booking = await Booking.create(req.body);
   // Populate necessary fields for notifications and response
   await booking.populate([
     { path: 'client', select: 'name phone email' },
-    { path: 'company', select: 'name' },
+    { path: 'company', select: 'companyName name code' },
     { path: 'branch', select: 'name code' },
     { path: 'assignedStaff', select: 'name designation employeeId' },
     { path: 'inventorySelection', select: 'name category quantity' }
@@ -184,7 +195,7 @@ const getBookingsForInventory = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getAllBookings,
+  getBookings,
   getBooking,
   createBooking,
   updateBooking,

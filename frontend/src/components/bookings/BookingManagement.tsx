@@ -1,18 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Plus, 
-  Search, 
+import React, { useState, useEffect } from "react";
+import {
+  Calendar,
+  Plus,
+  Search,
   Clock,
   Camera,
   CheckCircle,
   Edit,
   Trash2,
   Loader2,
-  X
-} from 'lucide-react';
-import { useNotification } from '../../contexts/NotificationContext';
-import { bookingAPI, clientAPI, staffAPI, inventoryAPI, branchAPI } from '../../services/api';
+  X,
+} from "lucide-react";
+import { useNotification } from "../../contexts/NotificationContext";
+import {
+  bookingAPI,
+  clientAPI,
+  staffAPI,
+  inventoryAPI,
+  branchAPI,
+} from "../../services/api";
 
 interface Booking {
   _id: string;
@@ -25,6 +31,8 @@ interface Booking {
   };
   functionDetails: {
     type: string;
+    startDate: string;
+    endDate: string;
     date: string;
     time: {
       start: string;
@@ -53,11 +61,13 @@ interface Booking {
   };
   services: string[];
   pricing: {
-    totalAmount: number;
-    advanceAmount: number;
-    balanceAmount: number;
+  subtotal?: number;
+  gstAmount?: number;
+  totalAmount: number;
+  advanceAmount: number;
+  remainingAmount?: number;
   };
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
   createdAt: string;
 }
 
@@ -89,58 +99,89 @@ interface Branch {
 }
 
 const BookingManagement = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  // Inventory can be an array or a paginated object with docs
+  type PaginatedInventory = { docs: InventoryItem[]; [key: string]: any };
+  const [inventory, setInventory] = useState<InventoryItem[] | PaginatedInventory>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [formData, setFormData] = useState({
-    clientId: '',
-    functionType: '',
-    functionDate: '',
-    functionStartTime: '',
-    functionEndTime: '',
-    venueName: '',
-    venueAddress: '',
-    serviceNeeded: '',
+    clientId: "",
+    functionType: "",
+    functionStartDate: "",
+    functionEndDate: "",
+    functionDate: "",
+    functionStartTime: "",
+    functionEndTime: "",
+    venueName: "",
+    venueAddress: "",
+    serviceNeeded: "",
     inventorySelection: [] as string[],
     assignedStaff: [] as string[],
-    bookingBranch: '',
+    bookingBranch: "",
     services: [] as string[],
     totalAmount: 0,
     advanceAmount: 0,
-    notes: ''
+    notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
-  
+
   const { addNotification } = useNotification();
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, clientsRes, staffRes, inventoryRes, branchesRes] = await Promise.all([
-        bookingAPI.getBookings(),
-        clientAPI.getClients(),
-        staffAPI.getStaff(),
-        inventoryAPI.getInventory(),
-        branchAPI.getBranches()
-      ]);
-      setBookings(bookingsRes.data.data || []);
-      setClients(clientsRes.data.data || []);
-      setStaff(staffRes.data.data || []);
-      setInventory(inventoryRes.data.data || []);
-      setBranches(branchesRes.data.data || []);
+      const [bookingsRes, clientsRes, staffRes, inventoryRes, branchesRes] =
+        await Promise.all([
+          bookingAPI.getBookings(),
+          clientAPI.getClients(),
+          staffAPI.getStaff(),
+          inventoryAPI.getInventory(),
+          branchAPI.getBranches(),
+        ]);
+      console.log("Bookings API response:", bookingsRes.data);
+      console.log("Clients API response:", clientsRes.data);
+      console.log("Staff API response:", staffRes.data);
+      console.log("Inventory API response:", inventoryRes.data);
+      console.log("Branches API response:", branchesRes.data);
+      setBookings(
+        Array.isArray(bookingsRes.data)
+          ? bookingsRes.data
+          : bookingsRes.data.data || []
+      );
+      setClients(
+        Array.isArray(clientsRes.data)
+          ? clientsRes.data
+          : clientsRes.data.data || []
+      );
+      setStaff(
+        Array.isArray(staffRes.data) ? staffRes.data : staffRes.data.data || []
+      );
+      setInventory(
+        Array.isArray(inventoryRes.data.data?.docs)
+          ? inventoryRes.data.data.docs
+          : Array.isArray(inventoryRes.data.data)
+          ? inventoryRes.data.data
+          : inventoryRes.data || []
+      );
+      setBranches(
+        Array.isArray(branchesRes.data)
+          ? branchesRes.data
+          : branchesRes.data.data || []
+      );
     } catch (error: unknown) {
       addNotification({
-        type: 'error',
-        title: 'Error',
-        message: error instanceof Error ? error.message : 'Failed to fetch data'
+        type: "error",
+        title: "Error",
+        message:
+          error instanceof Error ? error.message : "Failed to fetch data",
       });
     } finally {
       setLoading(false);
@@ -153,22 +194,37 @@ const BookingManagement = () => {
 
   const resetForm = () => {
     setFormData({
-      clientId: '',
-      functionType: '',
-      functionDate: '',
-      functionStartTime: '',
-      functionEndTime: '',
-      venueName: '',
-      venueAddress: '',
-      serviceNeeded: '',
+      clientId: "",
+      functionType: "",
+      functionStartDate: "",
+      functionEndDate: "",
+      functionDate: "",
+      functionStartTime: "",
+      functionEndTime: "",
+      venueName: "",
+      venueAddress: "",
+      serviceNeeded: "",
       inventorySelection: [],
       assignedStaff: [],
-      bookingBranch: '',
+      bookingBranch: "",
       services: [],
       totalAmount: 0,
       advanceAmount: 0,
-      notes: ''
+      notes: "",
     });
+  };
+
+  // Helper to compute remaining amount from various possible pricing shapes
+  const getRemainingAmount = (b: Booking | null | undefined) => {
+    if (!b || !b.pricing) return 0;
+    const p: any = b.pricing as any;
+    // Prefer explicit remainingAmount when provided
+    if (p.remainingAmount != null) return p.remainingAmount;
+    // If we have numeric totalAmount, compute remaining from advance (arithmetic never yields null/undefined)
+    if (typeof p.totalAmount === 'number') return p.totalAmount - (p.advanceAmount || 0);
+    // Fallback to legacy balanceAmount if present
+    if (p.balanceAmount != null) return p.balanceAmount;
+    return 0;
   };
 
   const handleAddBooking = () => {
@@ -181,19 +237,22 @@ const BookingManagement = () => {
     setFormData({
       clientId: booking.client._id,
       functionType: booking.functionDetails.type,
-      functionDate: booking.functionDetails.date.split('T')[0],
+      functionStartDate: booking.functionDetails.startDate ? booking.functionDetails.startDate.split("T")[0] : "",
+      functionEndDate: booking.functionDetails.endDate ? booking.functionDetails.endDate.split("T")[0] : "",
+      functionDate: booking.functionDetails.date.split("T")[0],
       functionStartTime: booking.functionDetails.time.start,
       functionEndTime: booking.functionDetails.time.end,
       venueName: booking.functionDetails.venue.name,
       venueAddress: booking.functionDetails.venue.address,
-      serviceNeeded: booking.serviceNeeded || '',
-      inventorySelection: booking.inventorySelection?.map(item => item._id) || [],
-      assignedStaff: booking.assignedStaff?.map(staff => staff._id) || [],
-      bookingBranch: booking.bookingBranch?._id || '',
+      serviceNeeded: booking.serviceNeeded || "",
+      inventorySelection:
+        booking.inventorySelection?.map((item) => item._id) || [],
+      assignedStaff: booking.assignedStaff?.map((staff) => staff._id) || [],
+      bookingBranch: booking.bookingBranch?._id || "",
       services: booking.services || [],
       totalAmount: booking.pricing.totalAmount,
       advanceAmount: booking.pricing.advanceAmount,
-      notes: ''
+      notes: "",
     });
     setShowEditModal(true);
   };
@@ -203,19 +262,30 @@ const BookingManagement = () => {
     setSubmitting(true);
 
     try {
+      // Generate booking number
+      const bookingNumber = `BK-${Date.now()}`;
+      
+      // Calculate pricing fields
+      const subtotal = formData.totalAmount;
+      const remainingAmount = formData.totalAmount - formData.advanceAmount;
+      
       const bookingData = {
+        bookingNumber,
         client: formData.clientId,
+        branch: formData.bookingBranch,
         functionDetails: {
           type: formData.functionType,
-          date: formData.functionDate,
+          startDate: formData.functionStartDate,
+          endDate: formData.functionEndDate,
+          date: formData.functionStartDate || formData.functionDate || new Date().toISOString(),
           time: {
             start: formData.functionStartTime,
-            end: formData.functionEndTime
+            end: formData.functionEndTime,
           },
           venue: {
             name: formData.venueName,
-            address: formData.venueAddress
-          }
+            address: formData.venueAddress,
+          },
         },
         serviceNeeded: formData.serviceNeeded,
         inventorySelection: formData.inventorySelection,
@@ -223,28 +293,29 @@ const BookingManagement = () => {
         bookingBranch: formData.bookingBranch,
         services: formData.services,
         pricing: {
+          subtotal,
           totalAmount: formData.totalAmount,
           advanceAmount: formData.advanceAmount,
-          balanceAmount: formData.totalAmount - formData.advanceAmount
-        }
+          remainingAmount,
+        },
       };
 
       if (selectedBooking) {
         await bookingAPI.updateBooking(selectedBooking._id, bookingData);
         addNotification({
-          type: 'success',
-          title: 'Success',
-          message: 'Booking updated successfully'
+          type: "success",
+          title: "Success",
+          message: "Booking updated successfully",
         });
       } else {
         await bookingAPI.createBooking(bookingData);
         addNotification({
-          type: 'success',
-          title: 'Success',
-          message: 'Booking created successfully'
+          type: "success",
+          title: "Success",
+          message: "Booking created successfully",
         });
       }
-      
+
       fetchData();
       setShowAddModal(false);
       setShowEditModal(false);
@@ -252,9 +323,10 @@ const BookingManagement = () => {
       resetForm();
     } catch (error: unknown) {
       addNotification({
-        type: 'error',
-        title: 'Error',
-        message: error instanceof Error ? error.message : 'Failed to save booking'
+        type: "error",
+        title: "Error",
+        message:
+          error instanceof Error ? error.message : "Failed to save booking",
       });
     } finally {
       setSubmitting(false);
@@ -262,38 +334,47 @@ const BookingManagement = () => {
   };
 
   const handleDeleteBooking = async (id: string, bookingNumber: string) => {
-    if (window.confirm(`Are you sure you want to delete booking ${bookingNumber}?`)) {
+    if (
+      window.confirm(
+        `Are you sure you want to delete booking ${bookingNumber}?`
+      )
+    ) {
       try {
         await bookingAPI.deleteBooking(id);
         addNotification({
-          type: 'success',
-          title: 'Success',
-          message: 'Booking deleted successfully'
+          type: "success",
+          title: "Success",
+          message: "Booking deleted successfully",
         });
         fetchData();
       } catch (error: unknown) {
         addNotification({
-          type: 'error',
-          title: 'Error',
-          message: error instanceof Error ? error.message : 'Failed to delete booking'
+          type: "error",
+          title: "Error",
+          message:
+            error instanceof Error ? error.message : "Failed to delete booking",
         });
       }
     }
   };
 
-  const filteredBookings = bookings.filter(booking => {
-    const matchesSearch = booking.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         booking.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         booking.functionDetails.type.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || booking.status === filterStatus;
+  const filteredBookings = bookings.filter((booking) => {
+    const matchesSearch =
+      booking.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      booking.functionDetails.type
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      filterStatus === "all" || booking.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
     total: bookings.length,
-    pending: bookings.filter(b => b.status === 'pending').length,
-    confirmed: bookings.filter(b => b.status === 'confirmed').length,
-    completed: bookings.filter(b => b.status === 'completed').length
+    pending: bookings.filter((b) => b.status === "pending").length,
+    confirmed: bookings.filter((b) => b.status === "confirmed").length,
+    completed: bookings.filter((b) => b.status === "completed").length,
   };
 
   if (loading) {
@@ -309,8 +390,12 @@ const BookingManagement = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Booking Management</h1>
-          <p className="text-gray-600 mt-1">Manage client bookings and events</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Booking Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Manage client bookings and events
+          </p>
         </div>
         <button
           onClick={handleAddBooking}
@@ -329,7 +414,9 @@ const BookingManagement = () => {
               <Calendar className="w-6 h-6 text-white" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Bookings</p>
+              <p className="text-sm font-medium text-gray-600">
+                Total Bookings
+              </p>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
@@ -342,7 +429,9 @@ const BookingManagement = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.pending}
+              </p>
             </div>
           </div>
         </div>
@@ -354,7 +443,9 @@ const BookingManagement = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Confirmed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.confirmed}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.confirmed}
+              </p>
             </div>
           </div>
         </div>
@@ -366,7 +457,9 @@ const BookingManagement = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Completed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {stats.completed}
+              </p>
             </div>
           </div>
         </div>
@@ -453,7 +546,9 @@ const BookingManagement = () => {
                         {booking.functionDetails.type}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {new Date(booking.functionDetails.date).toLocaleDateString()}
+                        {new Date(
+                          booking.functionDetails.date
+                        ).toLocaleDateString()}
                       </div>
                       <div className="text-sm text-gray-500">
                         {booking.functionDetails.venue.name}
@@ -474,13 +569,19 @@ const BookingManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      booking.status === 'completed' ? 'bg-green-100 text-green-800' :
-                      booking.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                      booking.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                      booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        booking.status === "completed"
+                          ? "bg-green-100 text-green-800"
+                          : booking.status === "confirmed"
+                          ? "bg-blue-100 text-blue-800"
+                          : booking.status === "in_progress"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : booking.status === "cancelled"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
                       {booking.status}
                     </span>
                   </td>
@@ -493,7 +594,12 @@ const BookingManagement = () => {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteBooking(booking._id, booking.bookingNumber)}
+                        onClick={() =>
+                          handleDeleteBooking(
+                            booking._id,
+                            booking.bookingNumber
+                          )
+                        }
                         className="text-red-600 hover:text-red-900"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -510,8 +616,12 @@ const BookingManagement = () => {
       {filteredBookings.length === 0 && (
         <div className="text-center py-12">
           <Calendar className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings found</h3>
-          <p className="text-gray-600">Get started by creating your first booking.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No bookings found
+          </h3>
+          <p className="text-gray-600">
+            Get started by creating your first booking.
+          </p>
         </div>
       )}
 
@@ -521,7 +631,7 @@ const BookingManagement = () => {
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
-                {selectedBooking ? 'Edit Booking' : 'Add New Booking'}
+                {selectedBooking ? "Edit Booking" : "Add New Booking"}
               </h2>
               <button
                 onClick={() => {
@@ -539,14 +649,20 @@ const BookingManagement = () => {
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               {/* Client Selection */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Client Information</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Client Information
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Client *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Client *
+                    </label>
                     <select
                       required
                       value={formData.clientId}
-                      onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, clientId: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select a client</option>
@@ -559,11 +675,18 @@ const BookingManagement = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Booking Branch *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Booking Branch *
+                    </label>
                     <select
                       required
                       value={formData.bookingBranch}
-                      onChange={(e) => setFormData({...formData, bookingBranch: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          bookingBranch: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select branch</option>
@@ -579,70 +702,128 @@ const BookingManagement = () => {
 
               {/* Function Details */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Function Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Function Details
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Function Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Function Type *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.functionType}
-                      onChange={(e) => setFormData({...formData, functionType: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          functionType: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="e.g., Wedding, Birthday, Corporate Event"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Function Date *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Date *
+                    </label>
                     <input
                       type="date"
                       required
-                      value={formData.functionDate}
-                      onChange={(e) => setFormData({...formData, functionDate: e.target.value})}
+                      value={formData.functionStartDate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          functionStartDate: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Date *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.functionEndDate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          functionEndDate: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Time *
+                    </label>
                     <input
                       type="time"
                       required
                       value={formData.functionStartTime}
-                      onChange={(e) => setFormData({...formData, functionStartTime: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          functionStartTime: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Time *
+                    </label>
                     <input
                       type="time"
                       required
                       value={formData.functionEndTime}
-                      onChange={(e) => setFormData({...formData, functionEndTime: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          functionEndTime: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Venue Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Venue Name *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.venueName}
-                      onChange={(e) => setFormData({...formData, venueName: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({ ...formData, venueName: e.target.value })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Venue Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Venue Address
+                    </label>
                     <input
                       type="text"
                       value={formData.venueAddress}
-                      onChange={(e) => setFormData({...formData, venueAddress: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          venueAddress: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -651,79 +832,171 @@ const BookingManagement = () => {
 
               {/* Service Details */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Service Requirements</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Service Requirements
+                </h3>
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Service Needed *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Service Needed *
+                    </label>
                     <input
                       type="text"
                       required
                       value={formData.serviceNeeded}
-                      onChange={(e) => setFormData({...formData, serviceNeeded: e.target.value})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          serviceNeeded: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="e.g., Photography, Videography, Photography + Videography"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Staff</label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto border rounded-lg p-3">
-                      {staff.map((staffMember) => (
-                        <label key={staffMember._id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.assignedStaff.includes(staffMember._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  assignedStaff: [...formData.assignedStaff, staffMember._id]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  assignedStaff: formData.assignedStaff.filter(id => id !== staffMember._id)
-                                });
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm">
-                            {staffMember.name} ({staffMember.designation})
-                          </span>
-                        </label>
-                      ))}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assigned Staff
+                    </label>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
+                              Assign
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
+                              Name
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
+                              Designation
+                            </th>
+                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
+                              Employee ID
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {staff.map((staffMember) => (
+                            <tr key={staffMember._id}>
+                              <td className="px-2 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={formData.assignedStaff.includes(
+                                    staffMember._id
+                                  )}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({
+                                        ...formData,
+                                        assignedStaff: [
+                                          ...formData.assignedStaff,
+                                          staffMember._id,
+                                        ],
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        assignedStaff:
+                                          formData.assignedStaff.filter(
+                                            (id) => id !== staffMember._id
+                                          ),
+                                      });
+                                    }
+                                  }}
+                                />
+                              </td>
+                              <td className="px-2 py-2">{staffMember.name}</td>
+                              <td className="px-2 py-2">
+                                {staffMember.designation}
+                              </td>
+                              <td className="px-2 py-2">
+                                {staffMember.employeeId}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Equipment Selection</label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-48 overflow-y-auto border rounded-lg p-3">
-                      {inventory.map((item) => (
-                        <label key={item._id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={formData.inventorySelection.includes(item._id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  inventorySelection: [...formData.inventorySelection, item._id]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  inventorySelection: formData.inventorySelection.filter(id => id !== item._id)
-                                });
-                              }
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm">
-                            {item.name} ({item.category})
-                          </span>
-                        </label>
-                      ))}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Equipment Selection
+                    </label>
+                    <div className="overflow-x-auto border rounded-lg">
+                      {(() => {
+                        let inventoryList: InventoryItem[] = [];
+                        if (
+                          inventory &&
+                          typeof inventory === "object" &&
+                          "docs" in inventory &&
+                          Array.isArray((inventory as PaginatedInventory).docs)
+                        ) {
+                          inventoryList = (inventory as PaginatedInventory).docs;
+                        } else if (Array.isArray(inventory)) {
+                          inventoryList = inventory;
+                        }
+                        return (
+                          <>
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Assign</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Name</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Category</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Brand</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Model</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Condition</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Quantity</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {inventoryList.map((item: any) => (
+                                  <tr key={item._id}>
+                                    <td className="px-2 py-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={formData.inventorySelection.includes(item._id)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setFormData({
+                                              ...formData,
+                                              inventorySelection: [
+                                                ...formData.inventorySelection,
+                                                item._id,
+                                              ],
+                                            });
+                                          } else {
+                                            setFormData({
+                                              ...formData,
+                                              inventorySelection: formData.inventorySelection.filter((id) => id !== item._id),
+                                            });
+                                          }
+                                        }}
+                                      />
+                                    </td>
+                                    <td className="px-2 py-2">{item.name}</td>
+                                    <td className="px-2 py-2">{item.category}</td>
+                                    <td className="px-2 py-2">{item.brand || '-'}</td>
+                                    <td className="px-2 py-2">{item.model || '-'}</td>
+                                    <td className="px-2 py-2">{item.condition || '-'}</td>
+                                    <td className="px-2 py-2">{item.status || '-'}</td>
+                                    <td className="px-2 py-2">{item.quantity}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            {inventoryList.length === 0 && (
+                              <div className="text-center py-4 text-red-600 text-sm">
+                                Inventory is empty or not accessible. Please check your permissions or contact your administrator.
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -731,38 +1004,137 @@ const BookingManagement = () => {
 
               {/* Pricing */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Pricing</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Pricing
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Total Amount *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Total Amount *
+                    </label>
                     <input
                       type="number"
                       required
                       value={formData.totalAmount}
-                      onChange={(e) => setFormData({...formData, totalAmount: Number(e.target.value)})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          totalAmount: Number(e.target.value),
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Advance Amount
+                    </label>
                     <input
                       type="number"
                       value={formData.advanceAmount}
-                      onChange={(e) => setFormData({...formData, advanceAmount: Number(e.target.value)})}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          advanceAmount: Number(e.target.value),
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
                 <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-600">
-                    Balance Amount: ₹{(formData.totalAmount - formData.advanceAmount).toLocaleString()}
+                    Balance Amount: ₹
+                    {(
+                      formData.totalAmount - formData.advanceAmount
+                    ).toLocaleString()}
                   </p>
+                </div>
+              </div>
+
+              {/* Summary Section */}
+              <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="text-md font-semibold mb-2 text-gray-900">
+                  Summary
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-xs text-gray-500">Client</div>
+                    <div className="text-sm text-gray-900 font-medium">
+                      {clients.find((c) => c._id === formData.clientId)?.name ||
+                        "N/A"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Assigned Staff</div>
+                    <div className="text-sm text-gray-900 font-medium">
+                      {formData.assignedStaff.length > 0
+                        ? staff
+                            .filter((s) =>
+                              formData.assignedStaff.includes(s._id)
+                            )
+                            .map((s) => s.name)
+                            .join(", ")
+                        : "None"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Equipment</div>
+                    <div className="text-sm text-gray-900 font-medium">
+                      {formData.inventorySelection.length > 0
+                        ? (Array.isArray(inventory)
+                            ? inventory
+                            : 'docs' in inventory && Array.isArray((inventory as any).docs)
+                            ? (inventory as any).docs
+                            : []
+                          )
+                            .filter((i: InventoryItem) =>
+                              formData.inventorySelection.includes(i._id)
+                            )
+                            .map((i: InventoryItem) => i.name)
+                            .join(", ")
+                        : "None"}
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Submit Buttons */}
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                {selectedBooking && getRemainingAmount(selectedBooking) > 0 && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!selectedBooking) return;
+                      if (!window.confirm('Mark this booking as paid? This will set remaining amount to 0 and mark payment as completed.')) return;
+                      try {
+                        setSubmitting(true);
+                        const currentTotal = selectedBooking.pricing?.totalAmount ?? formData.totalAmount;
+                        const currentAdvance = selectedBooking.pricing?.advanceAmount ?? formData.advanceAmount ?? 0;
+                        const updatedPricing = {
+                          subtotal: selectedBooking.pricing?.subtotal ?? currentTotal,
+                          totalAmount: currentTotal,
+                          advanceAmount: Math.max(currentAdvance, currentTotal),
+                          remainingAmount: 0,
+                        };
+                        await bookingAPI.updateBooking(selectedBooking._id, { paymentStatus: 'completed', pricing: updatedPricing });
+                        addNotification({ type: 'success', title: 'Payment', message: 'Marked booking as paid' });
+                        await fetchData();
+                        setShowEditModal(false);
+                        setSelectedBooking(null);
+                        resetForm();
+                      } catch (error: unknown) {
+                        addNotification({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'Failed to mark as paid' });
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    Mark as Paid
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -780,8 +1152,10 @@ const BookingManagement = () => {
                   disabled={submitting}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
                 >
-                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {selectedBooking ? 'Update Booking' : 'Create Booking'}
+                  {submitting && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  {selectedBooking ? "Update Booking" : "Create Booking"}
                 </button>
               </div>
             </form>

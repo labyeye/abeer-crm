@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { 
-  FileText, 
-  Plus, 
-  Search, 
+import { useState, useEffect } from "react";
+import {
+  FileText,
+  Plus,
+  Search,
   Eye,
   Edit,
   Download,
@@ -19,255 +19,350 @@ import {
   Mail,
   MapPin,
   Camera,
-  Copy
-} from 'lucide-react';
-import { useNotification } from '../../contexts/NotificationContext';
+  Copy,
+} from "lucide-react";
+import { useNotification } from "../../contexts/NotificationContext";
+import { quotationAPI, branchAPI, clientAPI } from "../../services/api";
 
 const QuotationManagement = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [activeTab, setActiveTab] = useState('quotations');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [activeTab, setActiveTab] = useState("quotations");
   const { addNotification } = useNotification();
 
-  const quotations = [
-    {
-      id: 'QUO-2024-001',
-      clientName: 'Sarah & Michael Johnson',
-      clientEmail: 'sarah.johnson@email.com',
-      clientPhone: '+1 (555) 0123',
-      eventType: 'Wedding Photography',
-      eventDate: '2024-02-14',
-      eventLocation: 'Central Park, New York',
-      quotationDate: '2024-01-15',
-      validUntil: '2024-02-01',
-      status: 'sent',
-      totalAmount: 2500,
-      services: [
-        { name: 'Wedding Photography (8 hours)', price: 1800, quantity: 1 },
-        { name: 'Photo Editing & Album', price: 500, quantity: 1 },
-        { name: 'Additional Photographer', price: 200, quantity: 1 }
-      ],
-      gstIncluded: true,
-      gstAmount: 450,
-      notes: 'Premium wedding package with same-day highlights',
-      followUpDate: '2024-01-22',
-      photographer: 'Alex Rodriguez',
-      template: 'Wedding Premium'
-    },
-    {
-      id: 'QUO-2024-002',
-      clientName: 'Tech Innovations Inc.',
-      clientEmail: 'contact@techinnovations.com',
-      clientPhone: '+1 (555) 0124',
-      eventType: 'Corporate Headshots',
-      eventDate: '2024-01-30',
-      eventLocation: 'Downtown Office',
-      quotationDate: '2024-01-16',
-      validUntil: '2024-01-25',
-      status: 'approved',
-      totalAmount: 800,
-      services: [
-        { name: 'Corporate Headshots (20 employees)', price: 600, quantity: 1 },
-        { name: 'Basic Retouching', price: 150, quantity: 1 },
-        { name: 'Digital Delivery', price: 50, quantity: 1 }
-      ],
-      gstIncluded: true,
-      gstAmount: 144,
-      notes: 'Professional headshots for company website',
-      followUpDate: null,
-      photographer: 'Sarah Chen',
-      template: 'Corporate Standard'
-    },
-    {
-      id: 'QUO-2024-003',
-      clientName: 'Emma Wilson',
-      clientEmail: 'emma.wilson@email.com',
-      clientPhone: '+1 (555) 0125',
-      eventType: 'Family Portrait',
-      eventDate: '2024-02-05',
-      eventLocation: 'Sunset Beach',
-      quotationDate: '2024-01-18',
-      validUntil: '2024-01-28',
-      status: 'pending',
-      totalAmount: 450,
-      services: [
-        { name: 'Family Portrait Session (2 hours)', price: 300, quantity: 1 },
-        { name: 'Photo Editing (10 photos)', price: 100, quantity: 1 },
-        { name: 'Print Package', price: 50, quantity: 1 }
-      ],
-      gstIncluded: false,
-      gstAmount: 0,
-      notes: 'Outdoor family session at golden hour',
-      followUpDate: '2024-01-25',
-      photographer: 'Mike Johnson',
-      template: 'Family Basic'
-    },
-    {
-      id: 'QUO-2024-004',
-      clientName: 'Fashion Brand LLC',
-      clientEmail: 'hello@fashionbrand.com',
-      clientPhone: '+1 (555) 0126',
-      eventType: 'Product Photography',
-      eventDate: '2024-02-10',
-      eventLocation: 'Studio A',
-      quotationDate: '2024-01-20',
-      validUntil: '2024-02-05',
-      status: 'rejected',
-      totalAmount: 1200,
-      services: [
-        { name: 'Product Photography (50 items)', price: 800, quantity: 1 },
-        { name: 'Advanced Retouching', price: 300, quantity: 1 },
-        { name: 'Rush Delivery', price: 100, quantity: 1 }
-      ],
-      gstIncluded: true,
-      gstAmount: 216,
-      notes: 'High-end product photography for e-commerce',
-      followUpDate: null,
-      photographer: 'David Kim',
-      template: 'Commercial Premium'
-    },
-    {
-      id: 'QUO-2024-005',
-      clientName: 'Global Marketing Agency',
-      clientEmail: 'projects@globalmarketing.com',
-      clientPhone: '+1 (555) 0127',
-      eventType: 'Event Coverage',
-      eventDate: '2024-02-20',
-      eventLocation: 'Convention Center',
-      quotationDate: '2024-01-22',
-      validUntil: '2024-02-10',
-      status: 'expired',
-      totalAmount: 3200,
-      services: [
-        { name: 'Event Photography (Full Day)', price: 2000, quantity: 1 },
-        { name: 'Videography', price: 800, quantity: 1 },
-        { name: 'Same Day Editing', price: 400, quantity: 1 }
-      ],
-      gstIncluded: true,
-      gstAmount: 576,
-      notes: 'Complete event coverage with live streaming',
-      followUpDate: '2024-02-01',
-      photographer: 'Alex Rodriguez',
-      template: 'Event Premium'
-    }
-  ];
+  const [quotations, setQuotations] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createData, setCreateData] = useState<any>({
+    client: "",
+    branch: "",
+    services: [{ name: "", quantity: 1, price: 0 }],
+    gstPct: 0,
+    notes: "",
+    functionDetails: { date: "", type: "", venue: { name: "", address: "" } },
+  });
 
   const templates = [
     {
       id: 1,
-      name: 'Wedding Premium',
-      category: 'Wedding',
-      description: 'Comprehensive wedding photography package',
-      services: ['Photography', 'Videography', 'Album', 'Editing'],
+      name: "Wedding Premium",
+      category: "Wedding",
+      description: "Comprehensive wedding photography package",
+      services: ["Photography", "Videography", "Album", "Editing"],
       basePrice: 2500,
       gstIncluded: true,
-      lastUsed: '2024-01-15'
+      lastUsed: "2024-01-15",
     },
     {
       id: 2,
-      name: 'Corporate Standard',
-      category: 'Corporate',
-      description: 'Professional corporate photography services',
-      services: ['Headshots', 'Event Coverage', 'Basic Editing'],
+      name: "Corporate Standard",
+      category: "Corporate",
+      description: "Professional corporate photography services",
+      services: ["Headshots", "Event Coverage", "Basic Editing"],
       basePrice: 800,
       gstIncluded: true,
-      lastUsed: '2024-01-16'
+      lastUsed: "2024-01-16",
     },
     {
       id: 3,
-      name: 'Family Basic',
-      category: 'Portrait',
-      description: 'Family portrait session package',
-      services: ['Portrait Session', 'Basic Editing', 'Digital Delivery'],
+      name: "Family Basic",
+      category: "Portrait",
+      description: "Family portrait session package",
+      services: ["Portrait Session", "Basic Editing", "Digital Delivery"],
       basePrice: 450,
       gstIncluded: false,
-      lastUsed: '2024-01-18'
+      lastUsed: "2024-01-18",
     },
     {
       id: 4,
-      name: 'Commercial Premium',
-      category: 'Commercial',
-      description: 'High-end commercial photography',
-      services: ['Product Photography', 'Advanced Editing', 'Rush Service'],
+      name: "Commercial Premium",
+      category: "Commercial",
+      description: "High-end commercial photography",
+      services: ["Product Photography", "Advanced Editing", "Rush Service"],
       basePrice: 1200,
       gstIncluded: true,
-      lastUsed: '2024-01-20'
-    }
+      lastUsed: "2024-01-20",
+    },
   ];
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'draft': return Edit;
-      case 'sent': return Send;
-      case 'pending': return Clock;
-      case 'approved': return CheckCircle;
-      case 'rejected': return XCircle;
-      case 'expired': return AlertTriangle;
-      default: return FileText;
+      case "draft":
+        return Edit;
+      case "sent":
+        return Send;
+      case "pending":
+        return Clock;
+      case "approved":
+        return CheckCircle;
+      case "rejected":
+        return XCircle;
+      case "expired":
+        return AlertTriangle;
+      default:
+        return FileText;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'draft': return 'bg-gray-50 text-gray-700';
-      case 'sent': return 'bg-blue-50 text-blue-700';
-      case 'pending': return 'bg-amber-50 text-amber-700';
-      case 'approved': return 'bg-emerald-50 text-emerald-700';
-      case 'rejected': return 'bg-red-50 text-red-700';
-      case 'expired': return 'bg-red-50 text-red-700';
-      default: return 'bg-gray-50 text-gray-700';
+      case "draft":
+        return "bg-gray-50 text-gray-700";
+      case "sent":
+        return "bg-blue-50 text-blue-700";
+      case "pending":
+        return "bg-amber-50 text-amber-700";
+      case "approved":
+        return "bg-emerald-50 text-emerald-700";
+      case "rejected":
+        return "bg-red-50 text-red-700";
+      case "expired":
+        return "bg-red-50 text-red-700";
+      default:
+        return "bg-gray-50 text-gray-700";
     }
   };
 
   const handleCreateQuotation = () => {
+    setShowCreateModal(true);
     addNotification({
-      type: 'info',
-      title: 'Create Quotation',
-      message: 'Quotation creation form opened'
+      type: "info",
+      title: "Create Quotation",
+      message: "Quotation creation form opened",
     });
   };
 
   const handleQuotationAction = (action: string, quotationId: string) => {
+    if (action === "Download") {
+      (async () => {
+        try {
+          const blob = await quotationAPI.downloadQuotationPdf(quotationId);
+          const url = window.URL.createObjectURL(
+            new Blob([blob], { type: "application/pdf" })
+          );
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", `${quotationId}.pdf`);
+          document.body.appendChild(link);
+          link.click();
+          link.parentNode?.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          addNotification({
+            type: "success",
+            title: "Downloaded",
+            message: "Quotation PDF downloaded",
+          });
+        } catch (err) {
+          addNotification({
+            type: "error",
+            title: "Error",
+            message: "Failed to download PDF",
+          });
+        }
+      })();
+      return;
+    }
+
     addNotification({
-      type: 'info',
+      type: "info",
       title: `Quotation ${action}`,
-      message: `${action} for ${quotationId} initiated`
+      message: `${action} for ${quotationId} initiated`,
     });
+  };
+
+  const handleCreateSubmit = async () => {
+    try {
+      // normalize services into schema shape {service, description, quantity, rate, amount}
+      const services = Array.isArray(createData.services) ? createData.services : [];
+      const normalizedServices = services.map((s: any) => {
+        const qty = Number(s.quantity || 1);
+        const rate = Number(s.price ?? s.rate ?? 0);
+        const amount = +(qty * rate);
+        return {
+          service: s.name || s.service || '',
+          description: s.description || '',
+          quantity: qty,
+          rate,
+          amount,
+        };
+      });
+
+      const subtotal = normalizedServices.reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0);
+      const gstPct = Number(createData.gstPct || 0);
+      const gstAmount = +(subtotal * (gstPct / 100));
+      const finalAmount = +(subtotal + gstAmount);
+
+      const payload = {
+        client: createData.client,
+        branch: createData.branch,
+        services: normalizedServices,
+        pricing: { subtotal, gstAmount, totalAmount: finalAmount, finalAmount },
+        functionDetails: {
+          type: createData.functionDetails?.type || createData.functionDetails?.eventType || '',
+          date: createData.functionDetails?.date || null,
+          time: {
+            start: createData.functionDetails?.startTime || '',
+            end: createData.functionDetails?.endTime || ''
+          },
+          venue: createData.functionDetails?.venue || {}
+        },
+        notes: createData.notes,
+        status: 'pending'
+      };
+
+      const res = await quotationAPI.createQuotation(payload);
+      // determine created id from response
+      const created = (res && (res.data || res)) || null;
+      const createdId =
+        created &&
+        (created._id || created.id || created._doc?.id || created._doc?._id);
+
+      addNotification({
+        type: "success",
+        title: "Created",
+        message: "Quotation created",
+      });
+      setShowCreateModal(false);
+
+      // reload list
+      const qRes = await quotationAPI.getQuotations();
+      setQuotations((qRes && qRes.data) || qRes || []);
+
+      // attempt to download generated PDF for the newly created quotation
+      if (createdId) {
+        try {
+          const blob = await quotationAPI.downloadQuotationPdf(
+            String(createdId)
+          );
+          const url = window.URL.createObjectURL(
+            new Blob([blob], { type: "application/pdf" })
+          );
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute("download", `${createdId}.pdf`);
+          document.body.appendChild(link);
+          link.click();
+          link.parentNode?.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          addNotification({
+            type: "success",
+            title: "Downloaded",
+            message: "Quotation PDF downloaded",
+          });
+        } catch (err) {
+          addNotification({
+            type: "error",
+            title: "PDF Error",
+            message: "Quotation created but failed to download PDF",
+          });
+        }
+      }
+    } catch (err) {
+      addNotification({
+        type: "error",
+        title: "Error",
+        message: "Failed to create quotation",
+      });
+    }
+  };
+
+  // load branches and clients for modal selects
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [bRes, cRes, qRes] = await Promise.all([
+          branchAPI.getBranches(),
+          clientAPI.getClients(),
+          quotationAPI.getQuotations(),
+        ]);
+        setBranches((bRes && bRes.data) || bRes || []);
+        setClients((cRes && cRes.data) || cRes || []);
+        setQuotations((qRes && qRes.data) || qRes || []);
+      } catch (err) {
+        addNotification({ type: "error", title: "Error", message: "Failed to load branches/clients" });
+      }
+    };
+    load();
+  }, []);
+
+  // helper functions for service lines & totals used in modal
+  const updateServiceLine = (index: number, field: string, value: any) => {
+    setCreateData((prev: any) => {
+      const services = Array.isArray(prev.services) ? [...prev.services] : [];
+      services[index] = { ...services[index], [field]: value };
+      return { ...prev, services };
+    });
+  };
+
+  const addServiceLine = () => {
+    setCreateData((prev: any) => ({
+      ...prev,
+      services: [...(prev.services || []), { name: "", quantity: 1, price: 0 }],
+    }));
+  };
+
+  const removeServiceLine = (index: number) => {
+    setCreateData((prev: any) => {
+      const services = [...(prev.services || [])];
+      services.splice(index, 1);
+      return { ...prev, services };
+    });
+  };
+
+  const computedSubtotal = () => {
+    const services = Array.isArray(createData.services)
+      ? createData.services
+      : [];
+    return services.reduce(
+      (sum: number, s: any) =>
+        sum + Number(s.quantity || 0) * Number(s.price || 0),
+      0
+    );
   };
 
   const handleTemplateAction = (action: string, templateName: string) => {
     addNotification({
-      type: 'info',
+      type: "info",
       title: `Template ${action}`,
-      message: `${action} for ${templateName} template`
+      message: `${action} for ${templateName} template`,
     });
   };
 
-  const filteredQuotations = quotations.filter(quotation => {
-    const matchesSearch = quotation.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         quotation.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         quotation.eventType.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || quotation.status === filterStatus;
+  const filteredQuotations = quotations.filter((quotation) => {
+    const matchesSearch =
+      quotation.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      quotation.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      quotation.eventType.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter =
+      filterStatus === "all" || quotation.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
   const quotationStats = {
     total: quotations.length,
-    sent: quotations.filter(q => q.status === 'sent').length,
-    approved: quotations.filter(q => q.status === 'approved').length,
-    pending: quotations.filter(q => q.status === 'pending').length,
+    sent: quotations.filter((q) => q.status === "sent").length,
+    approved: quotations.filter((q) => q.status === "approved").length,
+    pending: quotations.filter((q) => q.status === "pending").length,
     totalValue: quotations.reduce((sum, q) => sum + q.totalAmount, 0),
-    approvalRate: Math.round((quotations.filter(q => q.status === 'approved').length / quotations.length) * 100)
+    approvalRate: Math.round(
+      (quotations.filter((q) => q.status === "approved").length /
+        quotations.length) *
+        100
+    ),
   };
 
   return (
     <div className="space-y-6">
-      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quotation Management</h1>
-          <p className="text-gray-600 mt-1">Create, manage, and track quotations and proposals</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Quotation Management
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Create, manage, and track quotations and proposals
+          </p>
         </div>
         <button
           onClick={handleCreateQuotation}
@@ -278,6 +373,111 @@ const QuotationManagement = () => {
         </button>
       </div>
 
+        {/* Top-level Create Quotation Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                <h2 className="text-xl font-bold text-gray-900">Create Quotation</h2>
+                <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">Close</button>
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleCreateSubmit(); }} className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Client *</label>
+                    <select required value={createData.client} onChange={(e) => setCreateData({ ...createData, client: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      <option value="">Select client</option>
+                      {clients.map((c: any) => <option key={c._id} value={c._id}>{c.name} - {c.phone}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
+                    <select required value={createData.branch} onChange={(e) => setCreateData({ ...createData, branch: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      <option value="">Select branch</option>
+                      {branches.map((b: any) => <option key={b._id} value={b._id}>{b.name} ({b.code})</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Function Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Event / Function Type</label>
+                    <input type="text" value={createData.functionDetails?.type || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, type: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  </div>
+                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+                      <input required type="date" value={createData.functionDetails.date ? createData.functionDetails.date.split('T')[0] : ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, date: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
+                      <input type="time" value={createData.functionDetails.startTime || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, startTime: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">End Time</label>
+                      <input type="time" value={createData.functionDetails.endTime || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, endTime: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Venue Name</label>
+                      <input type="text" value={createData.functionDetails.venue?.name || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, venue: { ...createData.functionDetails.venue, name: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Venue Address</label>
+                      <input type="text" value={createData.functionDetails.venue?.address || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, venue: { ...createData.functionDetails.venue, address: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Services & Pricing</h3>
+                  <div className="space-y-2">
+                    {createData.services.map((s: any, idx: number) => (
+                      <div key={idx} className="grid grid-cols-6 gap-2 items-center">
+                        <input type="text" placeholder="Service name" value={s.name} onChange={(e) => updateServiceLine(idx, 'name', e.target.value)} className="col-span-3 border px-2 py-1 rounded" />
+                        <input type="number" min={1} value={s.quantity} onChange={(e) => updateServiceLine(idx, 'quantity', Number(e.target.value))} className="col-span-1 border px-2 py-1 rounded" />
+                        <input type="number" min={0} value={s.price} onChange={(e) => updateServiceLine(idx, 'price', Number(e.target.value))} className="col-span-1 border px-2 py-1 rounded" />
+                        <button type="button" onClick={() => removeServiceLine(idx)} className="col-span-1 text-red-600">Remove</button>
+                      </div>
+                    ))}
+                    <div>
+                      <button type="button" onClick={addServiceLine} className="px-3 py-1 bg-gray-100 rounded">Add service</button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount</label>
+                      <input type="number" min={0} value={createData.advanceAmount || 0} onChange={(e) => setCreateData({ ...createData, advanceAmount: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-gray-600">Subtotal: <span className="font-medium">₹{computedSubtotal().toLocaleString()}</span></div>
+                      <div className="text-sm text-gray-600">GST: <span className="font-medium">₹{(computedSubtotal() * (Number(createData.gstPct || 0) / 100)).toLocaleString()}</span></div>
+                      <div className="text-lg font-bold">Total: <span>₹{(computedSubtotal() + (computedSubtotal() * (Number(createData.gstPct || 0) / 100))).toLocaleString()}</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <textarea value={createData.notes} onChange={(e) => setCreateData({ ...createData, notes: e.target.value })} className="w-full border rounded px-3 py-2" />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg">Create & Download PDF</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
@@ -287,11 +487,13 @@ const QuotationManagement = () => {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Total</p>
-              <p className="text-xl font-bold text-gray-900">{quotationStats.total}</p>
+              <p className="text-xl font-bold text-gray-900">
+                {quotationStats.total}
+              </p>
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <div className="flex items-center">
             <div className="bg-indigo-500 p-2 rounded-lg">
@@ -299,7 +501,9 @@ const QuotationManagement = () => {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Sent</p>
-              <p className="text-xl font-bold text-gray-900">{quotationStats.sent}</p>
+              <p className="text-xl font-bold text-gray-900">
+                {quotationStats.sent}
+              </p>
             </div>
           </div>
         </div>
@@ -311,7 +515,9 @@ const QuotationManagement = () => {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Approved</p>
-              <p className="text-xl font-bold text-gray-900">{quotationStats.approved}</p>
+              <p className="text-xl font-bold text-gray-900">
+                {quotationStats.approved}
+              </p>
             </div>
           </div>
         </div>
@@ -323,7 +529,9 @@ const QuotationManagement = () => {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Pending</p>
-              <p className="text-xl font-bold text-gray-900">{quotationStats.pending}</p>
+              <p className="text-xl font-bold text-gray-900">
+                {quotationStats.pending}
+              </p>
             </div>
           </div>
         </div>
@@ -335,7 +543,9 @@ const QuotationManagement = () => {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Total Value</p>
-              <p className="text-xl font-bold text-gray-900">${quotationStats.totalValue.toLocaleString()}</p>
+              <p className="text-xl font-bold text-gray-900">
+                ${quotationStats.totalValue.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -347,7 +557,9 @@ const QuotationManagement = () => {
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Approval Rate</p>
-              <p className="text-xl font-bold text-gray-900">{quotationStats.approvalRate}%</p>
+              <p className="text-xl font-bold text-gray-900">
+                {quotationStats.approvalRate}%
+              </p>
             </div>
           </div>
         </div>
@@ -358,8 +570,8 @@ const QuotationManagement = () => {
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
             {[
-              { id: 'quotations', name: 'Quotations', icon: FileText },
-              { id: 'templates', name: 'Templates', icon: Copy }
+              { id: "quotations", name: "Quotations", icon: FileText },
+              { id: "templates", name: "Templates", icon: Copy },
             ].map((tab) => {
               const Icon = tab.icon;
               return (
@@ -368,8 +580,8 @@ const QuotationManagement = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                   }`}
                 >
                   <Icon className="w-4 h-4 mr-2" />
@@ -412,24 +624,35 @@ const QuotationManagement = () => {
         </div>
 
         <div className="p-6">
-          {activeTab === 'quotations' && (
+          {activeTab === "quotations" && (
             <div className="space-y-4">
               {filteredQuotations.map((quotation) => {
                 const StatusIcon = getStatusIcon(quotation.status);
-                
+
                 return (
-                  <div key={quotation.id} className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-200 p-6">
+                  <div
+                    key={quotation.id}
+                    className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-200 p-6"
+                  >
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center">
                         <div className="bg-blue-100 p-3 rounded-lg mr-4">
                           <FileText className="w-6 h-6 text-blue-600" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{quotation.id}</h3>
-                          <p className="text-sm text-gray-600">{quotation.eventType}</p>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            {quotation.id}
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            {quotation.eventType}
+                          </p>
                         </div>
                       </div>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(quotation.status)}`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                          quotation.status
+                        )}`}
+                      >
                         <StatusIcon className="w-3 h-3 mr-1" />
                         {quotation.status}
                       </span>
@@ -437,7 +660,9 @@ const QuotationManagement = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-3">
-                        <h4 className="font-medium text-gray-900">Client Details</h4>
+                        <h4 className="font-medium text-gray-900">
+                          Client Details
+                        </h4>
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center text-gray-600">
                             <User className="w-4 h-4 mr-2" />
@@ -455,7 +680,9 @@ const QuotationManagement = () => {
                       </div>
 
                       <div className="space-y-3">
-                        <h4 className="font-medium text-gray-900">Event Details</h4>
+                        <h4 className="font-medium text-gray-900">
+                          Event Details
+                        </h4>
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center text-gray-600">
                             <Calendar className="w-4 h-4 mr-2" />
@@ -473,45 +700,68 @@ const QuotationManagement = () => {
                       </div>
 
                       <div className="space-y-3">
-                        <h4 className="font-medium text-gray-900">Financial Details</h4>
+                        <h4 className="font-medium text-gray-900">
+                          Financial Details
+                        </h4>
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span className="text-gray-600">Subtotal:</span>
-                            <span className="font-medium text-gray-900">${quotation.totalAmount - quotation.gstAmount}</span>
+                            <span className="font-medium text-gray-900">
+                              ${quotation.totalAmount - quotation.gstAmount}
+                            </span>
                           </div>
                           {quotation.gstIncluded && (
                             <div className="flex justify-between">
                               <span className="text-gray-600">GST:</span>
-                              <span className="font-medium text-gray-900">${quotation.gstAmount}</span>
+                              <span className="font-medium text-gray-900">
+                                ${quotation.gstAmount}
+                              </span>
                             </div>
                           )}
                           <div className="flex justify-between border-t pt-2">
                             <span className="text-gray-600">Total:</span>
-                            <span className="font-bold text-gray-900">${quotation.totalAmount}</span>
+                            <span className="font-bold text-gray-900">
+                              ${quotation.totalAmount}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Valid Until:</span>
-                            <span className="font-medium text-gray-900">{quotation.validUntil}</span>
+                            <span className="font-medium text-gray-900">
+                              {quotation.validUntil}
+                            </span>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-4 p-3 bg-white rounded-lg">
-                      <h5 className="font-medium text-gray-900 mb-2">Services Included:</h5>
+                      <h5 className="font-medium text-gray-900 mb-2">
+                        Services Included:
+                      </h5>
                       <div className="space-y-1">
-                        {quotation.services.map((service, index) => (
-                          <div key={index} className="flex justify-between text-sm">
-                            <span className="text-gray-600">{service.name} (x{service.quantity})</span>
-                            <span className="font-medium text-gray-900">${service.price}</span>
-                          </div>
-                        ))}
+                        {quotation.services.map(
+                          (service: any, index: number) => (
+                            <div
+                              key={index}
+                              className="flex justify-between text-sm"
+                            >
+                              <span className="text-gray-600">
+                                {service.name} (x{service.quantity})
+                              </span>
+                              <span className="font-medium text-gray-900">
+                                ${service.price}
+                              </span>
+                            </div>
+                          )
+                        )}
                       </div>
                     </div>
 
                     {quotation.notes && (
                       <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-800">{quotation.notes}</p>
+                        <p className="text-sm text-blue-800">
+                          {quotation.notes}
+                        </p>
                       </div>
                     )}
 
@@ -519,33 +769,43 @@ const QuotationManagement = () => {
                       <div className="text-sm text-gray-600">
                         Created: {quotation.quotationDate}
                         {quotation.followUpDate && (
-                          <span className="ml-4">Follow-up: {quotation.followUpDate}</span>
+                          <span className="ml-4">
+                            Follow-up: {quotation.followUpDate}
+                          </span>
                         )}
                       </div>
                       <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleQuotationAction('View', quotation.id)}
+                        <button
+                          onClick={() =>
+                            handleQuotationAction("View", quotation.id)
+                          }
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="View Quotation"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button 
-                          onClick={() => handleQuotationAction('Edit', quotation.id)}
+                        <button
+                          onClick={() =>
+                            handleQuotationAction("Edit", quotation.id)
+                          }
                           className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                           title="Edit Quotation"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button 
-                          onClick={() => handleQuotationAction('Download', quotation.id)}
+                        <button
+                          onClick={() =>
+                            handleQuotationAction("Download", quotation.id)
+                          }
                           className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                           title="Download PDF"
                         >
                           <Download className="w-4 h-4" />
                         </button>
-                        <button 
-                          onClick={() => handleQuotationAction('Send', quotation.id)}
+                        <button
+                          onClick={() =>
+                            handleQuotationAction("Send", quotation.id)
+                          }
                           className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                           title="Send to Client"
                         >
@@ -558,32 +818,47 @@ const QuotationManagement = () => {
                     </div>
                   </div>
                 );
+
               })}
             </div>
           )}
 
-          {activeTab === 'templates' && (
+          {activeTab === "templates" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {templates.map((template) => (
-                <div key={template.id} className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-200 p-6">
+                <div
+                  key={template.id}
+                  className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-200 p-6"
+                >
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{template.name}</h3>
-                      <p className="text-sm text-gray-600">{template.category}</p>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {template.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {template.category}
+                      </p>
                     </div>
                     <span className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
                       {template.category}
                     </span>
                   </div>
 
-                  <p className="text-gray-600 text-sm mb-4">{template.description}</p>
+                  <p className="text-gray-600 text-sm mb-4">
+                    {template.description}
+                  </p>
 
                   <div className="space-y-3">
                     <div>
-                      <h5 className="font-medium text-gray-900 mb-2">Included Services:</h5>
+                      <h5 className="font-medium text-gray-900 mb-2">
+                        Included Services:
+                      </h5>
                       <div className="flex flex-wrap gap-1">
                         {template.services.map((service, index) => (
-                          <span key={index} className="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                          <span
+                            key={index}
+                            className="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full"
+                          >
                             {service}
                           </span>
                         ))}
@@ -592,11 +867,15 @@ const QuotationManagement = () => {
 
                     <div className="flex justify-between items-center">
                       <div>
-                        <span className="text-sm text-gray-600">Base Price:</span>
-                        <span className="font-bold text-gray-900 ml-2">${template.basePrice}</span>
+                        <span className="text-sm text-gray-600">
+                          Base Price:
+                        </span>
+                        <span className="font-bold text-gray-900 ml-2">
+                          ${template.basePrice}
+                        </span>
                       </div>
                       <div className="text-xs text-gray-500">
-                        {template.gstIncluded ? 'GST Included' : 'GST Extra'}
+                        {template.gstIncluded ? "GST Included" : "GST Extra"}
                       </div>
                     </div>
 
@@ -607,21 +886,27 @@ const QuotationManagement = () => {
 
                   <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
                     <div className="flex space-x-2">
-                      <button 
-                        onClick={() => handleTemplateAction('Use', template.name)}
+                      <button
+                        onClick={() =>
+                          handleTemplateAction("Use", template.name)
+                        }
                         className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
                       >
                         Use Template
                       </button>
-                      <button 
-                        onClick={() => handleTemplateAction('Edit', template.name)}
+                      <button
+                        onClick={() =>
+                          handleTemplateAction("Edit", template.name)
+                        }
                         className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                       >
                         Edit
                       </button>
                     </div>
-                    <button 
-                      onClick={() => handleTemplateAction('Duplicate', template.name)}
+                    <button
+                      onClick={() =>
+                        handleTemplateAction("Duplicate", template.name)
+                      }
                       className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors"
                       title="Duplicate Template"
                     >

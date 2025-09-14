@@ -83,15 +83,54 @@ const createQuotation = asyncHandler(async (req, res, next) => {
   const quotationNumber = `QUO-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;
   
   const quotationData = {
-    ...req.body,
+    // start with safe defaults and normalize fields
     quotationNumber,
-    company: req.user.companyId,
-    branch: req.user.branchId,
+    company: req.user.companyId || req.body.company || null,
+    // allow chairman to set branch explicitly, otherwise default to user's branch
+    branch: (req.user.role === 'chairman' && req.body.branch) ? req.body.branch : req.user.branchId,
+    client: req.body.client,
     createdBy: req.user.id,
-    status: 'pending'
+    // normalize status: allow frontend 'pending' but ensure it maps to allowed enum (we added 'pending')
+    status: req.body.status || 'draft',
+    notes: req.body.notes || '',
+    terms: req.body.terms || {},
+    // functionDetails normalization
+    functionDetails: {
+      type: req.body.functionDetails?.type || req.body.functionDetails?.event || req.body.eventType || '',
+      date: req.body.functionDetails?.date ? new Date(req.body.functionDetails.date) : (req.body.eventDate ? new Date(req.body.eventDate) : null),
+      time: {
+        start: req.body.functionDetails?.startTime || req.body.startTime || '',
+        end: req.body.functionDetails?.endTime || req.body.endTime || ''
+      },
+      venue: req.body.functionDetails?.venue || {}
+    },
+    // normalize services array: frontend may send {name,quantity,price}
+    services: Array.isArray(req.body.services)
+      ? req.body.services.map((s) => ({
+          service: s.service || s.name || s.description || '',
+          description: s.description || '',
+          quantity: Number(s.quantity || 1),
+          rate: Number(s.rate ?? s.price ?? 0),
+          amount: Number(s.amount ?? (Number(s.quantity || 1) * Number(s.rate ?? s.price ?? 0)))
+        }))
+      : [],
+    pricing: {
+      subtotal: Number(req.body.pricing?.subtotal ?? req.body.subtotal ?? 0),
+      gstAmount: Number(req.body.pricing?.gstAmount ?? req.body.gstAmount ?? 0),
+      totalAmount: Number(req.body.pricing?.totalAmount ?? req.body.totalAmount ?? 0),
+      discount: Number(req.body.pricing?.discount ?? 0),
+      finalAmount: Number(req.body.pricing?.finalAmount ?? req.body.finalAmount ?? 0)
+    },
+    ...req.body // keep any extra fields the client passed
   };
+
+  // If company is not set (some setups use branch as the primary org), try to use branch as company
+  if (!quotationData.company && quotationData.branch) {
+    quotationData.company = quotationData.branch;
+  }
   
   const quotation = await Quotation.create(quotationData);
+
   
   // Populate necessary fields for notifications
   await quotation.populate([
@@ -338,6 +377,70 @@ const getQuotationStats = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Generate PDF for a quotation
+// @route   GET /api/quotations/:id/pdf
+// @access  Private
+const getQuotationPdf = asyncHandler(async (req, res, next) => {
+  const quotation = await Quotation.findById(req.params.id)
+    .populate('client')
+    .populate('company')
+    .populate('branch');
+
+  if (!quotation || quotation.isDeleted) {
+    return next(new ErrorResponse('Quotation not found', 404));
+  }
+
+  // Lazy require pdfkit to avoid adding global dependency until used
+  const PDFDocument = require('pdfkit');
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${quotation.quotationNumber || 'quotation'}.pdf"`);
+
+  // Pipe PDF to response
+  doc.pipe(res);
+
+  // Simple PDF layout
+  doc.fontSize(20).text(quotation.company?.name || 'Company', { align: 'left' });
+  doc.moveDown();
+  doc.fontSize(14).text(`Quotation: ${quotation.quotationNumber || ''}`);
+  doc.text(`Date: ${new Date(quotation.createdAt).toLocaleDateString()}`);
+  doc.moveDown();
+
+  doc.fontSize(12).text(`To: ${quotation.client?.name || ''}`);
+  doc.text(`${quotation.client?.email || ''}`);
+  doc.text(`${quotation.client?.phone || ''}`);
+  doc.moveDown();
+
+  doc.text(`Event: ${quotation.functionDetails?.type || ''} - ${quotation.functionDetails?.date ? new Date(quotation.functionDetails.date).toLocaleDateString() : ''}`);
+  doc.text(`Location: ${quotation.functionDetails?.venue?.name || ''} ${quotation.functionDetails?.venue?.address || ''}`);
+  doc.moveDown();
+
+  // Table of services
+  doc.fontSize(12).text('Services:', { underline: true });
+  doc.moveDown(0.5);
+  if (Array.isArray(quotation.services)) {
+    quotation.services.forEach((s) => {
+      const name = s.name || s.service || s.description || JSON.stringify(s);
+      const price = s.price ?? s.rate ?? s.amount ?? 0;
+      doc.text(`${name} - ₹${price.toLocaleString()}`);
+    });
+  }
+  doc.moveDown();
+
+  const pricing = quotation.pricing || {};
+  doc.text(`Subtotal: ₹${(pricing.subtotal ?? pricing.totalAmount ?? 0).toLocaleString()}`);
+  if (pricing.gstAmount) doc.text(`GST: ₹${pricing.gstAmount.toLocaleString()}`);
+  doc.text(`Total: ₹${(pricing.finalAmount ?? pricing.totalAmount ?? 0).toLocaleString()}`);
+
+  doc.moveDown(2);
+  doc.fontSize(10).text('Notes:', { underline: true });
+  doc.text(quotation.notes || '-');
+
+  doc.end();
+});
+
 module.exports = {
   getAllQuotations,
   getQuotation,
@@ -347,4 +450,5 @@ module.exports = {
   convertToBooking,
   sendFollowUp,
   getQuotationStats
+  , getQuotationPdf
 };

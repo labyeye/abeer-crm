@@ -9,6 +9,7 @@ const {
   convertToBooking,
   sendFollowUp,
   getQuotationStats
+  , getQuotationPdf
 } = require('../controller/quotationController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -27,6 +28,9 @@ router.route('/:id')
   .get(authorize('chairman', 'admin', 'manager'), getQuotation)
   .put(authorize('chairman', 'admin', 'manager'), updateQuotation)
   .delete(authorize('chairman', 'admin'), deleteQuotation);
+
+router.route('/:id/pdf')
+  .get(authorize('chairman', 'admin', 'manager'), getQuotationPdf);
 
 router.route('/:id/convert-to-booking')
   .post(authorize('chairman', 'admin', 'manager'), convertToBooking);

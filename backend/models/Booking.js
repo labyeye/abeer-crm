@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bookingSchema = new mongoose.Schema({
   company: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
+    ref: 'Branch', // Company info is embedded in Branch
     required: true
   },
   branch: {
@@ -25,6 +25,14 @@ const bookingSchema = new mongoose.Schema({
     type: {
       type: String,
       required: true
+    },
+    startDate: {
+      type: Date,
+      required: false
+    },
+    endDate: {
+      type: Date,
+      required: false
     },
     date: {
       type: Date,

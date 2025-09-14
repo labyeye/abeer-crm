@@ -98,9 +98,9 @@ const quotationSchema = new mongoose.Schema({
     default: 'template1'
   },
   status: {
-    type: String,
-    enum: ['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired'],
-    default: 'draft'
+  type: String,
+  enum: ['draft', 'pending', 'sent', 'viewed', 'approved', 'accepted', 'rejected', 'expired', 'converted'],
+  default: 'draft'
   },
   followUp: {
     lastSent: Date,

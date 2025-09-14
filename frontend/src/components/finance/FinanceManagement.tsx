@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { branchAPI, expenseAPI, bookingAPI } from '../../services/api';
 import { 
   DollarSign, 
   Plus, 
@@ -17,131 +18,28 @@ const FinanceManagement = () => {
   const [filterPeriod, setFilterPeriod] = useState('month');
   const { addNotification } = useNotification();
 
+  const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  // expenses array is represented via mergedTransactions and expenseCategories
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [revenueByBranch, setRevenueByBranch] = useState<any[]>([]);
+  const [expensesByBranch, setExpensesByBranch] = useState<any[]>([]);
+  const [totals, setTotals] = useState({ revenue: 0, expenses: 0, net: 0 });
+  const [loadingFinance, setLoadingFinance] = useState(false);
+  const [monthlyData, setMonthlyData] = useState<Array<{month:string,income:number,expenses:number}>>([]);
+  const [expenseCategories, setExpenseCategories] = useState<any[]>([]);
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [mergedTransactions, setMergedTransactions] = useState<any[]>([]);
+
   const financialStats = {
-    totalRevenue: 156750,
-    totalExpenses: 89420,
-    netProfit: 67330,
-    pendingPayments: 23500,
-    monthlyGrowth: 18.5
+    totalRevenue: totals.revenue || 0,
+    totalExpenses: totals.expenses || 0,
+    netProfit: totals.net || 0,
+    pendingPayments: pendingInvoices.reduce((s, p) => s + (p.amount || 0), 0),
+    monthlyGrowth: 0
   };
 
-  const recentTransactions = [
-    {
-      id: 1,
-      type: 'income',
-      description: 'Wedding Photography - Johnson Family',
-      amount: 2500,
-      date: '2024-01-15',
-      status: 'completed',
-      client: 'Sarah Johnson',
-      method: 'Bank Transfer'
-    },
-    {
-      id: 2,
-      type: 'expense',
-      description: 'Equipment Purchase - Canon EOS R5',
-      amount: 3899,
-      date: '2024-01-14',
-      status: 'completed',
-      vendor: 'Camera Store Inc.',
-      method: 'Credit Card'
-    },
-    {
-      id: 3,
-      type: 'income',
-      description: 'Corporate Headshots - Tech Innovations',
-      amount: 800,
-      date: '2024-01-13',
-      status: 'pending',
-      client: 'Tech Innovations Inc.',
-      method: 'Invoice'
-    },
-    {
-      id: 4,
-      type: 'expense',
-      description: 'Studio Rent - January',
-      amount: 2200,
-      date: '2024-01-01',
-      status: 'completed',
-      vendor: 'Property Management Co.',
-      method: 'Auto Debit'
-    },
-    {
-      id: 5,
-      type: 'income',
-      description: 'Family Portrait - Wilson Family',
-      amount: 450,
-      date: '2024-01-12',
-      status: 'completed',
-      client: 'Emma Wilson',
-      method: 'Cash'
-    }
-  ];
-
-  const monthlyData = [
-    { month: 'Jul', income: 45000, expenses: 28000 },
-    { month: 'Aug', income: 52000, expenses: 31000 },
-    { month: 'Sep', income: 48000, expenses: 29000 },
-    { month: 'Oct', income: 61000, expenses: 35000 },
-    { month: 'Nov', income: 55000, expenses: 32000 },
-    { month: 'Dec', income: 67000, expenses: 38000 }
-  ];
-
-  const expenseCategories = [
-    { category: 'Office Stationery Expenses', amount: 1200, percentage: 5, color: 'bg-blue-500' },
-    { category: 'Tea & Refreshments', amount: 800, percentage: 3, color: 'bg-green-500' },
-    { category: 'Office Furniture', amount: 2500, percentage: 8, color: 'bg-yellow-500' },
-    { category: 'Renovation & Repairs', amount: 1800, percentage: 6, color: 'bg-orange-500' },
-    { category: 'Cleaning & Housekeeping Expenses', amount: 900, percentage: 3, color: 'bg-pink-500' },
-    { category: 'Utilities – Water Charges', amount: 700, percentage: 2, color: 'bg-cyan-500' },
-    { category: 'Communication Expenses', amount: 1100, percentage: 4, color: 'bg-indigo-500' },
-    { category: 'Office Equipment / Computer Accessories', amount: 3200, percentage: 10, color: 'bg-purple-500' },
-    { category: 'Fixed Asset', amount: 4000, percentage: 13, color: 'bg-red-500' },
-    { category: 'Office Maintenance / Miscellaneous Exp', amount: 1500, percentage: 5, color: 'bg-gray-500' },
-    { category: 'Documents & Legal Expense', amount: 600, percentage: 2, color: 'bg-teal-500' },
-    { category: 'Raw Material', amount: 2000, percentage: 7, color: 'bg-lime-500' },
-    { category: 'Administrative & Compliance Expense', amount: 1000, percentage: 3, color: 'bg-fuchsia-500' },
-    { category: 'Loan/EMI (Asset/Fixed Asset)', amount: 3500, percentage: 11, color: 'bg-amber-500' },
-    { category: 'Loan/EMI (Other)', amount: 1200, percentage: 4, color: 'bg-violet-500' },
-    { category: 'Vendor Payment', amount: 2200, percentage: 7, color: 'bg-rose-500' },
-    { category: 'Service Expense', amount: 1700, percentage: 6, color: 'bg-sky-500' },
-    { category: 'Assets', amount: 3000, percentage: 10, color: 'bg-neutral-500' }
-  ];
-
-  const pendingInvoices = [
-    {
-      id: 'INV-001',
-      client: 'Global Marketing Agency',
-      amount: 5200,
-      dueDate: '2024-01-25',
-      overdue: false,
-      service: 'Product Photography Campaign'
-    },
-    {
-      id: 'INV-002',
-      client: 'Startup Tech Co.',
-      amount: 1800,
-      dueDate: '2024-01-20',
-      overdue: true,
-      service: 'Corporate Event Coverage'
-    },
-    {
-      id: 'INV-003',
-      client: 'Fashion Brand LLC',
-      amount: 3400,
-      dueDate: '2024-01-30',
-      overdue: false,
-      service: 'Fashion Shoot & Editing'
-    }
-  ];
-
-  const getTransactionIcon = (type: string) => {
-    return type === 'income' ? TrendingUp : TrendingDown;
-  };
-
-  const getTransactionColor = (type: string) => {
-    return type === 'income' ? 'text-emerald-600' : 'text-red-600';
-  };
+  // helpers (icons/colors handled inline)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -158,6 +56,142 @@ const FinanceManagement = () => {
       title: 'Add Transaction',
       message: 'Transaction form opened'
     });
+  };
+
+  // Fetch branches and finance data
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoadingFinance(true);
+        const branchesRes = await branchAPI.getBranches();
+        setBranches(branchesRes.data || branchesRes || []);
+
+        const analyticsRes = await expenseAPI.getFinanceAnalytics();
+        const { data } = analyticsRes;
+        setRevenueByBranch(data.revenue || []);
+        setExpensesByBranch(data.expenses || []);
+
+        // calculate totals
+        const totalRevenue = (data.revenue || []).reduce((s: number, r: any) => s + (r.totalRevenue || 0), 0);
+        const totalExpenses = (data.expenses || []).reduce((s: number, e: any) => s + (e.totalExpenses || 0), 0);
+        setTotals({ revenue: totalRevenue, expenses: totalExpenses, net: totalRevenue - totalExpenses });
+
+        const expList = await expenseAPI.getExpenses();
+        const expData = expList.data || expList || [];
+  // expenses stored in local variable expData and used to compute categories/transactions
+
+        // fetch bookings to compute revenue/time series and pending invoices
+        const bookingsRes = await bookingAPI.getBookings();
+        const bookingsData = bookingsRes.data || bookingsRes || [];
+        setBookings(bookingsData);
+
+        // compute monthly data for last 6 months
+        const now = new Date();
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          months.push({ date: d, label: d.toLocaleString('default', { month: 'short' }) });
+        }
+        const md = months.map((m) => {
+          const income = bookingsData.reduce((sum: number, b: any) => {
+            const bd = b.functionDetails?.date ? new Date(b.functionDetails.date) : new Date(b.createdAt || b.pricing?.createdAt);
+            return (bd.getFullYear() === m.date.getFullYear() && bd.getMonth() === m.date.getMonth()) ? sum + (b.pricing?.totalAmount || 0) : sum;
+          }, 0);
+          const exp = expData.reduce((sum: number, ex: any) => {
+            const ed = ex.expenseDate ? new Date(ex.expenseDate) : new Date(ex.createdAt);
+            return (ed.getFullYear() === m.date.getFullYear() && ed.getMonth() === m.date.getMonth()) ? sum + (ex.amount || 0) : sum;
+          }, 0);
+          return { month: m.label, income, expenses: exp };
+        });
+        setMonthlyData(md);
+
+        // compute expense categories
+        const catMap: Record<string, number> = {};
+        expData.forEach((ex: any) => { const c = ex.category || 'other'; catMap[c] = (catMap[c] || 0) + (ex.amount || 0); });
+        const totalExp = Object.values(catMap).reduce((s: number, v: any) => s + v, 0) || 1;
+        const cats = Object.keys(catMap).map((k) => ({ category: k, amount: catMap[k], percentage: Math.round((catMap[k] / totalExp) * 100) }));
+        setExpenseCategories(cats);
+
+        // pending invoices from bookings with remaining amount > 0
+        const pending = bookingsData.filter((b: any) => (b.pricing?.remainingAmount || 0) > 0 || (b.paymentStatus && b.paymentStatus !== 'completed')).map((b: any) => ({ id: b._id, client: b.client?.name || '', amount: b.pricing?.remainingAmount || (b.pricing?.totalAmount - b.pricing?.advanceAmount) || 0, dueDate: b.functionDetails?.date }));
+        setPendingInvoices(pending);
+
+        // merged transactions: expenses + bookings as income
+        const txs = [
+          ...expData.map((ex: any) => ({ _id: ex._id, type: 'expense', title: ex.title || ex.category, amount: ex.amount, date: ex.expenseDate || ex.createdAt, status: ex.status, vendor: ex.vendor })),
+          ...bookingsData.map((b: any) => ({ _id: b._id, type: 'income', title: b.serviceNeeded || b.bookingNumber, amount: b.pricing?.totalAmount || 0, date: b.functionDetails?.date || b.createdAt, status: b.status, client: b.client?.name }))
+        ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setMergedTransactions(txs);
+      } catch (err) {
+        console.error(err);
+        addNotification({ type: 'error', title: 'Error', message: 'Failed to load finance data' });
+      } finally {
+        setLoadingFinance(false);
+      }
+    };
+    load();
+  }, []);
+
+  const onBranchChange = async (branchId: string) => {
+    setSelectedBranch(branchId);
+    try {
+      setLoadingFinance(true);
+      const params = branchId ? { branch: branchId } : {};
+      const analyticsRes = await expenseAPI.getFinanceAnalytics(params);
+      const { data } = analyticsRes;
+      setRevenueByBranch(data.revenue || []);
+      setExpensesByBranch(data.expenses || []);
+      const totalRevenue = (data.revenue || []).reduce((s: number, r: any) => s + (r.totalRevenue || 0), 0);
+      const totalExpenses = (data.expenses || []).reduce((s: number, e: any) => s + (e.totalExpenses || 0), 0);
+      setTotals({ revenue: totalRevenue, expenses: totalExpenses, net: totalRevenue - totalExpenses });
+      const expList = await expenseAPI.getExpenses(params);
+      const expData = expList.data || expList || [];
+  // expenses stored in local variable expData and used to compute categories/transactions
+
+      // refresh bookings for branch
+      const bookingsRes = await bookingAPI.getBookings(params);
+      const bookingsData = bookingsRes.data || bookingsRes || [];
+      setBookings(bookingsData);
+
+      // recompute monthlyData, categories, pending, merged
+      const now = new Date();
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ date: d, label: d.toLocaleString('default', { month: 'short' }) });
+      }
+      const md = months.map((m) => {
+        const income = bookingsData.reduce((sum: number, b: any) => {
+          const bd = b.functionDetails?.date ? new Date(b.functionDetails.date) : new Date(b.createdAt || b.pricing?.createdAt);
+          return (bd.getFullYear() === m.date.getFullYear() && bd.getMonth() === m.date.getMonth()) ? sum + (b.pricing?.totalAmount || 0) : sum;
+        }, 0);
+        const exp = expData.reduce((sum: number, ex: any) => {
+          const ed = ex.expenseDate ? new Date(ex.expenseDate) : new Date(ex.createdAt);
+          return (ed.getFullYear() === m.date.getFullYear() && ed.getMonth() === m.date.getMonth()) ? sum + (ex.amount || 0) : sum;
+        }, 0);
+        return { month: m.label, income, expenses: exp };
+      });
+      setMonthlyData(md);
+
+      const catMap: Record<string, number> = {};
+      expData.forEach((ex: any) => { const c = ex.category || 'other'; catMap[c] = (catMap[c] || 0) + (ex.amount || 0); });
+      const totalExp = Object.values(catMap).reduce((s: number, v: any) => s + v, 0) || 1;
+      const cats = Object.keys(catMap).map((k) => ({ category: k, amount: catMap[k], percentage: Math.round((catMap[k] / totalExp) * 100) }));
+      setExpenseCategories(cats);
+
+      const pending = bookingsData.filter((b: any) => (b.pricing?.remainingAmount || 0) > 0 || (b.paymentStatus && b.paymentStatus !== 'completed')).map((b: any) => ({ id: b._id, client: b.client?.name || '', amount: b.pricing?.remainingAmount || (b.pricing?.totalAmount - b.pricing?.advanceAmount) || 0, dueDate: b.functionDetails?.date }));
+      setPendingInvoices(pending);
+
+      const txs = [
+        ...expData.map((ex: any) => ({ _id: ex._id, type: 'expense', title: ex.title || ex.category, amount: ex.amount, date: ex.expenseDate || ex.createdAt, status: ex.status, vendor: ex.vendor })),
+        ...bookingsData.map((b: any) => ({ _id: b._id, type: 'income', title: b.serviceNeeded || b.bookingNumber, amount: b.pricing?.totalAmount || 0, date: b.functionDetails?.date || b.createdAt, status: b.status, client: b.client?.name }))
+      ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setMergedTransactions(txs);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Error', message: 'Failed to filter by branch' });
+    } finally {
+      setLoadingFinance(false);
+    }
   };
 
   const handleGenerateReport = () => {
@@ -178,6 +212,7 @@ const FinanceManagement = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Finance Management</h1>
           <p className="text-gray-600 mt-1">Track revenue, expenses, and financial performance</p>
+          <div className="text-sm text-gray-500 mt-1">Total Bookings: <span className="font-medium text-gray-700">{bookings.length}</span></div>
         </div>
         <div className="flex space-x-3">
           <button
@@ -290,12 +325,37 @@ const FinanceManagement = () => {
         </div>
 
         <div className="p-6">
+          {loadingFinance && (
+            <div className="py-4 text-center text-sm text-gray-500">Loading finance data...</div>
+          )}
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Revenue vs Expenses Chart */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue vs Expenses (6 Months)</h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue vs Expenses</h3>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => onBranchChange(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">All Branches</option>
+                    {branches.map((b) => (
+                      <option key={b._id} value={b._id}>{b.name} ({b.code})</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-4">
+                  <div className="mb-4">
+                    <div className="flex items-center space-x-6">
+                      <div className="text-sm text-gray-600">Total Revenue</div>
+                      <div className="text-xl font-bold">₹{totals.revenue.toLocaleString()}</div>
+                      <div className="text-sm text-gray-600">Total Expenses</div>
+                      <div className="text-xl font-bold text-red-600">₹{totals.expenses.toLocaleString()}</div>
+                      <div className="text-sm text-gray-600">Net</div>
+                      <div className="text-xl font-bold text-blue-600">₹{totals.net.toLocaleString()}</div>
+                    </div>
+                  </div>
                   {monthlyData.map((data) => (
                     <div key={data.month} className="space-y-2">
                       <div className="flex justify-between text-sm">
@@ -341,6 +401,22 @@ const FinanceManagement = () => {
                     </div>
                   ))}
                 </div>
+                {/* Branch breakdown - simple list using analytics data */}
+                <div className="mt-6">
+                  <h4 className="font-medium text-gray-900 mb-2">Branch Breakdown</h4>
+                  <div className="space-y-2 text-sm text-gray-700">
+                    {(revenueByBranch || []).map((rb: any) => {
+                      const expObj = (expensesByBranch || []).find((e: any) => (e._id || e.branch) === (rb._id || rb.branch));
+                      const expVal = expObj ? (expObj.totalExpenses || expObj.expenses || 0) : 0;
+                      return (
+                        <div key={rb._id || rb.branch} className="flex justify-between">
+                          <div>{(branches.find(b => b._id === (rb._id || rb.branch))?.name) || (rb._id || rb.branch)}</div>
+                          <div>Revenue: ₹{(rb.totalRevenue || rb.revenue || 0).toLocaleString()} • Expenses: ₹{expVal.toLocaleString()}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -362,33 +438,33 @@ const FinanceManagement = () => {
               </div>
               
               <div className="space-y-4">
-                {recentTransactions.map((transaction) => {
-                  const Icon = getTransactionIcon(transaction.type);
-                  return (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                {/* Render merged transactions: expenses + booking incomes */}
+                {mergedTransactions.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">No transactions found</div>
+                ) : (
+                  mergedTransactions.map((tx) => (
+                    <div key={tx._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                       <div className="flex items-center">
-                        <div className={`p-2 rounded-lg mr-4 ${transaction.type === 'income' ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                          <Icon className={`w-5 h-5 ${getTransactionColor(transaction.type)}`} />
+                        <div className={`p-2 rounded-lg mr-4 ${tx.type === 'income' ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                          {(tx.type === 'income' ? TrendingUp : TrendingDown)({ className: `w-5 h-5 ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}` })}
                         </div>
                         <div>
-                          <h4 className="font-medium text-gray-900">{transaction.description}</h4>
-                          <p className="text-sm text-gray-600">
-                            {transaction.client || transaction.vendor} • {transaction.method}
-                          </p>
-                          <p className="text-xs text-gray-500">{transaction.date}</p>
+                          <h4 className="font-medium text-gray-900">{tx.title || tx.description || tx.category}</h4>
+                          <p className="text-sm text-gray-600">{tx.vendor || tx.client || ''} • {tx.paymentMethod || tx.method || ''}</p>
+                          <p className="text-xs text-gray-500">{new Date(tx.date || tx.expenseDate || tx.createdAt).toLocaleDateString()}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`font-bold ${getTransactionColor(transaction.type)}`}>
-                          {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toLocaleString()}
+                        <p className={`font-bold ${tx.type === 'income' ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {tx.type === 'income' ? '+' : '-'}₹{Math.abs(tx.amount).toLocaleString()}
                         </p>
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(transaction.status)}`}>
-                          {transaction.status}
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(tx.status || 'completed')}`}>
+                          {tx.status || 'completed'}
                         </span>
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
             </div>
           )}

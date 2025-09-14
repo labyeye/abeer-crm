@@ -111,8 +111,8 @@ export const companyAPI = {
   },
   
   deleteCompany: async (id: string) => {
-    const response = await api.delete(`/branches/${id}`);
-    return response.data;
+  const response = await api.delete(`/branches/${id}`);
+  return response.data;
   },
   
   getCompanyStats: async () => {
@@ -490,6 +490,10 @@ export const quotationAPI = {
     const response = await api.delete(`/quotations/${id}`);
     return response.data;
   },
+  downloadQuotationPdf: async (id: string) => {
+    const response = await api.get(`/quotations/${id}/pdf`, { responseType: 'blob' });
+    return response.data;
+  },
   
   convertToBooking: async (id: string) => {
     const response = await api.post(`/quotations/${id}/convert-to-booking`);
@@ -627,6 +631,18 @@ export const analyticsAPI = {
   
   exportAnalytics: async (type: string, params?: any) => {
     const response = await api.get(`/analytics/export/${type}`, { params });
+    return response.data;
+  }
+};
+
+// Finance & Expenses API
+export const expenseAPI = {
+  getExpenses: async (params?: any) => {
+    const response = await api.get('/expenses', { params });
+    return response.data;
+  },
+  getFinanceAnalytics: async (params?: any) => {
+    const response = await api.get('/expenses/analytics', { params });
     return response.data;
   }
 };
