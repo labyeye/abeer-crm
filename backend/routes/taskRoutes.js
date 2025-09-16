@@ -19,11 +19,11 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(getAllTasks)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllTasks)
   .post(authorize('chairman', 'admin', 'manager'), createTask);
 
 router.route('/stats')
-  .get(getTaskStats);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getTaskStats);
 
 router.route('/my-tasks')
   .get(authorize('staff'), getMyTasks);
@@ -32,16 +32,16 @@ router.route('/auto-assign/:bookingId')
   .post(authorize('chairman', 'admin', 'manager'), autoAssignTasks);
 
 router.route('/:id')
-  .get(getTask)
-  .put(updateTask);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getTask)
+  .put(authorize('chairman', 'admin', 'manager', 'staff'), updateTask);
 
 router.route('/:id/assign')
   .post(authorize('chairman', 'admin', 'manager'), assignStaffToTask);
 
 router.route('/:id/skip')
-  .post(skipTask);
+  .post(authorize('chairman', 'admin', 'manager', 'staff'), skipTask);
 
 router.route('/:id/complete')
-  .post(completeTask);
+  .post(authorize('chairman', 'admin', 'manager', 'staff'), completeTask);
 
 module.exports = router;

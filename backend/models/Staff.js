@@ -148,6 +148,15 @@ const staffSchema = new mongoose.Schema({
       enum: ['first', 'second', 'third', 'pass']
     }
   }],
+  educationClassSubject: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  experience: [{
+    type: String,
+    trim: true
+  }],
   isActive: {
     type: Boolean,
     default: true

@@ -176,10 +176,42 @@ const assignInventory = asyncHandler(async (req, res) => {
 // @route   GET /api/bookings/staff/:staffId
 // @access  Private
 const getBookingsForStaff = asyncHandler(async (req, res) => {
-  const bookings = await Booking.find({ 'staffAssignment.staff': req.params.staffId, isDeleted: false })
-    .populate('client', 'name phone email')
-    .populate('company', 'name')
-    .populate('branch', 'name code');
+  console.log('🔍 Getting bookings for staff with user ID:', req.params.staffId);
+  
+  // First, try to find staff record from user ID
+  const Staff = require('../models/Staff');
+  const staff = await Staff.findOne({ user: req.params.staffId });
+  
+  let bookings = [];
+  
+  if (staff) {
+    console.log('✅ Staff record found:', staff.name, 'Staff ID:', staff._id);
+    
+    // Find bookings where staff is assigned in either field
+    bookings = await Booking.find({
+      $or: [
+        { assignedStaff: staff._id },
+        { 'staffAssignment.staff': staff._id }
+      ],
+      isDeleted: false
+    })
+      .populate('client', 'name phone email')
+      .populate('company', 'name')
+      .populate('branch', 'name code')
+      .populate('assignedStaff', 'name designation employeeId')
+      .populate('inventorySelection', 'name category quantity')
+      .populate('staffAssignment.staff', 'user designation department')
+      .populate('equipmentAssignment.equipment', 'name sku category')
+      .populate('quotation')
+      .populate('invoice')
+      .sort({ 'functionDetails.date': -1 });
+  } else {
+    console.log('⚠️ No staff record found for user ID:', req.params.staffId);
+    // If no staff record found, return empty array for now
+    // In future, you might want to create staff record automatically
+  }
+  
+  console.log('📊 Found', bookings.length, 'bookings for staff');
   res.status(200).json({ success: true, count: bookings.length, data: bookings });
 });
 

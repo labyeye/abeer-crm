@@ -19,8 +19,9 @@ const router = express.Router();
 router.use(protect);
 
 // Routes
+
 router.route('/')
-  .get(authorize('chairman', 'admin', 'manager'), getAllBranches)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllBranches)
   .post(authorize('chairman'), createBranch);
 
 router.route('/stats')
@@ -29,8 +30,9 @@ router.route('/stats')
 router.route('/stats/update-all')
   .put(authorize('chairman'), updateAllBranchesStats);
 
+
 router.route('/:id')
-  .get(authorize('chairman', 'admin', 'manager'), getBranch)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getBranch)
   .put(authorize('chairman', 'admin'), updateBranch)
   .delete(authorize('chairman'), deleteBranch);
 

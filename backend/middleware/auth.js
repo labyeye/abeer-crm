@@ -31,15 +31,26 @@ exports.protect = async (req, res, next) => {
 
 // Grant access to specific roles
 exports.authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+  return async (req, res, next) => {
+    // Double check the user from database to ensure fresh data
+    const freshUser = await User.findById(req.user._id);
+    if (!freshUser) {
+      return next(new ErrorResponse('User not found', 401));
+    }
+    
+    // Normalize roles by trimming and converting to lowercase
+    const userRole = (freshUser.role || '').trim().toLowerCase();
+    const normalizedRoles = roles.map(role => role.trim().toLowerCase());
+    
+    if (!normalizedRoles.includes(userRole)) {
       return next(
         new ErrorResponse(
-          `User role ${req.user.role} is not authorized to access this route`,
+          `User role ${freshUser.role} is not authorized to access this route`,
           403
         )
       );
     }
+    
     next();
   };
 };

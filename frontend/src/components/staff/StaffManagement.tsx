@@ -139,6 +139,8 @@ interface StaffFormData {
     marks?: number;
     division?: "first" | "second" | "third" | "pass";
   }>;
+  educationClassSubject?: string;
+  experience?: string[];
   [key: string]: unknown;
 }
 
@@ -205,6 +207,8 @@ const StaffManagement = () => {
         division: undefined,
       },
     ],
+    educationClassSubject: "",
+    experience: [],
   });
   const [submitting, setSubmitting] = useState(false);
   const [attendanceModalStaff, setAttendanceModalStaff] =
@@ -749,6 +753,28 @@ const StaffManagement = () => {
                     className="w-24 h-24 rounded-full object-cover mb-2"
                   />
                 )}
+              </div>
+              {/* Education: Class/Subject */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Education: Class/Subject</h3>
+                <input
+                  type="text"
+                  value={formData.educationClassSubject || ""}
+                  onChange={e => setFormData({ ...formData, educationClassSubject: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter class/subject (e.g. 12th Science, B.Com, etc.)"
+                />
+              </div>
+              {/* Experience: Previous Workplaces */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Experience: Previous Workplaces</h3>
+                <textarea
+                  value={formData.experience?.join('\n') || ""}
+                  onChange={e => setFormData({ ...formData, experience: e.target.value.split(/\r?\n/).filter(x => x.trim()) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  rows={3}
+                  placeholder="List previous workplaces, one per line"
+                />
               </div>
               {/* Basic Information */}
               <div>

@@ -10,7 +10,7 @@ const {
   searchInventory
 } = require('../controller/inventoryController');
 
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -19,21 +19,21 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(getInventory)
-  .post(createInventoryItem);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getInventory)
+  .post(authorize('chairman', 'admin', 'manager'), createInventoryItem);
 
 router.route('/stats')
-  .get(getInventoryStats);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getInventoryStats);
 
 router.route('/search')
-  .get(searchInventory);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), searchInventory);
 
 router.route('/:id')
-  .get(getInventoryItem)
-  .put(updateInventoryItem)
-  .delete(deleteInventoryItem);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getInventoryItem)
+  .put(authorize('chairman', 'admin', 'manager'), updateInventoryItem)
+  .delete(authorize('chairman', 'admin', 'manager'), deleteInventoryItem);
 
 router.route('/:id/quantity')
-  .patch(updateQuantity);
+  .patch(authorize('chairman', 'admin', 'manager'), updateQuantity);
 
 module.exports = router; 

@@ -10,19 +10,17 @@ const { updateBranchRevenue } = require('../utils/branchUtils');
 // @route   GET /api/quotations
 // @access  Private
 const getAllQuotations = asyncHandler(async (req, res, next) => {
-  const { company, branch, client, status, search, startDate, endDate } = req.query;
+  const { branch, client, status, search, startDate, endDate } = req.query;
   
   let query = { isDeleted: false };
   
   // Filter by user permissions
   if (req.user.role !== 'chairman') {
-    query.company = req.user.companyId;
-    if (req.user.role !== 'company_admin' && req.user.branchId) {
+    if (req.user.branchId) {
       query.branch = req.user.branchId;
     }
   }
   
-  if (company) query.company = company;
   if (branch) query.branch = branch;
   if (client) query.client = client;
   if (status) query.status = status;
@@ -43,8 +41,7 @@ const getAllQuotations = asyncHandler(async (req, res, next) => {
   
   const quotations = await Quotation.find(query)
     .populate('client', 'name phone email')
-    .populate('company', 'name')
-    .populate('branch', 'name code')
+    .populate('branch', 'companyName name code')
     .sort({ createdAt: -1 });
   
   res.status(200).json({
@@ -60,7 +57,6 @@ const getAllQuotations = asyncHandler(async (req, res, next) => {
 const getQuotation = asyncHandler(async (req, res, next) => {
   const quotation = await Quotation.findById(req.params.id)
     .populate('client')
-    .populate('company')
     .populate('branch')
     .populate('createdBy', 'name email');
   
@@ -78,15 +74,27 @@ const getQuotation = asyncHandler(async (req, res, next) => {
 // @route   POST /api/quotations
 // @access  Private
 const createQuotation = asyncHandler(async (req, res, next) => {
+  // Validate required fields
+  if (!req.body.client) {
+    return next(new ErrorResponse('Client is required', 400));
+  }
+
+  if (!req.body.functionDetails?.type && !req.body.eventType) {
+    return next(new ErrorResponse('Function/Event type is required', 400));
+  }
+
+  if (!req.body.functionDetails?.date && !req.body.eventDate) {
+    return next(new ErrorResponse('Function/Event date is required', 400));
+  }
+
   // Generate quotation number
-  const count = await Quotation.countDocuments({ company: req.user.companyId });
+  const count = await Quotation.countDocuments({ branch: req.user.branchId });
   const quotationNumber = `QUO-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;
   
   const quotationData = {
     // start with safe defaults and normalize fields
     quotationNumber,
-    company: req.user.companyId || req.body.company || null,
-    // allow chairman to set branch explicitly, otherwise default to user's branch
+    // use user's branch or allow chairman to set branch explicitly
     branch: (req.user.role === 'chairman' && req.body.branch) ? req.body.branch : req.user.branchId,
     client: req.body.client,
     createdBy: req.user.id,
@@ -94,10 +102,10 @@ const createQuotation = asyncHandler(async (req, res, next) => {
     status: req.body.status || 'draft',
     notes: req.body.notes || '',
     terms: req.body.terms || {},
-    // functionDetails normalization
+    // functionDetails normalization with validation
     functionDetails: {
-      type: req.body.functionDetails?.type || req.body.functionDetails?.event || req.body.eventType || '',
-      date: req.body.functionDetails?.date ? new Date(req.body.functionDetails.date) : (req.body.eventDate ? new Date(req.body.eventDate) : null),
+      type: req.body.functionDetails?.type || req.body.functionDetails?.event || req.body.eventType || 'General Event',
+      date: req.body.functionDetails?.date ? new Date(req.body.functionDetails.date) : (req.body.eventDate ? new Date(req.body.eventDate) : new Date()),
       time: {
         start: req.body.functionDetails?.startTime || req.body.startTime || '',
         end: req.body.functionDetails?.endTime || req.body.endTime || ''
@@ -123,11 +131,6 @@ const createQuotation = asyncHandler(async (req, res, next) => {
     },
     ...req.body // keep any extra fields the client passed
   };
-
-  // If company is not set (some setups use branch as the primary org), try to use branch as company
-  if (!quotationData.company && quotationData.branch) {
-    quotationData.company = quotationData.branch;
-  }
   
   const quotation = await Quotation.create(quotationData);
 
@@ -135,7 +138,6 @@ const createQuotation = asyncHandler(async (req, res, next) => {
   // Populate necessary fields for notifications
   await quotation.populate([
     { path: 'client' },
-    { path: 'company' },
     { path: 'branch' }
   ]);
   
@@ -144,7 +146,6 @@ const createQuotation = asyncHandler(async (req, res, next) => {
     await automatedMessaging.sendQuotationCreated({
       client: quotation.client,
       quotation: quotation,
-      company: quotation.company,
       branch: quotation.branch
     });
   } catch (error) {
@@ -170,8 +171,8 @@ const updateQuotation = asyncHandler(async (req, res, next) => {
   
   // Check permissions
   if (req.user.role !== 'chairman' && 
-      req.user.role !== 'company_admin' && 
-      quotation.company.toString() !== req.user.companyId) {
+      req.user.branchId && 
+      quotation.branch.toString() !== req.user.branchId) {
     return next(new ErrorResponse('Not authorized to update this quotation', 403));
   }
   
@@ -181,7 +182,7 @@ const updateQuotation = asyncHandler(async (req, res, next) => {
     req.params.id,
     req.body,
     { new: true, runValidators: true }
-  ).populate('client company branch');
+  ).populate('client branch');
   
   // Update branch revenue if status changed to 'accepted'
   if (req.body.status === 'accepted' && oldStatus !== 'accepted') {
@@ -206,8 +207,8 @@ const deleteQuotation = asyncHandler(async (req, res, next) => {
   
   // Check permissions
   if (req.user.role !== 'chairman' && 
-      req.user.role !== 'company_admin' && 
-      quotation.company.toString() !== req.user.companyId) {
+      req.user.branchId && 
+      quotation.branch.toString() !== req.user.branchId) {
     return next(new ErrorResponse('Not authorized to delete this quotation', 403));
   }
   
@@ -225,7 +226,7 @@ const deleteQuotation = asyncHandler(async (req, res, next) => {
 // @access  Private
 const convertToBooking = asyncHandler(async (req, res, next) => {
   const quotation = await Quotation.findById(req.params.id)
-    .populate('client company branch');
+    .populate('client branch');
   
   if (!quotation || quotation.isDeleted) {
     return next(new ErrorResponse('Quotation not found', 404));
@@ -237,12 +238,12 @@ const convertToBooking = asyncHandler(async (req, res, next) => {
   
   // Create booking data from quotation
   const Booking = require('../models/Booking');
-  const bookingCount = await Booking.countDocuments({ company: quotation.company._id });
+  const bookingCount = await Booking.countDocuments({ branch: quotation.branch._id });
   const bookingNumber = `BKG-${Date.now()}-${(bookingCount + 1).toString().padStart(4, '0')}`;
   
   const bookingData = {
     bookingNumber,
-    company: quotation.company._id,
+    company: quotation.branch._id, // Use branch as company since company info is in branch
     branch: quotation.branch._id,
     client: quotation.client._id,
     functionDetails: quotation.functionDetails,
@@ -270,7 +271,6 @@ const convertToBooking = asyncHandler(async (req, res, next) => {
     await automatedMessaging.sendBookingConfirmed({
       client: quotation.client,
       booking: booking,
-      company: quotation.company,
       branch: quotation.branch,
       staffDetails: 'जल्द ही भेजी जाएगी'
     });
@@ -294,7 +294,7 @@ const convertToBooking = asyncHandler(async (req, res, next) => {
 // @access  Private
 const sendFollowUp = asyncHandler(async (req, res, next) => {
   const quotation = await Quotation.findById(req.params.id)
-    .populate('client company branch');
+    .populate('client branch');
   
   if (!quotation || quotation.isDeleted) {
     return next(new ErrorResponse('Quotation not found', 404));
@@ -308,7 +308,6 @@ const sendFollowUp = asyncHandler(async (req, res, next) => {
     await automatedMessaging.sendQuotationFollowUp({
       client: quotation.client,
       quotation: quotation,
-      company: quotation.company,
       branch: quotation.branch
     });
     
@@ -333,8 +332,7 @@ const getQuotationStats = asyncHandler(async (req, res, next) => {
   
   // Filter by user permissions
   if (req.user.role !== 'chairman') {
-    matchQuery.company = req.user.companyId;
-    if (req.user.role !== 'company_admin' && req.user.branchId) {
+    if (req.user.branchId) {
       matchQuery.branch = req.user.branchId;
     }
   }
@@ -383,7 +381,6 @@ const getQuotationStats = asyncHandler(async (req, res, next) => {
 const getQuotationPdf = asyncHandler(async (req, res, next) => {
   const quotation = await Quotation.findById(req.params.id)
     .populate('client')
-    .populate('company')
     .populate('branch');
 
   if (!quotation || quotation.isDeleted) {
@@ -402,7 +399,7 @@ const getQuotationPdf = asyncHandler(async (req, res, next) => {
   doc.pipe(res);
 
   // Simple PDF layout
-  doc.fontSize(20).text(quotation.company?.name || 'Company', { align: 'left' });
+  doc.fontSize(20).text(quotation.branch?.companyName || 'Company', { align: 'left' });
   doc.moveDown();
   doc.fontSize(14).text(`Quotation: ${quotation.quotationNumber || ''}`);
   doc.text(`Date: ${new Date(quotation.createdAt).toLocaleDateString()}`);

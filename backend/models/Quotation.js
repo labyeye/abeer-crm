@@ -1,11 +1,6 @@
 const mongoose = require('mongoose');
 
 const quotationSchema = new mongoose.Schema({
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -153,7 +148,7 @@ const quotationSchema = new mongoose.Schema({
 });
 
 // Index for efficient queries
-quotationSchema.index({ company: 1, branch: 1 });
+quotationSchema.index({ branch: 1 });
 quotationSchema.index({ client: 1 });
 quotationSchema.index({ quotationNumber: 1 });
 quotationSchema.index({ status: 1 });

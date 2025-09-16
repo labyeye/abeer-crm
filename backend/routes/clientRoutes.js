@@ -18,15 +18,17 @@ const { protect, authorize } = require('../middleware/auth');
 router.use(protect);
 
 // Routes
+
 router.route('/')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getAllClients)
+  .get(authorize('chairman', 'company_admin', 'branch_admin', 'staff'), getAllClients)
   .post(authorize('chairman', 'company_admin', 'branch_admin'), createClient);
 
 router.route('/search/:query')
   .get(authorize('chairman', 'company_admin', 'branch_admin'), searchClients);
 
+
 router.route('/:id')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getClient)
+  .get(authorize('chairman', 'company_admin', 'branch_admin', 'staff'), getClient)
   .put(authorize('chairman', 'company_admin', 'branch_admin'), updateClient)
   .delete(authorize('chairman', 'company_admin'), deleteClient);
 

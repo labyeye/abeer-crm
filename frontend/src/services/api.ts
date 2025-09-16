@@ -31,7 +31,7 @@ interface QueryParams {
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'https://abeer-crm.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://abeer-crm.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -325,6 +325,10 @@ export const bookingAPI = {
     const response = await api.get('/bookings', { params });
     return response.data;
   },
+  getBookingsForStaff: async (staffId: string, params?: any) => {
+    const response = await api.get(`/bookings/staff/${staffId}`, { params });
+    return response.data;
+  },
   getBooking: async (id: string) => {
     const response = await api.get(`/bookings/${id}`);
     return response.data;
@@ -335,6 +339,10 @@ export const bookingAPI = {
   },
   updateBooking: async (id: string, bookingData: any) => {
     const response = await api.put(`/bookings/${id}`, bookingData);
+    return response.data;
+  },
+  updateBookingStatus: async (id: string, status: string) => {
+    const response = await api.put(`/bookings/${id}/status`, { status });
     return response.data;
   },
   deleteBooking: async (id: string) => {

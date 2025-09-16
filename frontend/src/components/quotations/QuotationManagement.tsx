@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   FileText,
   Plus,
@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
 import { quotationAPI, branchAPI, clientAPI } from "../../services/api";
+import QuotationPDFTemplate from "./QuotationPDFTemplate";
+import { generateQuotationPDF } from "../../utils/pdfGenerator";
 
 const QuotationManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,6 +36,9 @@ const QuotationManagement = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPDFModal, setShowPDFModal] = useState(false);
+  const [selectedQuotationForPDF, setSelectedQuotationForPDF] = useState<any>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
   const [createData, setCreateData] = useState<any>({
     client: "",
     branch: "",
@@ -135,40 +140,83 @@ const QuotationManagement = () => {
 
   const handleQuotationAction = (action: string, quotationId: string) => {
     if (action === "Download") {
-      (async () => {
-        try {
-          const blob = await quotationAPI.downloadQuotationPdf(quotationId);
-          const url = window.URL.createObjectURL(
-            new Blob([blob], { type: "application/pdf" })
-          );
-          const link = document.createElement("a");
-          link.href = url;
-          link.setAttribute("download", `${quotationId}.pdf`);
-          document.body.appendChild(link);
-          link.click();
-          link.parentNode?.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          addNotification({
-            type: "success",
-            title: "Downloaded",
-            message: "Quotation PDF downloaded",
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            title: "Error",
-            message: "Failed to download PDF",
-          });
-        }
-      })();
-      return;
+      // Find quotation data
+      const quotation = quotations.find(q => q.id === quotationId);
+      if (quotation) {
+        handleDownloadPDF(quotation);
+      } else {
+        addNotification({
+          type: "error",
+          title: "Error",
+          message: "Quotation not found",
+        });
+      }
+    } else {
+      addNotification({
+        type: "info",
+        title: `${action} Quotation`,
+        message: `${action} action for quotation ${quotationId}`,
+      });
     }
+  };
 
-    addNotification({
-      type: "info",
-      title: `Quotation ${action}`,
-      message: `${action} for ${quotationId} initiated`,
-    });
+  const handleDownloadPDF = async (quotation: any) => {
+    try {
+      // Convert quotation data to PDF format
+      const pdfData = {
+        quotationNumber: quotation.id,
+        date: quotation.quotationDate,
+        client: {
+          name: quotation.clientName,
+          address: quotation.eventLocation || 'Address not provided',
+          contact: quotation.clientPhone,
+          gstin: quotation.clientGSTIN || '',
+        },
+        items: [
+          {
+            description: 'Cinematography',
+            dates: ['03 Feb. 2025', '21 Feb. 2025'],
+            rate: 0,
+            amount: Math.round(quotation.totalAmount * 0.4)
+          },
+          {
+            description: 'Mixing (Traditional)',
+            dates: ['Sakshi & Sanket - 11 Nov. 2024'],
+            rate: 0,
+            amount: Math.round(quotation.totalAmount * 0.2)
+          },
+          {
+            description: 'Editing (Cinematic)',
+            dates: ['Sakshi & Sanket - 11 Nov. 2024', '03 Feb. 2025', 'Rajeev & Saloni', '21 Feb. 2025'],
+            rate: 0,
+            amount: Math.round(quotation.totalAmount * 0.3)
+          },
+          {
+            description: 'Invitation Video',
+            dates: ['Dimpi & Abhijeet'],
+            rate: 0,
+            amount: Math.round(quotation.totalAmount * 0.1)
+          }
+        ],
+        total: quotation.totalAmount,
+        receivedAmount: quotation.advanceAmount || 0,
+        backDues: 0,
+        currentDues: quotation.totalAmount - (quotation.advanceAmount || 0),
+        totalDues: quotation.totalAmount - (quotation.advanceAmount || 0),
+      };
+
+      // Set data and show PDF modal for preview
+      setSelectedQuotationForPDF(pdfData);
+      setShowPDFModal(true);
+
+    } catch (error) {
+      console.error('Download error:', error);
+      addNotification({
+        type: "error",
+        title: "Error",
+        message: "Failed to prepare quotation for download",
+      });
+    }
   };
 
   const handleCreateSubmit = async () => {
@@ -919,6 +967,62 @@ const QuotationManagement = () => {
           )}
         </div>
       </div>
+
+      {/* PDF Modal */}
+      {showPDFModal && selectedQuotationForPDF && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">PDF Preview</h3>
+              <button
+                onClick={() => setShowPDFModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div ref={pdfRef} className="bg-white">
+              <QuotationPDFTemplate data={selectedQuotationForPDF} />
+            </div>
+            
+            <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setShowPDFModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg mr-2"
+              >
+                Close
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await generateQuotationPDF(
+                      pdfRef,
+                      `quotation-${selectedQuotationForPDF.quotationNumber}.pdf`
+                    );
+                    addNotification({
+                      type: "success",
+                      title: "Downloaded",
+                      message: "Quotation PDF downloaded successfully",
+                    });
+                    setShowPDFModal(false);
+                  } catch (error) {
+                    console.error('PDF generation error:', error);
+                    addNotification({
+                      type: "error", 
+                      title: "Error",
+                      message: "Failed to generate PDF",
+                    });
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

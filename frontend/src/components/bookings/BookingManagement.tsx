@@ -12,6 +12,8 @@ import {
   X,
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
+import { useAuth } from "../../contexts/AuthContext";
+
 import {
   bookingAPI,
   clientAPI,
@@ -135,22 +137,35 @@ const BookingManagement = () => {
 
   const { addNotification } = useNotification();
 
+  const { user } = useAuth();
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [bookingsRes, clientsRes, staffRes, inventoryRes, branchesRes] =
-        await Promise.all([
-          bookingAPI.getBookings(),
-          clientAPI.getClients(),
-          staffAPI.getStaff(),
-          inventoryAPI.getInventory(),
-          branchAPI.getBranches(),
-        ]);
-      console.log("Bookings API response:", bookingsRes.data);
-      console.log("Clients API response:", clientsRes.data);
-      console.log("Staff API response:", staffRes.data);
-      console.log("Inventory API response:", inventoryRes.data);
-      console.log("Branches API response:", branchesRes.data);
+      let bookingsRes;
+      if (user?.role === 'staff') {
+        console.log('🔍 Fetching bookings for staff user:', user);
+        console.log('📱 Staff user ID:', user.id);
+        bookingsRes = await bookingAPI.getBookingsForStaff(user.id);
+        console.log('📊 Staff bookings response:', bookingsRes);
+      } else {
+        bookingsRes = await bookingAPI.getBookings();
+      }
+      const [clientsRes, staffRes, branchesRes] = await Promise.all([
+        clientAPI.getClients(),
+        staffAPI.getStaff(),
+        branchAPI.getBranches(),
+      ]);
+      
+      // Try to fetch inventory separately (might fail for staff users)
+      let inventoryRes: any = { data: { data: [] } };
+      try {
+        inventoryRes = await inventoryAPI.getInventory();
+        console.log('✅ Inventory fetched successfully');
+      } catch (error) {
+        console.log('⚠️ Could not fetch inventory (might be permission issue):', error);
+        // Set empty inventory for staff users or when permission denied
+        inventoryRes = { data: { data: [] } };
+      }
       setBookings(
         Array.isArray(bookingsRes.data)
           ? bookingsRes.data
@@ -358,6 +373,26 @@ const BookingManagement = () => {
     }
   };
 
+  const handleStatusUpdate = async (bookingId: string, newStatus: string) => {
+    try {
+      // Use the new status update endpoint for staff users
+      await bookingAPI.updateBookingStatus(bookingId, newStatus);
+      addNotification({
+        type: "success",
+        title: "Success",
+        message: `Booking status updated to ${newStatus}`,
+      });
+      fetchData(); // Refresh the data
+    } catch (error: unknown) {
+      addNotification({
+        type: "error",
+        title: "Error",
+        message:
+          error instanceof Error ? error.message : "Failed to update booking status",
+      });
+    }
+  };
+
   const filteredBookings = bookings.filter((booking) => {
     const matchesSearch =
       booking.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -397,13 +432,15 @@ const BookingManagement = () => {
             Manage client bookings and events
           </p>
         </div>
-        <button
-          onClick={handleAddBooking}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add Booking
-        </button>
+        {user?.role !== 'staff' && (
+          <button
+            onClick={handleAddBooking}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Add Booking
+          </button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -519,7 +556,7 @@ const BookingManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredBookings.map((booking) => (
-                <tr key={booking._id}>
+                <tr key={booking._id || booking.bookingNumber}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -587,23 +624,42 @@ const BookingManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEditBooking(booking)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleDeleteBooking(
-                            booking._id,
-                            booking.bookingNumber
-                          )
-                        }
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {user?.role === 'staff' ? (
+                        // Staff users can only update status
+                        <select
+                          value={booking.status}
+                          onChange={(e) => handleStatusUpdate(booking._id, e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="confirmed">Confirmed</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      ) : (
+                        // Admin/Manager users can edit and delete
+                        <>
+                          <button
+                            onClick={() => handleEditBooking(booking)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Edit Booking"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDeleteBooking(
+                                booking._id,
+                                booking.bookingNumber
+                              )
+                            }
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete Booking"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

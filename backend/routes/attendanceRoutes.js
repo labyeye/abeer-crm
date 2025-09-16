@@ -18,10 +18,10 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(authorize('chairman', 'admin', 'manager'), getAllAttendance);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllAttendance);
 
 router.route('/summary')
-  .get(authorize('chairman', 'admin', 'manager'), getAttendanceSummary);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getAttendanceSummary);
 
 router.route('/my-attendance')
   .get(authorize('staff'), getMyAttendance);

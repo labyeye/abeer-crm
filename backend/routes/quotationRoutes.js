@@ -18,19 +18,19 @@ router.use(protect);
 
 // Routes
 router.route('/')
-  .get(authorize('chairman', 'admin', 'manager'), getAllQuotations)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllQuotations)
   .post(authorize('chairman', 'admin', 'manager'), createQuotation);
 
 router.route('/stats')
-  .get(authorize('chairman', 'admin', 'manager'), getQuotationStats);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getQuotationStats);
 
 router.route('/:id')
-  .get(authorize('chairman', 'admin', 'manager'), getQuotation)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getQuotation)
   .put(authorize('chairman', 'admin', 'manager'), updateQuotation)
   .delete(authorize('chairman', 'admin'), deleteQuotation);
 
 router.route('/:id/pdf')
-  .get(authorize('chairman', 'admin', 'manager'), getQuotationPdf);
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getQuotationPdf);
 
 router.route('/:id/convert-to-booking')
   .post(authorize('chairman', 'admin', 'manager'), convertToBooking);

@@ -17,12 +17,14 @@ const { protect, authorize } = require('../middleware/auth');
 router.use(protect);
 
 // Routes
+
 router.route('/')
-  .get(authorize('chairman', 'admin', 'manager'), getAllStaff)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllStaff)
   .post(authorize('chairman', 'admin', 'manager'), createStaff);
 
+
 router.route('/:id')
-  .get(authorize('chairman', 'admin', 'manager'), getStaff)
+  .get(authorize('chairman', 'admin', 'manager', 'staff'), getStaff)
   .put(authorize('chairman', 'admin', 'manager'), updateStaff)
   .delete(authorize('chairman', 'admin'), deleteStaff);
 
