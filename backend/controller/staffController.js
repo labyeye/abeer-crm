@@ -50,7 +50,6 @@ const getAllStaff = asyncHandler(async (req, res) => {
     .populate('user', 'name email phone')
     .populate('branch', 'name code companyName')
     .sort({ createdAt: -1 });
-  console.log('Fetched staff documents:', staff.length, 'for user role:', req.user.role);
   
   res.status(200).json({
     success: true,

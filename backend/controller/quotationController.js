@@ -92,17 +92,13 @@ const createQuotation = asyncHandler(async (req, res, next) => {
   const quotationNumber = `QUO-${Date.now()}-${(count + 1).toString().padStart(4, '0')}`;
   
   const quotationData = {
-    // start with safe defaults and normalize fields
     quotationNumber,
-    // use user's branch or allow chairman to set branch explicitly
     branch: (req.user.role === 'chairman' && req.body.branch) ? req.body.branch : req.user.branchId,
     client: req.body.client,
     createdBy: req.user.id,
-    // normalize status: allow frontend 'pending' but ensure it maps to allowed enum (we added 'pending')
     status: req.body.status || 'draft',
     notes: req.body.notes || '',
     terms: req.body.terms || {},
-    // functionDetails normalization with validation
     functionDetails: {
       type: req.body.functionDetails?.type || req.body.functionDetails?.event || req.body.eventType || 'General Event',
       date: req.body.functionDetails?.date ? new Date(req.body.functionDetails.date) : (req.body.eventDate ? new Date(req.body.eventDate) : new Date()),
@@ -112,7 +108,6 @@ const createQuotation = asyncHandler(async (req, res, next) => {
       },
       venue: req.body.functionDetails?.venue || {}
     },
-    // normalize services array: frontend may send {name,quantity,price}
     services: Array.isArray(req.body.services)
       ? req.body.services.map((s) => ({
           service: s.service || s.name || s.description || '',
@@ -129,6 +124,9 @@ const createQuotation = asyncHandler(async (req, res, next) => {
       discount: Number(req.body.pricing?.discount ?? 0),
       finalAmount: Number(req.body.pricing?.finalAmount ?? req.body.finalAmount ?? 0)
     },
+    videoOutput: req.body.videoOutput || '',
+    photoOutput: req.body.photoOutput || '',
+    rawOutput: req.body.rawOutput || '',
     ...req.body // keep any extra fields the client passed
   };
   
@@ -178,9 +176,16 @@ const updateQuotation = asyncHandler(async (req, res, next) => {
   
   const oldStatus = quotation.status;
   
+  // Ensure output fields are updated if present
+  const updateData = {
+    ...req.body,
+    ...(req.body.videoOutput !== undefined ? { videoOutput: req.body.videoOutput } : {}),
+    ...(req.body.photoOutput !== undefined ? { photoOutput: req.body.photoOutput } : {}),
+    ...(req.body.rawOutput !== undefined ? { rawOutput: req.body.rawOutput } : {}),
+  };
   quotation = await Quotation.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    updateData,
     { new: true, runValidators: true }
   ).populate('client branch');
   

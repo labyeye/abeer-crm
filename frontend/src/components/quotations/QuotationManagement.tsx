@@ -20,6 +20,7 @@ import {
   MapPin,
   Camera,
   Copy,
+  IndianRupee,
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
 import { quotationAPI, branchAPI, clientAPI } from "../../services/api";
@@ -27,6 +28,27 @@ import QuotationPDFTemplate from "./QuotationPDFTemplate";
 import { generateQuotationPDF } from "../../utils/pdfGenerator";
 
 const QuotationManagement = () => {
+  const [editMode, setEditMode] = useState(false);
+  const [editQuotationId, setEditQuotationId] = useState<string | null>(null);
+  const handleDeleteQuotation = async (quotationId: string) => {
+    try {
+      await quotationAPI.deleteQuotation(quotationId);
+      addNotification({
+        type: "success",
+        title: "Deleted",
+        message: "Quotation deleted successfully",
+      });
+      // Refresh list
+      const qRes = await quotationAPI.getQuotations();
+      setQuotations((qRes && qRes.data) || qRes || []);
+    } catch (err) {
+      addNotification({
+        type: "error",
+        title: "Error",
+        message: "Failed to delete quotation",
+      });
+    }
+  };
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [activeTab, setActiveTab] = useState("quotations");
@@ -37,7 +59,8 @@ const QuotationManagement = () => {
   const [clients, setClients] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
-  const [selectedQuotationForPDF, setSelectedQuotationForPDF] = useState<any>(null);
+  const [selectedQuotationForPDF, setSelectedQuotationForPDF] =
+    useState<any>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
   const [createData, setCreateData] = useState<any>({
     client: "",
@@ -46,6 +69,10 @@ const QuotationManagement = () => {
     gstPct: 0,
     notes: "",
     functionDetails: { date: "", type: "", venue: { name: "", address: "" } },
+    videoOutput: "",
+    photoOutput: "",
+    rawOutput: "",
+    advanceAmount: 0,
   });
 
   const templates = [
@@ -130,6 +157,20 @@ const QuotationManagement = () => {
   };
 
   const handleCreateQuotation = () => {
+    setEditMode(false);
+    setEditQuotationId(null);
+    setCreateData({
+      client: "",
+      branch: "",
+      services: [{ name: "", quantity: 1, price: 0 }],
+      gstPct: 0,
+      notes: "",
+      functionDetails: { date: "", type: "", venue: { name: "", address: "" } },
+      videoOutput: "",
+      photoOutput: "",
+      rawOutput: "",
+      advanceAmount: 0,
+    });
     setShowCreateModal(true);
     addNotification({
       type: "info",
@@ -139,9 +180,50 @@ const QuotationManagement = () => {
   };
 
   const handleQuotationAction = (action: string, quotationId: string) => {
+    if (action === "Edit") {
+      const quotation = quotations.find(
+        (q) =>
+          q._id === quotationId ||
+          q.quotationNumber === quotationId ||
+          q.id === quotationId
+      );
+      if (quotation) {
+        setEditMode(true);
+        setEditQuotationId(quotation._id || quotation.quotationNumber);
+        setCreateData({
+          client: quotation.client?._id || quotation.client || "",
+          branch: quotation.branch?._id || quotation.branch || "",
+          services: quotation.services || [{ name: "", quantity: 1, price: 0 }],
+          gstPct: quotation.gstPct || quotation.pricing?.gstPct || 0,
+          notes: quotation.notes || "",
+          functionDetails: quotation.functionDetails || {
+            date: "",
+            type: "",
+            venue: { name: "", address: "" },
+          },
+          videoOutput: quotation.videoOutput || "",
+          photoOutput: quotation.photoOutput || "",
+          rawOutput: quotation.rawOutput || "",
+          advanceAmount: quotation.advanceAmount || 0,
+        });
+        setShowCreateModal(true);
+      } else {
+        addNotification({
+          type: "error",
+          title: "Error",
+          message: "Quotation not found for edit",
+        });
+      }
+      return;
+    }
     if (action === "Download") {
-      // Find quotation data
-      const quotation = quotations.find(q => q.id === quotationId);
+      // Find quotation data by _id, quotationNumber, or id
+      const quotation = quotations.find(
+        (q) =>
+          q._id === quotationId ||
+          q.quotationNumber === quotationId ||
+          q.id === quotationId
+      );
       if (quotation) {
         handleDownloadPDF(quotation);
       } else {
@@ -162,55 +244,62 @@ const QuotationManagement = () => {
 
   const handleDownloadPDF = async (quotation: any) => {
     try {
-      // Convert quotation data to PDF format
+      // Map all fields dynamically from the quotation object
+      const totalAmount = Number(
+        quotation.pricing?.totalAmount ?? quotation.totalAmount ?? 0
+      );
+      const advanceAmount = Number(quotation.advanceAmount ?? 0);
       const pdfData = {
-        quotationNumber: quotation.id,
-        date: quotation.quotationDate,
+        quotationNumber:
+          quotation.quotationNumber || quotation.id || quotation._id || "",
+        date:
+          quotation.quotationDate ||
+          quotation.date ||
+          new Date().toLocaleDateString(),
         client: {
-          name: quotation.clientName,
-          address: quotation.eventLocation || 'Address not provided',
-          contact: quotation.clientPhone,
-          gstin: quotation.clientGSTIN || '',
+          name: quotation.client?.name || quotation.clientName || "N/A",
+          address:
+            quotation.client?.address ||
+            quotation.functionDetails?.venue?.address ||
+            quotation.eventLocation ||
+            "Address not provided",
+          contact: quotation.client?.phone || quotation.clientPhone || "N/A",
+          gstin: quotation.client?.gstin || quotation.clientGSTIN || "",
         },
-        items: [
-          {
-            description: 'Cinematography',
-            dates: ['03 Feb. 2025', '21 Feb. 2025'],
-            rate: 0,
-            amount: Math.round(quotation.totalAmount * 0.4)
-          },
-          {
-            description: 'Mixing (Traditional)',
-            dates: ['Sakshi & Sanket - 11 Nov. 2024'],
-            rate: 0,
-            amount: Math.round(quotation.totalAmount * 0.2)
-          },
-          {
-            description: 'Editing (Cinematic)',
-            dates: ['Sakshi & Sanket - 11 Nov. 2024', '03 Feb. 2025', 'Rajeev & Saloni', '21 Feb. 2025'],
-            rate: 0,
-            amount: Math.round(quotation.totalAmount * 0.3)
-          },
-          {
-            description: 'Invitation Video',
-            dates: ['Dimpi & Abhijeet'],
-            rate: 0,
-            amount: Math.round(quotation.totalAmount * 0.1)
-          }
-        ],
-        total: quotation.totalAmount,
-        receivedAmount: quotation.advanceAmount || 0,
-        backDues: 0,
-        currentDues: quotation.totalAmount - (quotation.advanceAmount || 0),
-        totalDues: quotation.totalAmount - (quotation.advanceAmount || 0),
+        videoOutput: quotation.videoOutput || "",
+        photoOutput: quotation.photoOutput || "",
+        rawOutput: quotation.rawOutput || "",
+        items: (quotation.services || []).map((service: any) => ({
+          description:
+            service.service || service.name || service.description || "",
+          rate: Number(service.rate ?? service.price ?? 0),
+          amount: Number(
+            service.amount ??
+              (service.quantity ?? 1) * (service.rate ?? service.price ?? 0)
+          ),
+          dates: service.dates || [],
+        })),
+        total: isNaN(totalAmount) ? 0 : totalAmount,
+        receivedAmount: isNaN(advanceAmount) ? 0 : advanceAmount,
+        backDues: Number(quotation.backDues ?? 0),
+        currentDues: Number(
+          quotation.currentDues ??
+            (isNaN(totalAmount - advanceAmount)
+              ? 0
+              : totalAmount - advanceAmount)
+        ),
+        totalDues: Number(
+          quotation.totalDues ??
+            (isNaN(totalAmount - advanceAmount)
+              ? 0
+              : totalAmount - advanceAmount)
+        ),
       };
 
-      // Set data and show PDF modal for preview
       setSelectedQuotationForPDF(pdfData);
       setShowPDFModal(true);
-
     } catch (error) {
-      console.error('Download error:', error);
+      console.error("Download error:", error);
       addNotification({
         type: "error",
         title: "Error",
@@ -222,21 +311,26 @@ const QuotationManagement = () => {
   const handleCreateSubmit = async () => {
     try {
       // normalize services into schema shape {service, description, quantity, rate, amount}
-      const services = Array.isArray(createData.services) ? createData.services : [];
+      const services = Array.isArray(createData.services)
+        ? createData.services
+        : [];
       const normalizedServices = services.map((s: any) => {
         const qty = Number(s.quantity || 1);
         const rate = Number(s.price ?? s.rate ?? 0);
         const amount = +(qty * rate);
         return {
-          service: s.name || s.service || '',
-          description: s.description || '',
+          service: s.name || s.service || "",
+          description: s.description || "",
           quantity: qty,
           rate,
           amount,
         };
       });
 
-      const subtotal = normalizedServices.reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0);
+      const subtotal = normalizedServices.reduce(
+        (sum: number, s: any) => sum + Number(s.amount || 0),
+        0
+      );
       const gstPct = Number(createData.gstPct || 0);
       const gstAmount = +(subtotal * (gstPct / 100));
       const finalAmount = +(subtotal + gstAmount);
@@ -247,70 +341,57 @@ const QuotationManagement = () => {
         services: normalizedServices,
         pricing: { subtotal, gstAmount, totalAmount: finalAmount, finalAmount },
         functionDetails: {
-          type: createData.functionDetails?.type || createData.functionDetails?.eventType || '',
+          type:
+            createData.functionDetails?.type ||
+            createData.functionDetails?.eventType ||
+            "",
           date: createData.functionDetails?.date || null,
           time: {
-            start: createData.functionDetails?.startTime || '',
-            end: createData.functionDetails?.endTime || ''
+            start: createData.functionDetails?.startTime || "",
+            end: createData.functionDetails?.endTime || "",
           },
-          venue: createData.functionDetails?.venue || {}
+          venue: createData.functionDetails?.venue || {},
         },
+        videoOutput: createData.videoOutput,
+        photoOutput: createData.photoOutput,
+        rawOutput: createData.rawOutput,
         notes: createData.notes,
-        status: 'pending'
+        advanceAmount: createData.advanceAmount,
+        status: "pending",
       };
 
-      const res = await quotationAPI.createQuotation(payload);
-      // determine created id from response
-      const created = (res && (res.data || res)) || null;
-      const createdId =
-        created &&
-        (created._id || created.id || created._doc?.id || created._doc?._id);
-
-      addNotification({
-        type: "success",
-        title: "Created",
-        message: "Quotation created",
-      });
+      let res, updated;
+      if (editMode && editQuotationId) {
+        // Update existing quotation
+        res = await quotationAPI.updateQuotation(editQuotationId, payload);
+        updated = (res && (res.data || res)) || null;
+        addNotification({
+          type: "success",
+          title: "Updated",
+          message: "Quotation updated",
+        });
+      } else {
+        // Create new quotation
+        res = await quotationAPI.createQuotation(payload);
+        updated = (res && (res.data || res)) || null;
+        addNotification({
+          type: "success",
+          title: "Created",
+          message: "Quotation created",
+        });
+      }
       setShowCreateModal(false);
 
       // reload list
       const qRes = await quotationAPI.getQuotations();
       setQuotations((qRes && qRes.data) || qRes || []);
-
-      // attempt to download generated PDF for the newly created quotation
-      if (createdId) {
-        try {
-          const blob = await quotationAPI.downloadQuotationPdf(
-            String(createdId)
-          );
-          const url = window.URL.createObjectURL(
-            new Blob([blob], { type: "application/pdf" })
-          );
-          const link = document.createElement("a");
-          link.href = url;
-          link.setAttribute("download", `${createdId}.pdf`);
-          document.body.appendChild(link);
-          link.click();
-          link.parentNode?.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          addNotification({
-            type: "success",
-            title: "Downloaded",
-            message: "Quotation PDF downloaded",
-          });
-        } catch (err) {
-          addNotification({
-            type: "error",
-            title: "PDF Error",
-            message: "Quotation created but failed to download PDF",
-          });
-        }
-      }
     } catch (err) {
       addNotification({
         type: "error",
         title: "Error",
-        message: "Failed to create quotation",
+        message: editMode
+          ? "Failed to update quotation"
+          : "Failed to create quotation",
       });
     }
   };
@@ -328,7 +409,11 @@ const QuotationManagement = () => {
         setClients((cRes && cRes.data) || cRes || []);
         setQuotations((qRes && qRes.data) || qRes || []);
       } catch (err) {
-        addNotification({ type: "error", title: "Error", message: "Failed to load branches/clients" });
+        addNotification({
+          type: "error",
+          title: "Error",
+          message: "Failed to load branches/clients",
+        });
       }
     };
     load();
@@ -379,9 +464,15 @@ const QuotationManagement = () => {
 
   const filteredQuotations = quotations.filter((quotation) => {
     const matchesSearch =
-      quotation.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      quotation.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      quotation.eventType.toLowerCase().includes(searchTerm.toLowerCase());
+      (quotation.client?.name?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase()
+      ) ||
+      (quotation.quotationNumber?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase()
+      ) ||
+      (quotation.functionDetails?.type?.toLowerCase() || "").includes(
+        searchTerm.toLowerCase()
+      );
     const matchesFilter =
       filterStatus === "all" || quotation.status === filterStatus;
     return matchesSearch && matchesFilter;
@@ -392,12 +483,19 @@ const QuotationManagement = () => {
     sent: quotations.filter((q) => q.status === "sent").length,
     approved: quotations.filter((q) => q.status === "approved").length,
     pending: quotations.filter((q) => q.status === "pending").length,
-    totalValue: quotations.reduce((sum, q) => sum + q.totalAmount, 0),
-    approvalRate: Math.round(
-      (quotations.filter((q) => q.status === "approved").length /
-        quotations.length) *
-        100
-    ),
+    totalValue: quotations.reduce((sum, q) => {
+      // Try pricing.totalAmount, then totalAmount, fallback to 0
+      const val = Number(q.pricing?.totalAmount ?? q.totalAmount ?? 0);
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0),
+    approvalRate:
+      quotations.length === 0
+        ? 0
+        : Math.round(
+            (quotations.filter((q) => q.status === "approved").length /
+              quotations.length) *
+              100
+          ),
   };
 
   return (
@@ -421,110 +519,399 @@ const QuotationManagement = () => {
         </button>
       </div>
 
-        {/* Top-level Create Quotation Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                <h2 className="text-xl font-bold text-gray-900">Create Quotation</h2>
-                <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600">Close</button>
+      {/* Top-level Create Quotation Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editMode ? "Edit Quotation" : "Create Quotation"}
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                Close
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateSubmit();
+              }}
+              className="p-6 space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Client *
+                  </label>
+                  <select
+                    required
+                    value={createData.client}
+                    onChange={(e) =>
+                      setCreateData({ ...createData, client: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select client</option>
+                    {clients.map((c: any) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name} - {c.phone}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Branch *
+                  </label>
+                  <select
+                    required
+                    value={createData.branch}
+                    onChange={(e) =>
+                      setCreateData({ ...createData, branch: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Select branch</option>
+                    {branches.map((b: any) => (
+                      <option key={b._id} value={b._id}>
+                        {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <form onSubmit={(e) => { e.preventDefault(); handleCreateSubmit(); }} className="p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Client *</label>
-                    <select required value={createData.client} onChange={(e) => setCreateData({ ...createData, client: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="">Select client</option>
-                      {clients.map((c: any) => <option key={c._id} value={c._id}>{c.name} - {c.phone}</option>)}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Branch *</label>
-                    <select required value={createData.branch} onChange={(e) => setCreateData({ ...createData, branch: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="">Select branch</option>
-                      {branches.map((b: any) => <option key={b._id} value={b._id}>{b.name} ({b.code})</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Function Details</h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Function Details
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Event / Function Type</label>
-                    <input type="text" value={createData.functionDetails?.type || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, type: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Event / Function Type
+                    </label>
+                    <input
+                      type="text"
+                      value={createData.functionDetails?.type || ""}
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          functionDetails: {
+                            ...createData.functionDetails,
+                            type: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
                   </div>
                 </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
-                      <input required type="date" value={createData.functionDetails.date ? createData.functionDetails.date.split('T')[0] : ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, date: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
-                      <input type="time" value={createData.functionDetails.startTime || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, startTime: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">End Time</label>
-                      <input type="time" value={createData.functionDetails.endTime || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, endTime: e.target.value } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Date *
+                    </label>
+                    <input
+                      required
+                      type="date"
+                      value={
+                        createData.functionDetails.date
+                          ? createData.functionDetails.date.split("T")[0]
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          functionDetails: {
+                            ...createData.functionDetails,
+                            date: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Venue Name</label>
-                      <input type="text" value={createData.functionDetails.venue?.name || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, venue: { ...createData.functionDetails.venue, name: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Start Time
+                    </label>
+                    <input
+                      type="time"
+                      value={createData.functionDetails.startTime || ""}
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          functionDetails: {
+                            ...createData.functionDetails,
+                            startTime: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      End Time
+                    </label>
+                    <input
+                      type="time"
+                      value={createData.functionDetails.endTime || ""}
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          functionDetails: {
+                            ...createData.functionDetails,
+                            endTime: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Venue Name
+                    </label>
+                    <input
+                      type="text"
+                      value={createData.functionDetails.venue?.name || ""}
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          functionDetails: {
+                            ...createData.functionDetails,
+                            venue: {
+                              ...createData.functionDetails.venue,
+                              name: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Venue Address
+                    </label>
+                    <input
+                      type="text"
+                      value={createData.functionDetails.venue?.address || ""}
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          functionDetails: {
+                            ...createData.functionDetails,
+                            venue: {
+                              ...createData.functionDetails.venue,
+                              address: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Services & Pricing
+                </h3>
+                <div className="space-y-2">
+                  {createData.services.map((s: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-6 gap-2 items-center"
+                    >
+                      <input
+                        type="text"
+                        placeholder="Service name"
+                        value={s.name}
+                        onChange={(e) =>
+                          updateServiceLine(idx, "name", e.target.value)
+                        }
+                        className="col-span-3 border px-2 py-1 rounded"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        value={s.quantity}
+                        onChange={(e) =>
+                          updateServiceLine(
+                            idx,
+                            "quantity",
+                            Number(e.target.value)
+                          )
+                        }
+                        className="col-span-1 border px-2 py-1 rounded"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        value={s.price}
+                        onChange={(e) =>
+                          updateServiceLine(
+                            idx,
+                            "price",
+                            Number(e.target.value)
+                          )
+                        }
+                        className="col-span-1 border px-2 py-1 rounded"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeServiceLine(idx)}
+                        className="col-span-1 text-red-600"
+                      >
+                        Remove
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Venue Address</label>
-                      <input type="text" value={createData.functionDetails.venue?.address || ''} onChange={(e) => setCreateData({ ...createData, functionDetails: { ...createData.functionDetails, venue: { ...createData.functionDetails.venue, address: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                    </div>
+                  ))}
+                  <div>
+                    <button
+                      type="button"
+                      onClick={addServiceLine}
+                      className="px-3 py-1 bg-gray-100 rounded"
+                    >
+                      Add service
+                    </button>
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Services & Pricing</h3>
-                  <div className="space-y-2">
-                    {createData.services.map((s: any, idx: number) => (
-                      <div key={idx} className="grid grid-cols-6 gap-2 items-center">
-                        <input type="text" placeholder="Service name" value={s.name} onChange={(e) => updateServiceLine(idx, 'name', e.target.value)} className="col-span-3 border px-2 py-1 rounded" />
-                        <input type="number" min={1} value={s.quantity} onChange={(e) => updateServiceLine(idx, 'quantity', Number(e.target.value))} className="col-span-1 border px-2 py-1 rounded" />
-                        <input type="number" min={0} value={s.price} onChange={(e) => updateServiceLine(idx, 'price', Number(e.target.value))} className="col-span-1 border px-2 py-1 rounded" />
-                        <button type="button" onClick={() => removeServiceLine(idx)} className="col-span-1 text-red-600">Remove</button>
-                      </div>
-                    ))}
-                    <div>
-                      <button type="button" onClick={addServiceLine} className="px-3 py-1 bg-gray-100 rounded">Add service</button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Advance Amount
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={createData.advanceAmount || 0}
+                      onChange={(e) =>
+                        setCreateData({
+                          ...createData,
+                          advanceAmount: Number(e.target.value),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600">
+                      Subtotal:{" "}
+                      <span className="font-medium">
+                        ₹{computedSubtotal().toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      GST:{" "}
+                      <span className="font-medium">
+                        ₹
+                        {(
+                          computedSubtotal() *
+                          (Number(createData.gstPct || 0) / 100)
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-lg font-bold">
+                      Total:{" "}
+                      <span>
+                        ₹
+                        {(
+                          computedSubtotal() +
+                          computedSubtotal() *
+                            (Number(createData.gstPct || 0) / 100)
+                        ).toLocaleString()}
+                      </span>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount</label>
-                      <input type="number" min={0} value={createData.advanceAmount || 0} onChange={(e) => setCreateData({ ...createData, advanceAmount: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-600">Subtotal: <span className="font-medium">₹{computedSubtotal().toLocaleString()}</span></div>
-                      <div className="text-sm text-gray-600">GST: <span className="font-medium">₹{(computedSubtotal() * (Number(createData.gstPct || 0) / 100)).toLocaleString()}</span></div>
-                      <div className="text-lg font-bold">Total: <span>₹{(computedSubtotal() + (computedSubtotal() * (Number(createData.gstPct || 0) / 100))).toLocaleString()}</span></div>
-                    </div>
-                  </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                  <textarea value={createData.notes} onChange={(e) => setCreateData({ ...createData, notes: e.target.value })} className="w-full border rounded px-3 py-2" />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Video Output
+                </label>
+                <input
+                  type="text"
+                  value={createData.videoOutput || ""}
+                  onChange={(e) =>
+                    setCreateData({
+                      ...createData,
+                      videoOutput: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded px-3 py-2 mb-2"
+                  placeholder="e.g. Raw Data in Party Storage Device"
+                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Photo Output
+                </label>
+                <input
+                  type="text"
+                  value={createData.photoOutput || ""}
+                  onChange={(e) =>
+                    setCreateData({
+                      ...createData,
+                      photoOutput: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded px-3 py-2 mb-2"
+                  placeholder="e.g. Raw Data in Party Storage Device"
+                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Raw Output
+                </label>
+                <input
+                  type="text"
+                  value={createData.rawOutput || ""}
+                  onChange={(e) =>
+                    setCreateData({ ...createData, rawOutput: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2 mb-2"
+                  placeholder="e.g. Raw Data in Party HDD/Storage Device"
+                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  value={createData.notes}
+                  onChange={(e) =>
+                    setCreateData({ ...createData, notes: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
 
-                <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
-                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
-                  <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg">Create & Download PDF</button>
-                </div>
-              </form>
-            </div>
+              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg"
+                >
+                  {editMode ? "Update Quotation" : "Create & Download PDF"}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -587,12 +974,12 @@ const QuotationManagement = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <div className="flex items-center">
             <div className="bg-purple-500 p-2 rounded-lg">
-              <DollarSign className="w-5 h-5 text-white" />
+              <IndianRupee className="w-5 h-5 text-white" />
             </div>
             <div className="ml-3">
               <p className="text-xs font-medium text-gray-600">Total Value</p>
               <p className="text-xl font-bold text-gray-900">
-                ${quotationStats.totalValue.toLocaleString()}
+                ₹{quotationStats.totalValue.toLocaleString()}
               </p>
             </div>
           </div>
@@ -679,7 +1066,7 @@ const QuotationManagement = () => {
 
                 return (
                   <div
-                    key={quotation.id}
+                    key={quotation._id || quotation.quotationNumber}
                     className="bg-gray-50 rounded-xl border border-gray-200 hover:shadow-md transition-shadow duration-200 p-6"
                   >
                     <div className="flex items-center justify-between mb-4">
@@ -689,10 +1076,10 @@ const QuotationManagement = () => {
                         </div>
                         <div>
                           <h3 className="text-lg font-semibold text-gray-900">
-                            {quotation.id}
+                            {quotation.quotationNumber || quotation._id}
                           </h3>
                           <p className="text-sm text-gray-600">
-                            {quotation.eventType}
+                            {quotation.functionDetails?.type || "Event"}
                           </p>
                         </div>
                       </div>
@@ -714,15 +1101,15 @@ const QuotationManagement = () => {
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center text-gray-600">
                             <User className="w-4 h-4 mr-2" />
-                            {quotation.clientName}
+                            {quotation.client?.name || "N/A"}
                           </div>
                           <div className="flex items-center text-gray-600">
                             <Mail className="w-4 h-4 mr-2" />
-                            {quotation.clientEmail}
+                            {quotation.client?.email || "N/A"}
                           </div>
                           <div className="flex items-center text-gray-600">
                             <Phone className="w-4 h-4 mr-2" />
-                            {quotation.clientPhone}
+                            {quotation.client?.phone || "N/A"}
                           </div>
                         </div>
                       </div>
@@ -734,15 +1121,19 @@ const QuotationManagement = () => {
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center text-gray-600">
                             <Calendar className="w-4 h-4 mr-2" />
-                            {quotation.eventDate}
+                            {quotation.functionDetails?.date
+                              ? new Date(
+                                  quotation.functionDetails.date
+                                ).toLocaleDateString()
+                              : "N/A"}
                           </div>
                           <div className="flex items-center text-gray-600">
                             <MapPin className="w-4 h-4 mr-2" />
-                            {quotation.eventLocation}
+                            {quotation.functionDetails?.venue?.address || "N/A"}
                           </div>
                           <div className="flex items-center text-gray-600">
                             <Camera className="w-4 h-4 mr-2" />
-                            {quotation.photographer}
+                            {quotation.photographer || "N/A"}
                           </div>
                         </div>
                       </div>
@@ -755,27 +1146,27 @@ const QuotationManagement = () => {
                           <div className="flex justify-between">
                             <span className="text-gray-600">Subtotal:</span>
                             <span className="font-medium text-gray-900">
-                              ${quotation.totalAmount - quotation.gstAmount}
+                              ₹{quotation.pricing?.subtotal || 0}
                             </span>
                           </div>
-                          {quotation.gstIncluded && (
-                            <div className="flex justify-between">
-                              <span className="text-gray-600">GST:</span>
-                              <span className="font-medium text-gray-900">
-                                ${quotation.gstAmount}
-                              </span>
-                            </div>
-                          )}
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">GST:</span>
+                            <span className="font-medium text-gray-900">
+                              ₹{quotation.pricing?.gstAmount || 0}
+                            </span>
+                          </div>
                           <div className="flex justify-between border-t pt-2">
                             <span className="text-gray-600">Total:</span>
                             <span className="font-bold text-gray-900">
-                              ${quotation.totalAmount}
+                              ₹{quotation.pricing?.totalAmount || 0}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-gray-600">Valid Until:</span>
                             <span className="font-medium text-gray-900">
-                              {quotation.validUntil}
+                              {quotation.terms?.validity
+                                ? `${quotation.terms.validity} days`
+                                : "N/A"}
                             </span>
                           </div>
                         </div>
@@ -794,10 +1185,11 @@ const QuotationManagement = () => {
                               className="flex justify-between text-sm"
                             >
                               <span className="text-gray-600">
-                                {service.name} (x{service.quantity})
+                                {service.service || service.name || "Service"}{" "}
+                                (x{service.quantity || 1})
                               </span>
                               <span className="font-medium text-gray-900">
-                                ${service.price}
+                                ₹{service.rate || service.price || 0}
                               </span>
                             </div>
                           )
@@ -815,17 +1207,26 @@ const QuotationManagement = () => {
 
                     <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
                       <div className="text-sm text-gray-600">
-                        Created: {quotation.quotationDate}
-                        {quotation.followUpDate && (
+                        Created:{" "}
+                        {quotation.createdAt
+                          ? new Date(quotation.createdAt).toLocaleString()
+                          : "N/A"}
+                        {quotation.followUp?.nextFollowUp && (
                           <span className="ml-4">
-                            Follow-up: {quotation.followUpDate}
+                            Follow-up:{" "}
+                            {new Date(
+                              quotation.followUp.nextFollowUp
+                            ).toLocaleDateString()}
                           </span>
                         )}
                       </div>
                       <div className="flex space-x-2">
                         <button
                           onClick={() =>
-                            handleQuotationAction("View", quotation.id)
+                            handleQuotationAction(
+                              "View",
+                              quotation._id || quotation.quotationNumber
+                            )
                           }
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="View Quotation"
@@ -834,7 +1235,10 @@ const QuotationManagement = () => {
                         </button>
                         <button
                           onClick={() =>
-                            handleQuotationAction("Edit", quotation.id)
+                            handleQuotationAction(
+                              "Edit",
+                              quotation._id || quotation.quotationNumber
+                            )
                           }
                           className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                           title="Edit Quotation"
@@ -843,7 +1247,10 @@ const QuotationManagement = () => {
                         </button>
                         <button
                           onClick={() =>
-                            handleQuotationAction("Download", quotation.id)
+                            handleQuotationAction(
+                              "Download",
+                              quotation._id || quotation.quotationNumber
+                            )
                           }
                           className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                           title="Download PDF"
@@ -852,12 +1259,26 @@ const QuotationManagement = () => {
                         </button>
                         <button
                           onClick={() =>
-                            handleQuotationAction("Send", quotation.id)
+                            handleQuotationAction(
+                              "Send",
+                              quotation._id || quotation.quotationNumber
+                            )
                           }
                           className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                           title="Send to Client"
                         >
                           <Send className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleDeleteQuotation(
+                              quotation._id || quotation.quotationNumber
+                            )
+                          }
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete Quotation"
+                        >
+                          <XCircle className="w-4 h-4" />
                         </button>
                         <button className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors">
                           <MoreVertical className="w-4 h-4" />
@@ -866,7 +1287,6 @@ const QuotationManagement = () => {
                     </div>
                   </div>
                 );
-
               })}
             </div>
           )}
@@ -981,11 +1401,11 @@ const QuotationManagement = () => {
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div ref={pdfRef} className="bg-white">
               <QuotationPDFTemplate data={selectedQuotationForPDF} />
             </div>
-            
+
             <div className="flex justify-end mt-4 pt-4 border-t border-gray-200">
               <button
                 onClick={() => setShowPDFModal(false)}
@@ -1007,9 +1427,9 @@ const QuotationManagement = () => {
                     });
                     setShowPDFModal(false);
                   } catch (error) {
-                    console.error('PDF generation error:', error);
+                    console.error("PDF generation error:", error);
                     addNotification({
-                      type: "error", 
+                      type: "error",
                       title: "Error",
                       message: "Failed to generate PDF",
                     });

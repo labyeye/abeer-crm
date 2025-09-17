@@ -27,7 +27,6 @@ exports.getAllBranches = asyncHandler(async (req, res) => {
   const branches = await Branch.find(query)
     .populate("createdBy", "name email")
     .sort({ createdAt: -1 });
-  console.log("Fetched branches from DB:", branches);
 
   // Transform data to match frontend expectations
   const transformedBranches = branches.map((branch) => ({

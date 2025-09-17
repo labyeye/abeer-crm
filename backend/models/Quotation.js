@@ -56,6 +56,18 @@ const quotationSchema = new mongoose.Schema({
       required: true
     }
   }],
+  videoOutput: {
+    type: String,
+    default: ''
+  },
+  photoOutput: {
+    type: String,
+    default: ''
+  },
+  rawOutput: {
+    type: String,
+    default: ''
+  },
   pricing: {
     subtotal: {
       type: Number,
