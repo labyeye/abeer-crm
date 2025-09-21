@@ -18,7 +18,7 @@ router.route('/:id')
   .put(protect, authorize('chairman', 'admin'), updateBooking)
   .delete(protect, authorize('chairman', 'admin'), deleteBooking);
 
-// Staff status update endpoint (limited update for staff)
+
 router.put('/:id/status', protect, authorize('staff', 'chairman', 'admin'), async (req, res) => {
   try {
     const { status } = req.body;
@@ -38,7 +38,7 @@ router.put('/:id/status', protect, authorize('staff', 'chairman', 'admin'), asyn
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
-    // If user is staff, check if they are assigned to this booking
+    
     if (req.user.role === 'staff') {
       const Staff = require('../models/Staff');
       const staff = await Staff.findOne({ user: req.user._id });
@@ -75,10 +75,10 @@ router.put('/:id/status', protect, authorize('staff', 'chairman', 'admin'), asyn
 });
 
 
-// Staff assigned bookings
+
 router.get('/staff/:staffId', protect, authorize('staff', 'admin', 'chairman'), require('../controller/bookingController').getBookingsForStaff);
 
-// Debug endpoint to check staff-booking relationships
+
 router.get('/debug/staff/:staffId', protect, async (req, res) => {
   try {
     const Staff = require('../models/Staff');
@@ -86,12 +86,12 @@ router.get('/debug/staff/:staffId', protect, async (req, res) => {
     
     console.log('🔍 Debug: Checking staff ID:', req.params.staffId);
     
-    // Check if staff record exists
+    
     const staff = await Staff.findOne({ user: req.params.staffId });
     console.log('👤 Staff record:', staff ? `Found: ${staff.name}` : 'Not found');
     
     if (staff) {
-      // Check bookings
+      
       const bookings1 = await Booking.find({ assignedStaff: staff._id, isDeleted: false });
       const bookings2 = await Booking.find({ 'staffAssignment.staff': staff._id, isDeleted: false });
       

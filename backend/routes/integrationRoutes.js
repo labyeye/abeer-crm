@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// Mock integration data
+
 const mockIntegrations = [
   {
     id: '1',
@@ -86,9 +86,9 @@ const mockWebhooks = [
   }
 ];
 
-// @desc    Get all integrations
-// @route   GET /api/integrations
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { status, category } = req.query;
@@ -113,9 +113,9 @@ router.get('/', protect, authorize('chairman', 'company_admin', 'branch_head'), 
   }
 });
 
-// @desc    Create new integration
-// @route   POST /api/integrations
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { name, description, category, provider, apiEndpoint, authType } = req.body;
@@ -149,9 +149,9 @@ router.post('/', protect, authorize('chairman', 'company_admin', 'branch_head'),
   }
 });
 
-// @desc    Update integration
-// @route   PUT /api/integrations/:id
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.put('/:id', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -174,9 +174,9 @@ router.put('/:id', protect, authorize('chairman', 'company_admin', 'branch_head'
   }
 });
 
-// @desc    Toggle integration status
-// @route   POST /api/integrations/:id/toggle
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/:id/toggle', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -203,9 +203,9 @@ router.post('/:id/toggle', protect, authorize('chairman', 'company_admin', 'bran
   }
 });
 
-// @desc    Sync integration
-// @route   POST /api/integrations/:id/sync
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/:id/sync', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -219,7 +219,7 @@ router.post('/:id/sync', protect, authorize('chairman', 'company_admin', 'branch
       return res.status(400).json({ success: false, message: 'Integration is not connected' });
     }
     
-    // Simulate sync process
+    
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     integration.lastSync = new Date().toISOString();
@@ -230,7 +230,7 @@ router.post('/:id/sync', protect, authorize('chairman', 'company_admin', 'branch
       status: 'success',
       recordsSynced: Math.floor(Math.random() * 500) + 100,
       syncedAt: integration.lastSync,
-      duration: Math.floor(Math.random() * 5000) + 1000 // 1-6 seconds
+      duration: Math.floor(Math.random() * 5000) + 1000 
     };
     
     res.status(200).json({
@@ -243,9 +243,9 @@ router.post('/:id/sync', protect, authorize('chairman', 'company_admin', 'branch
   }
 });
 
-// @desc    Get API endpoints
-// @route   GET /api/integrations/api/endpoints
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/api/endpoints', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     res.status(200).json({
@@ -259,9 +259,9 @@ router.get('/api/endpoints', protect, authorize('chairman', 'company_admin', 'br
   }
 });
 
-// @desc    Get API statistics
-// @route   GET /api/integrations/api/stats
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/api/stats', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const stats = {
@@ -281,9 +281,9 @@ router.get('/api/stats', protect, authorize('chairman', 'company_admin', 'branch
   }
 });
 
-// @desc    Test API endpoint
-// @route   POST /api/integrations/api/endpoints/:id/test
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/api/endpoints/:id/test', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -293,7 +293,7 @@ router.post('/api/endpoints/:id/test', protect, authorize('chairman', 'company_a
       return res.status(404).json({ success: false, message: 'Endpoint not found' });
     }
     
-    // Simulate API test
+    
     await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
     
     const testResult = {
@@ -314,9 +314,9 @@ router.post('/api/endpoints/:id/test', protect, authorize('chairman', 'company_a
   }
 });
 
-// @desc    Get webhooks
-// @route   GET /api/integrations/webhooks
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/webhooks', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     res.status(200).json({
@@ -330,9 +330,9 @@ router.get('/webhooks', protect, authorize('chairman', 'company_admin', 'branch_
   }
 });
 
-// @desc    Test webhook
-// @route   POST /api/integrations/webhooks/:id/test
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/webhooks/:id/test', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -342,7 +342,7 @@ router.post('/webhooks/:id/test', protect, authorize('chairman', 'company_admin'
       return res.status(404).json({ success: false, message: 'Webhook not found' });
     }
     
-    // Simulate webhook test
+    
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     const testResult = {
@@ -363,9 +363,9 @@ router.post('/webhooks/:id/test', protect, authorize('chairman', 'company_admin'
   }
 });
 
-// @desc    Get integration statistics
-// @route   GET /api/integrations/stats
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/stats', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const stats = {

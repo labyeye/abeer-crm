@@ -8,32 +8,32 @@ const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 const { updateBranchEmployeeCount } = require('../utils/branchUtils');
 
-// @desc    Get all staff
-// @route   GET /api/staff
-// @access  Private
+
+
+
 const getAllStaff = asyncHandler(async (req, res) => {
   const { branch, status, department, search } = req.query;
   
   let query = {};
   
-  // Role-based filtering
+  
   if (req.user.role === 'admin') {
-    // Branch admin can only see staff from their branch
+    
     const userBranch = await Branch.findOne({ admin: req.user.id });
     if (userBranch) {
       query.branch = userBranch._id;
       console.log('Branch admin filtering staff for branch:', userBranch._id);
     }
   } else if (req.user.role === 'manager') {
-    // Manager can only see staff from their branch
+    
     query.branch = req.user.branch;
     console.log('Manager filtering staff for branch:', req.user.branch);
   }
-  // Chairman can see all staff (no additional filtering)
   
-  // Additional filters from query params
+  
+  
   if (branch && req.user.role === 'chairman') {
-    query.branch = branch; // Only chairman can filter by specific branch
+    query.branch = branch; 
   }
   if (status) query.status = status;
   if (department) query.department = department;
@@ -58,9 +58,9 @@ const getAllStaff = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get single staff
-// @route   GET /api/staff/:id
-// @access  Private
+
+
+
 const getStaff = asyncHandler(async (req, res) => {
   const staff = await Staff.findById(req.params.id)
     .populate('user', 'name email phone')
@@ -76,9 +76,9 @@ const getStaff = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create staff
-// @route   POST /api/staff
-// @access  Private
+
+
+
 const createStaff = asyncHandler(async (req, res, next) => {
   const {
     employeeId,
@@ -107,33 +107,33 @@ const createStaff = asyncHandler(async (req, res, next) => {
     referredBy
   } = req.body;
   
-  // Check if employee ID is unique
+  
   const existingEmployeeId = await Staff.findOne({ employeeId, isDeleted: false });
   if (existingEmployeeId) {
     return next(new ErrorResponse('Employee ID already exists', 400));
   }
 
-  // Check if user email already exists
+  
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     return next(new ErrorResponse('User email already exists', 400));
   }
 
-  // Create new user for staff
+  
   const newUser = await User.create({
     name,
     email,
     phone,
     password,
     role: 'staff',
-    company: req.user.company // Ensure company is set
+    company: req.user.company 
   });
 
   let branchId = branch;
   
-  // Auto-assign branch based on user role
+  
   if (req.user.role === 'admin') {
-    // Branch admin can only add staff to their own branch
+    
     const userBranch = await Branch.findOne({ admin: req.user.id });
     if (userBranch) {
       branchId = userBranch._id;
@@ -142,15 +142,15 @@ const createStaff = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Branch not found for admin user', 400));
     }
   } else if (req.user.role === 'manager') {
-    // Manager can only add staff to their branch
+    
     branchId = req.user.branch;
     console.log('Manager auto-assigning staff to branch:', req.user.branch);
   } else if (req.user.role === 'chairman') {
-    // Chairman can specify branch or it will be auto-assigned
+    
     if (!branchId) {
       return next(new ErrorResponse('Branch is required for chairman to create staff', 400));
     }
-    // If branch is not a valid ObjectId, treat it as branch code
+    
     if (branchId && !mongoose.Types.ObjectId.isValid(branchId)) {
       const branchDoc = await Branch.findOne({ code: branchId });
       if (!branchDoc) {
@@ -188,7 +188,7 @@ const createStaff = asyncHandler(async (req, res, next) => {
 
   const staff = await Staff.create(staffData);
 
-  // Update branch employee count
+  
   await updateBranchEmployeeCount(staff.branch);
 
   res.status(201).json({
@@ -197,9 +197,9 @@ const createStaff = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update staff
-// @route   PUT /api/staff/:id
-// @access  Private
+
+
+
 const updateStaff = asyncHandler(async (req, res) => {
   const staff = await Staff.findById(req.params.id);
   
@@ -207,29 +207,36 @@ const updateStaff = asyncHandler(async (req, res) => {
     return next(new ErrorResponse('Staff not found', 404));
   }
 
-  // Role-based access control
+  
   if (req.user.role === 'admin') {
-    // Branch admin can only update staff in their branch
+    
     const userBranch = await Branch.findOne({ admin: req.user.id });
     if (!userBranch || staff.branch.toString() !== userBranch._id.toString()) {
       return next(new ErrorResponse('Access denied. Can only update staff in your branch.', 403));
     }
-    // Remove branch from update data to prevent branch changes
+    
     delete req.body.branch;
   } else if (req.user.role === 'manager') {
-    // Manager can only update staff in their branch
+    
     if (staff.branch.toString() !== req.user.branch.toString()) {
       return next(new ErrorResponse('Access denied. Can only update staff in your branch.', 403));
     }
-    // Remove branch from update data to prevent branch changes
+    
     delete req.body.branch;
   }
-  // Chairman can update any staff and change branches
   
-  // Update salary total if basic or allowances changed
+  
+  
   if (req.body.salary) {
-    const { basic, allowances } = req.body.salary;
-    req.body.salary.total = basic + (allowances || 0);
+    // Accept either an object { basic, allowances } from the frontend or a direct numeric value.
+    if (typeof req.body.salary === 'object') {
+      const { basic = 0, allowances = 0 } = req.body.salary;
+      // store numeric salary to match Staff schema (salary is a Number)
+      req.body.salary = Number(basic) + Number(allowances || 0);
+    } else {
+      // try to coerce to number if a primitive was sent
+      req.body.salary = Number(req.body.salary);
+    }
   }
   
   const updatedStaff = await Staff.findByIdAndUpdate(
@@ -238,14 +245,14 @@ const updateStaff = asyncHandler(async (req, res) => {
     { new: true, runValidators: true }
   );
   
-  // Update employee count for both old and new branch if branch changed
+  
   if (req.body.branch && req.body.branch !== staff.branch.toString()) {
     await Promise.all([
-      updateBranchEmployeeCount(staff.branch), // Update old branch
-      updateBranchEmployeeCount(req.body.branch) // Update new branch
+      updateBranchEmployeeCount(staff.branch), 
+      updateBranchEmployeeCount(req.body.branch) 
     ]);
   } else {
-    // Update current branch employee count
+    
     await updateBranchEmployeeCount(updatedStaff.branch);
   }
   
@@ -255,9 +262,9 @@ const updateStaff = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete staff
-// @route   DELETE /api/staff/:id
-// @access  Private
+
+
+
 const deleteStaff = asyncHandler(async (req, res) => {
   const staff = await Staff.findById(req.params.id);
   
@@ -268,7 +275,7 @@ const deleteStaff = asyncHandler(async (req, res) => {
   staff.isDeleted = true;
   await staff.save();
   
-  // Update branch employee count
+  
   await updateBranchEmployeeCount(staff.branch);
   
   res.status(200).json({
@@ -277,9 +284,9 @@ const deleteStaff = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get staff attendance
-// @route   GET /api/staff/:id/attendance
-// @access  Private
+
+
+
 const getStaffAttendance = asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
   
@@ -302,9 +309,9 @@ const getStaffAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get staff performance
-// @route   GET /api/staff/:id/performance
-// @access  Private
+
+
+
 const getStaffPerformance = asyncHandler(async (req, res) => {
   const { month, year } = req.query;
   
@@ -339,9 +346,9 @@ const getStaffPerformance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update staff performance score
-// @route   PUT /api/staff/:id/performance
-// @access  Private
+
+
+
 const updateStaffPerformance = asyncHandler(async (req, res) => {
   const { score, reason } = req.body;
   
@@ -363,9 +370,9 @@ const updateStaffPerformance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get staff salary history
-// @route   GET /api/staff/:id/salary
-// @access  Private
+
+
+
 const getStaffSalary = asyncHandler(async (req, res) => {
   const { year } = req.query;
   

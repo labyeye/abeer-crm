@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// Mock AI insights data
+
 const mockInsights = [
   {
     id: '1',
@@ -46,12 +46,12 @@ const mockPredictions = {
   efficiency: { current: 78, predicted: 90, change: 15 }
 };
 
-// @desc    Get AI insights
-// @route   GET /api/ai/insights
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/insights', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
-    // Simulate AI processing time
+    
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     res.status(200).json({
@@ -65,12 +65,12 @@ router.get('/insights', protect, authorize('chairman', 'company_admin', 'branch_
   }
 });
 
-// @desc    Get AI predictions
-// @route   GET /api/ai/predictions
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/predictions', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
-    // Simulate AI processing time
+    
     await new Promise(resolve => setTimeout(resolve, 800));
     
     res.status(200).json({
@@ -83,14 +83,14 @@ router.get('/predictions', protect, authorize('chairman', 'company_admin', 'bran
   }
 });
 
-// @desc    Generate new AI insights
-// @route   POST /api/ai/generate
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/generate', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { type, category } = req.body;
     
-    // Simulate AI generation
+    
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     const newInsight = {
@@ -98,7 +98,7 @@ router.post('/generate', protect, authorize('chairman', 'company_admin', 'branch
       type: type || 'recommendation',
       title: 'AI Generated Insight',
       description: `New ${type} generated based on latest data analysis.`,
-      confidence: Math.floor(Math.random() * 30) + 70, // 70-100%
+      confidence: Math.floor(Math.random() * 30) + 70, 
       impact: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)],
       category: category || 'General',
       actionable: true,
@@ -115,9 +115,9 @@ router.post('/generate', protect, authorize('chairman', 'company_admin', 'branch
   }
 });
 
-// @desc    Get AI recommendations
-// @route   GET /api/ai/recommendations
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/recommendations', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const recommendations = mockInsights.filter(insight => insight.type === 'recommendation');
@@ -133,14 +133,14 @@ router.get('/recommendations', protect, authorize('chairman', 'company_admin', '
   }
 });
 
-// @desc    Implement AI recommendation
-// @route   POST /api/ai/recommendations/:id/implement
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/recommendations/:id/implement', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Simulate implementation process
+    
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     res.status(200).json({
@@ -158,9 +158,9 @@ router.post('/recommendations/:id/implement', protect, authorize('chairman', 'co
   }
 });
 
-// @desc    Get AI analytics
-// @route   GET /api/ai/analytics
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/analytics', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const analytics = {

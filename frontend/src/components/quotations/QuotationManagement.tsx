@@ -9,7 +9,6 @@ import {
   Send,
   Calendar,
   User,
-  DollarSign,
   CheckCircle,
   Clock,
   XCircle,
@@ -38,7 +37,7 @@ const QuotationManagement = () => {
         title: "Deleted",
         message: "Quotation deleted successfully",
       });
-      // Refresh list
+      
       const qRes = await quotationAPI.getQuotations();
       setQuotations((qRes && qRes.data) || qRes || []);
     } catch (err) {
@@ -62,13 +61,32 @@ const QuotationManagement = () => {
   const [selectedQuotationForPDF, setSelectedQuotationForPDF] =
     useState<any>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+  const emptyScheduleEntry = () => ({
+    type: "",
+    
+    serviceGiven: "",
+    
+    quantity: 1,
+    price: 0,
+    amount: 0,
+    serviceType: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    venue: { name: "", address: "" },
+    assignedStaff: [],
+    inventorySelection: [],
+  });
+
   const [createData, setCreateData] = useState<any>({
     client: "",
     branch: "",
-    services: [{ name: "", quantity: 1, price: 0 }],
+    
+    services: [{ name: "", serviceType: "", quantity: 1, price: 0, amount: 0 }],
     gstPct: 0,
     notes: "",
-    functionDetails: { date: "", type: "", venue: { name: "", address: "" } },
+    
+    servicesSchedule: [emptyScheduleEntry()],
     videoOutput: "",
     photoOutput: "",
     rawOutput: "",
@@ -162,10 +180,10 @@ const QuotationManagement = () => {
     setCreateData({
       client: "",
       branch: "",
-      services: [{ name: "", quantity: 1, price: 0 }],
+      services: [{ name: "", serviceType: "", quantity: 1, price: 0, amount: 0 }],
       gstPct: 0,
       notes: "",
-      functionDetails: { date: "", type: "", venue: { name: "", address: "" } },
+      servicesSchedule: [emptyScheduleEntry()],
       videoOutput: "",
       photoOutput: "",
       rawOutput: "",
@@ -190,17 +208,67 @@ const QuotationManagement = () => {
       if (quotation) {
         setEditMode(true);
         setEditQuotationId(quotation._id || quotation.quotationNumber);
+        
+        const scheduleFromQuote =
+          quotation.functionDetailsList &&
+          quotation.functionDetailsList.length > 0
+            ? quotation.functionDetailsList.map((fd: any) => ({
+                type: fd.type || fd.functionType || "",
+                date: fd.date ? fd.date.split?.("T")?.[0] || fd.date : "",
+                startTime: fd.time?.start || fd.startTime || "",
+                endTime: fd.time?.end || fd.endTime || "",
+                venue: fd.venue || { name: "", address: "" },
+                assignedStaff: fd.assignedStaff || [],
+                inventorySelection: fd.inventorySelection || [],
+              }))
+            : [
+                {
+                  type: quotation.functionDetails?.type || "",
+                  date: quotation.functionDetails?.date
+                    ? quotation.functionDetails.date.split?.("T")?.[0] ||
+                      quotation.functionDetails.date
+                    : "",
+                  startTime:
+                    quotation.functionDetails?.time?.start ||
+                    quotation.functionDetails?.startTime ||
+                    "",
+                  endTime:
+                    quotation.functionDetails?.time?.end ||
+                    quotation.functionDetails?.endTime ||
+                    "",
+                  venue: quotation.functionDetails?.venue || {
+                    name: "",
+                    address: "",
+                  },
+                  assignedStaff: quotation.assignedStaff || [],
+                  inventorySelection: quotation.inventorySelection || [],
+                },
+              ];
+
         setCreateData({
           client: quotation.client?._id || quotation.client || "",
           branch: quotation.branch?._id || quotation.branch || "",
-          services: quotation.services || [{ name: "", quantity: 1, price: 0 }],
+          
+          services:
+              (quotation.services && Array.isArray(quotation.services)
+              ? quotation.services.map((s: any) => ({
+                  name: s.service || s.name || "",
+                  serviceType: s.serviceType || s.type || s.category || "",
+                  quantity: s.quantity ?? s.qty ?? 1,
+                  price: s.rate ?? s.price ?? 0,
+                  amount:
+                    (s.amount ??
+                      ((s.quantity ?? s.qty ?? 1) * (s.rate ?? s.price ?? 0))) ||
+                    0,
+                  description: s.description || "",
+                }))
+              : [{ name: "", serviceType: "", quantity: 1, price: 0, amount: 0 }]),
           gstPct: quotation.gstPct || quotation.pricing?.gstPct || 0,
           notes: quotation.notes || "",
-          functionDetails: quotation.functionDetails || {
-            date: "",
-            type: "",
-            venue: { name: "", address: "" },
-          },
+          servicesSchedule:
+            scheduleFromQuote.length > 0
+              ? scheduleFromQuote
+              : [emptyScheduleEntry()],
           videoOutput: quotation.videoOutput || "",
           photoOutput: quotation.photoOutput || "",
           rawOutput: quotation.rawOutput || "",
@@ -217,7 +285,7 @@ const QuotationManagement = () => {
       return;
     }
     if (action === "Download") {
-      // Find quotation data by _id, quotationNumber, or id
+      
       const quotation = quotations.find(
         (q) =>
           q._id === quotationId ||
@@ -244,11 +312,20 @@ const QuotationManagement = () => {
 
   const handleDownloadPDF = async (quotation: any) => {
     try {
-      // Map all fields dynamically from the quotation object
+      
       const totalAmount = Number(
         quotation.pricing?.totalAmount ?? quotation.totalAmount ?? 0
       );
       const advanceAmount = Number(quotation.advanceAmount ?? 0);
+      
+      const functionDetailsList =
+        quotation.functionDetailsList &&
+        quotation.functionDetailsList.length > 0
+          ? quotation.functionDetailsList
+          : quotation.functionDetails
+          ? [quotation.functionDetails]
+          : [];
+
       const pdfData = {
         quotationNumber:
           quotation.quotationNumber || quotation.id || quotation._id || "",
@@ -269,16 +346,46 @@ const QuotationManagement = () => {
         videoOutput: quotation.videoOutput || "",
         photoOutput: quotation.photoOutput || "",
         rawOutput: quotation.rawOutput || "",
-        items: (quotation.services || []).map((service: any) => ({
-          description:
-            service.service || service.name || service.description || "",
-          rate: Number(service.rate ?? service.price ?? 0),
-          amount: Number(
-            service.amount ??
-              (service.quantity ?? 1) * (service.rate ?? service.price ?? 0)
-          ),
-          dates: service.dates || [],
+        
+        schedule: (functionDetailsList || []).map((fd: any) => ({
+          type: fd.type || fd.functionType || "",
+          serviceGiven: fd.serviceGiven || "",
+          serviceType: fd.serviceType || "",
+          quantity: fd.quantity ?? fd.qty ?? 0,
+          price: Number(fd.price ?? fd.rate ?? 0),
+          amount: Number(fd.amount ?? (Number(fd.quantity ?? 0) * Number(fd.price ?? fd.rate ?? 0))),
+          date: fd.date ? fd.date.split?.("T")?.[0] || fd.date : "",
+          startTime: fd.time?.start || fd.startTime || "",
+          endTime: fd.time?.end || fd.endTime || "",
+          venue: fd.venue || {},
         })),
+        
+        
+        items:
+          (quotation.services && quotation.services.length > 0
+            ? (quotation.services || []).map((service: any) => ({
+                description:
+                  service.service || service.name || service.description || "",
+                rate: Number(service.rate ?? service.price ?? 0),
+                amount: Number(
+                  service.amount ??
+                    (service.quantity ?? 1) * (service.rate ?? service.price ?? 0)
+                ),
+                serviceType: service.serviceType || service.type || "",
+                dates:
+                  service.dates && service.dates.length > 0
+                    ? service.dates
+                    : (functionDetailsList || []).map((fd: any) =>
+                        fd.date ? fd.date.split?.("T")?.[0] || fd.date : ""
+                      ),
+              }))
+            : (functionDetailsList || []).map((fd: any) => ({
+                description: fd.serviceGiven || fd.serviceType || fd.type || "",
+                rate: Number(fd.price ?? fd.rate ?? 0),
+                amount: Number(fd.amount ?? (Number(fd.quantity ?? 0) * Number(fd.price ?? fd.rate ?? 0))),
+                serviceType: fd.serviceType || "",
+                dates: fd.date ? [fd.date.split?.("T")?.[0] || fd.date] : [],
+              }))),
         total: isNaN(totalAmount) ? 0 : totalAmount,
         receivedAmount: isNaN(advanceAmount) ? 0 : advanceAmount,
         backDues: Number(quotation.backDues ?? 0),
@@ -310,22 +417,20 @@ const QuotationManagement = () => {
 
   const handleCreateSubmit = async () => {
     try {
-      // normalize services into schema shape {service, description, quantity, rate, amount}
-      const services = Array.isArray(createData.services)
-        ? createData.services
+      
+      const scheduleEntries = Array.isArray(createData.servicesSchedule)
+        ? createData.servicesSchedule
         : [];
-      const normalizedServices = services.map((s: any) => {
-        const qty = Number(s.quantity || 1);
-        const rate = Number(s.price ?? s.rate ?? 0);
-        const amount = +(qty * rate);
-        return {
-          service: s.name || s.service || "",
+      const normalizedServices = scheduleEntries
+        .filter((s: any) => s && (s.serviceGiven || s.serviceType))
+        .map((s: any) => ({
+          service: s.serviceGiven || s.serviceType || "",
+          serviceType: s.serviceType || "",
           description: s.description || "",
-          quantity: qty,
-          rate,
-          amount,
-        };
-      });
+          quantity: Number(s.quantity ?? 1),
+          rate: Number(s.price ?? s.rate ?? 0),
+          amount: Number(s.amount ?? (Number(s.quantity ?? 1) * Number(s.price ?? s.rate ?? 0))),
+        }));
 
       const subtotal = normalizedServices.reduce(
         (sum: number, s: any) => sum + Number(s.amount || 0),
@@ -335,23 +440,43 @@ const QuotationManagement = () => {
       const gstAmount = +(subtotal * (gstPct / 100));
       const finalAmount = +(subtotal + gstAmount);
 
+      
+      const schedule = Array.isArray(createData.servicesSchedule)
+        ? createData.servicesSchedule
+        : [];
+      const functionDetailsList = schedule
+        .filter((s: any) => s && (s.type || s.date))
+        .map((s: any) => ({
+          type: s.type || "",
+          serviceGiven: s.serviceGiven || "",
+          date: s.date || null,
+          time: { start: s.startTime || "", end: s.endTime || "" },
+          venue: s.venue || {},
+          assignedStaff: s.assignedStaff || [],
+          inventorySelection: s.inventorySelection || [],
+        }));
+
       const payload = {
         client: createData.client,
         branch: createData.branch,
         services: normalizedServices,
         pricing: { subtotal, gstAmount, totalAmount: finalAmount, finalAmount },
-        functionDetails: {
-          type:
-            createData.functionDetails?.type ||
-            createData.functionDetails?.eventType ||
-            "",
-          date: createData.functionDetails?.date || null,
-          time: {
-            start: createData.functionDetails?.startTime || "",
-            end: createData.functionDetails?.endTime || "",
-          },
-          venue: createData.functionDetails?.venue || {},
-        },
+        
+        functionDetailsList: functionDetailsList,
+        functionDetails:
+          functionDetailsList.length > 0
+            ? {
+                type: functionDetailsList[0].type || "",
+                date: functionDetailsList[0].date || null,
+                time: functionDetailsList[0].time || { start: "", end: "" },
+                venue: functionDetailsList[0].venue || {},
+              }
+            : {
+                type: "",
+                date: null,
+                time: { start: "", end: "" },
+                venue: {},
+              },
         videoOutput: createData.videoOutput,
         photoOutput: createData.photoOutput,
         rawOutput: createData.rawOutput,
@@ -360,20 +485,17 @@ const QuotationManagement = () => {
         status: "pending",
       };
 
-      let res, updated;
       if (editMode && editQuotationId) {
-        // Update existing quotation
-        res = await quotationAPI.updateQuotation(editQuotationId, payload);
-        updated = (res && (res.data || res)) || null;
+        
+        await quotationAPI.updateQuotation(editQuotationId, payload);
         addNotification({
           type: "success",
           title: "Updated",
           message: "Quotation updated",
         });
       } else {
-        // Create new quotation
-        res = await quotationAPI.createQuotation(payload);
-        updated = (res && (res.data || res)) || null;
+        
+        await quotationAPI.createQuotation(payload);
         addNotification({
           type: "success",
           title: "Created",
@@ -382,7 +504,7 @@ const QuotationManagement = () => {
       }
       setShowCreateModal(false);
 
-      // reload list
+      
       const qRes = await quotationAPI.getQuotations();
       setQuotations((qRes && qRes.data) || qRes || []);
     } catch (err) {
@@ -396,7 +518,7 @@ const QuotationManagement = () => {
     }
   };
 
-  // load branches and clients for modal selects
+  
   useEffect(() => {
     const load = async () => {
       try {
@@ -419,40 +541,48 @@ const QuotationManagement = () => {
     load();
   }, []);
 
-  // helper functions for service lines & totals used in modal
-  const updateServiceLine = (index: number, field: string, value: any) => {
+  
+
+  
+  const updateScheduleEntry = (index: number, field: string, value: any) => {
     setCreateData((prev: any) => {
-      const services = Array.isArray(prev.services) ? [...prev.services] : [];
-      services[index] = { ...services[index], [field]: value };
-      return { ...prev, services };
+      const schedule = Array.isArray(prev.servicesSchedule)
+        ? [...prev.servicesSchedule]
+        : [];
+      const entry = { ...(schedule[index] || {}) };
+      if (field.startsWith("venue.")) {
+        const venueField = field.split(".")[1];
+        entry.venue = { ...(entry.venue || {}), [venueField]: value };
+      } else {
+        entry[field] = value;
+      }
+      schedule[index] = entry;
+      return { ...prev, servicesSchedule: schedule };
     });
   };
 
-  const addServiceLine = () => {
+  const addScheduleEntry = () => {
     setCreateData((prev: any) => ({
       ...prev,
-      services: [...(prev.services || []), { name: "", quantity: 1, price: 0 }],
+      servicesSchedule: [
+        ...(prev.servicesSchedule || []),
+        emptyScheduleEntry(),
+      ],
     }));
   };
 
-  const removeServiceLine = (index: number) => {
+  const removeScheduleEntry = (index: number) => {
     setCreateData((prev: any) => {
-      const services = [...(prev.services || [])];
-      services.splice(index, 1);
-      return { ...prev, services };
+      const schedule = [...(prev.servicesSchedule || [])];
+      schedule.splice(index, 1);
+      return {
+        ...prev,
+        servicesSchedule: schedule.length ? schedule : [emptyScheduleEntry()],
+      };
     });
   };
 
-  const computedSubtotal = () => {
-    const services = Array.isArray(createData.services)
-      ? createData.services
-      : [];
-    return services.reduce(
-      (sum: number, s: any) =>
-        sum + Number(s.quantity || 0) * Number(s.price || 0),
-      0
-    );
-  };
+  
 
   const handleTemplateAction = (action: string, templateName: string) => {
     addNotification({
@@ -484,7 +614,7 @@ const QuotationManagement = () => {
     approved: quotations.filter((q) => q.status === "approved").length,
     pending: quotations.filter((q) => q.status === "pending").length,
     totalValue: quotations.reduce((sum, q) => {
-      // Try pricing.totalAmount, then totalAmount, fallback to 0
+      
       const val = Number(q.pricing?.totalAmount ?? q.totalAmount ?? 0);
       return sum + (isNaN(val) ? 0 : val);
     }, 0),
@@ -500,7 +630,7 @@ const QuotationManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -512,14 +642,14 @@ const QuotationManagement = () => {
         </div>
         <button
           onClick={handleCreateQuotation}
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center"
+          className="bg-brand text-white px-6 py-2 rounded-lg transition-all duration-200 flex items-center"
         >
           <Plus className="w-5 h-5 mr-2" />
           Create Quotation
         </button>
       </div>
 
-      {/* Top-level Create Quotation Modal */}
+      {}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -586,259 +716,221 @@ const QuotationManagement = () => {
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Function Details
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Event / Function Type
-                    </label>
-                    <input
-                      type="text"
-                      value={createData.functionDetails?.type || ""}
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          functionDetails: {
-                            ...createData.functionDetails,
-                            type: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Date *
-                    </label>
-                    <input
-                      required
-                      type="date"
-                      value={
-                        createData.functionDetails.date
-                          ? createData.functionDetails.date.split("T")[0]
-                          : ""
-                      }
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          functionDetails: {
-                            ...createData.functionDetails,
-                            date: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Time
-                    </label>
-                    <input
-                      type="time"
-                      value={createData.functionDetails.startTime || ""}
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          functionDetails: {
-                            ...createData.functionDetails,
-                            startTime: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      End Time
-                    </label>
-                    <input
-                      type="time"
-                      value={createData.functionDetails.endTime || ""}
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          functionDetails: {
-                            ...createData.functionDetails,
-                            endTime: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Venue Name
-                    </label>
-                    <input
-                      type="text"
-                      value={createData.functionDetails.venue?.name || ""}
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          functionDetails: {
-                            ...createData.functionDetails,
-                            venue: {
-                              ...createData.functionDetails.venue,
-                              name: e.target.value,
-                            },
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Venue Address
-                    </label>
-                    <input
-                      type="text"
-                      value={createData.functionDetails.venue?.address || ""}
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          functionDetails: {
-                            ...createData.functionDetails,
-                            venue: {
-                              ...createData.functionDetails.venue,
-                              address: e.target.value,
-                            },
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-              </div>
+              
 
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Services & Pricing
+                  Service Schedule
                 </h3>
-                <div className="space-y-2">
-                  {createData.services.map((s: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="grid grid-cols-6 gap-2 items-center"
-                    >
-                      <input
-                        type="text"
-                        placeholder="Service name"
-                        value={s.name}
-                        onChange={(e) =>
-                          updateServiceLine(idx, "name", e.target.value)
-                        }
-                        className="col-span-3 border px-2 py-1 rounded"
-                      />
-                      <input
-                        type="number"
-                        min={1}
-                        value={s.quantity}
-                        onChange={(e) =>
-                          updateServiceLine(
-                            idx,
-                            "quantity",
-                            Number(e.target.value)
-                          )
-                        }
-                        className="col-span-1 border px-2 py-1 rounded"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        value={s.price}
-                        onChange={(e) =>
-                          updateServiceLine(
-                            idx,
-                            "price",
-                            Number(e.target.value)
-                          )
-                        }
-                        className="col-span-1 border px-2 py-1 rounded"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeServiceLine(idx)}
-                        className="col-span-1 text-red-600"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  {(createData.servicesSchedule || []).map(
+                    (entry: any, idx: number) => (
+                      <div key={idx} className="p-3 border rounded-lg bg-white">
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="font-medium">Service #{idx + 1}</div>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => removeScheduleEntry(idx)}
+                              className="text-red-600"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Event / Function Type
+                            </label>
+                            <input
+                              type="text"
+                              value={entry.type || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(idx, "type", e.target.value)
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Service Given
+                            </label>
+                            <input
+                              type="text"
+                              value={entry.serviceGiven || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(idx, "serviceGiven", e.target.value)
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Type
+                            </label>
+                            <input
+                              type="text"
+                              value={entry.serviceType || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(idx, "serviceType", e.target.value)
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Qty</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.quantity ?? 0}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value || 0);
+                                  updateScheduleEntry(idx, "quantity", val);
+                                  const price = Number(entry.price || 0);
+                                  updateScheduleEntry(idx, "amount", +(val * price));
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.price ?? 0}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value || 0);
+                                  updateScheduleEntry(idx, "price", val);
+                                  const qty = Number(entry.quantity || 0);
+                                  updateScheduleEntry(idx, "amount", +(qty * val));
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.amount ?? 0}
+                                onChange={(e) => updateScheduleEntry(idx, "amount", Number(e.target.value || 0))}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Venue Name
+                            </label>
+                            <input
+                              type="text"
+                              value={entry.venue?.name || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "venue.name",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Date *
+                            </label>
+                            <input
+                              required
+                              type="date"
+                              value={
+                                entry.date
+                                  ? entry.date.split?.("T")?.[0] || entry.date
+                                  : ""
+                              }
+                              onChange={(e) =>
+                                updateScheduleEntry(idx, "date", e.target.value)
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Start Time
+                            </label>
+                            <input
+                              type="time"
+                              value={entry.startTime || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "startTime",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              End Time
+                            </label>
+                            <input
+                              type="time"
+                              value={entry.endTime || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "endTime",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Venue Address
+                          </label>
+                          <input
+                            type="text"
+                            value={entry.venue?.address || ""}
+                            onChange={(e) =>
+                              updateScheduleEntry(
+                                idx,
+                                "venue.address",
+                                e.target.value
+                              )
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    )
+                  )}
+
                   <div>
                     <button
                       type="button"
-                      onClick={addServiceLine}
+                      onClick={addScheduleEntry}
                       className="px-3 py-1 bg-gray-100 rounded"
                     >
-                      Add service
+                      Add Service Date
                     </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Advance Amount
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={createData.advanceAmount || 0}
-                      onChange={(e) =>
-                        setCreateData({
-                          ...createData,
-                          advanceAmount: Number(e.target.value),
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-600">
-                      Subtotal:{" "}
-                      <span className="font-medium">
-                        ₹{computedSubtotal().toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      GST:{" "}
-                      <span className="font-medium">
-                        ₹
-                        {(
-                          computedSubtotal() *
-                          (Number(createData.gstPct || 0) / 100)
-                        ).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="text-lg font-bold">
-                      Total:{" "}
-                      <span>
-                        ₹
-                        {(
-                          computedSubtotal() +
-                          computedSubtotal() *
-                            (Number(createData.gstPct || 0) / 100)
-                        ).toLocaleString()}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
 
-              <div>
+                {}
+
+                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Video Output
                 </label>
@@ -913,7 +1005,7 @@ const QuotationManagement = () => {
         </div>
       )}
 
-      {/* Stats Cards */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
           <div className="flex items-center">
@@ -1000,7 +1092,7 @@ const QuotationManagement = () => {
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
@@ -1027,7 +1119,7 @@ const QuotationManagement = () => {
           </nav>
         </div>
 
-        {/* Filters and Search */}
+        {}
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
             <div className="flex-1 relative">
@@ -1388,7 +1480,7 @@ const QuotationManagement = () => {
         </div>
       </div>
 
-      {/* PDF Modal */}
+      {}
       {showPDFModal && selectedQuotationForPDF && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-y-auto">

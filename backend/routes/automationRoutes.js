@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// Mock automation data
+
 const mockRules = [
   {
     id: '1',
@@ -68,9 +68,9 @@ const mockTemplates = [
   }
 ];
 
-// @desc    Get automation rules
-// @route   GET /api/automation/rules
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/rules', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { status, category } = req.query;
@@ -95,9 +95,9 @@ router.get('/rules', protect, authorize('chairman', 'company_admin', 'branch_hea
   }
 });
 
-// @desc    Create automation rule
-// @route   POST /api/automation/rules
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/rules', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { name, description, trigger, action, category } = req.body;
@@ -130,9 +130,9 @@ router.post('/rules', protect, authorize('chairman', 'company_admin', 'branch_he
   }
 });
 
-// @desc    Update automation rule
-// @route   PUT /api/automation/rules/:id
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.put('/rules/:id', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -155,9 +155,9 @@ router.put('/rules/:id', protect, authorize('chairman', 'company_admin', 'branch
   }
 });
 
-// @desc    Toggle rule status
-// @route   POST /api/automation/rules/:id/toggle
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/rules/:id/toggle', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -179,9 +179,9 @@ router.post('/rules/:id/toggle', protect, authorize('chairman', 'company_admin',
   }
 });
 
-// @desc    Get automation templates
-// @route   GET /api/automation/templates
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/templates', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     res.status(200).json({
@@ -195,9 +195,9 @@ router.get('/templates', protect, authorize('chairman', 'company_admin', 'branch
   }
 });
 
-// @desc    Install template
-// @route   POST /api/automation/templates/:id/install
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/templates/:id/install', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -207,7 +207,7 @@ router.post('/templates/:id/install', protect, authorize('chairman', 'company_ad
       return res.status(404).json({ success: false, message: 'Template not found' });
     }
     
-    // Simulate template installation
+    
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     const installedWorkflow = {
@@ -229,18 +229,18 @@ router.post('/templates/:id/install', protect, authorize('chairman', 'company_ad
   }
 });
 
-// @desc    Get automation statistics
-// @route   GET /api/automation/stats
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/stats', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const stats = {
       activeRules: mockRules.filter(r => r.status === 'active').length,
       totalExecutions: mockRules.reduce((sum, rule) => sum + rule.executions, 0),
       averageSuccessRate: mockRules.reduce((sum, rule) => sum + rule.successRate, 0) / mockRules.length,
-      timeSaved: 127, // hours
-      costReduction: 8450, // dollars
-      efficiencyGain: 34 // percentage
+      timeSaved: 127, 
+      costReduction: 8450, 
+      efficiencyGain: 34 
     };
     
     res.status(200).json({
@@ -253,9 +253,9 @@ router.get('/stats', protect, authorize('chairman', 'company_admin', 'branch_hea
   }
 });
 
-// @desc    Get AI recommendations for automation
-// @route   GET /api/automation/ai-recommendations
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/ai-recommendations', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const recommendations = [
@@ -288,9 +288,9 @@ router.get('/ai-recommendations', protect, authorize('chairman', 'company_admin'
   }
 });
 
-// @desc    Execute rule manually
-// @route   POST /api/automation/rules/:id/execute
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/rules/:id/execute', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -300,7 +300,7 @@ router.post('/rules/:id/execute', protect, authorize('chairman', 'company_admin'
       return res.status(404).json({ success: false, message: 'Rule not found' });
     }
     
-    // Simulate rule execution
+    
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     const execution = {
@@ -309,7 +309,7 @@ router.post('/rules/:id/execute', protect, authorize('chairman', 'company_admin'
       status: 'success',
       executedAt: new Date().toISOString(),
       executedBy: req.user.id,
-      duration: Math.floor(Math.random() * 2000) + 500 // 500-2500ms
+      duration: Math.floor(Math.random() * 2000) + 500 
     };
     
     res.status(200).json({

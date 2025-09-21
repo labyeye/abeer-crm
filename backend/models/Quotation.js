@@ -29,6 +29,8 @@ const quotationSchema = new mongoose.Schema({
       start: String,
       end: String
     },
+    
+    serviceGiven: String,
     venue: {
       name: String,
       address: String,
@@ -37,11 +39,36 @@ const quotationSchema = new mongoose.Schema({
       pincode: String
     }
   },
+  
+  functionDetailsList: [{
+    type: {
+      type: String,
+      required: true
+    },
+    date: {
+      type: Date,
+      required: true
+    },
+    time: {
+      start: String,
+      end: String
+    },
+    serviceGiven: String,
+    venue: {
+      name: String,
+      address: String,
+      city: String,
+      state: String,
+      pincode: String
+    }
+  }],
   services: [{
     service: {
       type: String,
       required: true
     },
+    
+    serviceType: String,
     description: String,
     quantity: {
       type: Number,
@@ -93,7 +120,7 @@ const quotationSchema = new mongoose.Schema({
   terms: {
     validity: {
       type: Number,
-      default: 30 // days
+      default: 30 
     },
     paymentTerms: String,
     cancellationPolicy: String,
@@ -159,7 +186,41 @@ const quotationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
+quotationSchema.pre('validate', function(next) {
+  try {
+    if (Array.isArray(this.services)) {
+        this.services = this.services.map(s => {
+          if (!s.service && s.name) s.service = s.name;
+          
+          if (!s.serviceType) s.serviceType = s.type || s.category || '';
+          
+          s.quantity = s.quantity !== undefined ? Number(s.quantity) : s.quantity;
+          s.rate = s.rate !== undefined ? Number(s.rate) : s.rate;
+          s.amount = s.amount !== undefined ? Number(s.amount) : s.amount;
+          return s;
+        });
+    }
+
+    
+    if ((!this.functionDetails || !this.functionDetails.type) && Array.isArray(this.functionDetailsList) && this.functionDetailsList.length > 0) {
+      const fd = this.functionDetailsList[0];
+      this.functionDetails = {
+        type: fd.type,
+        date: fd.date,
+        time: fd.time || {},
+        venue: fd.venue || {},
+        serviceGiven: fd.serviceGiven
+      };
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 quotationSchema.index({ branch: 1 });
 quotationSchema.index({ client: 1 });
 quotationSchema.index({ quotationNumber: 1 });

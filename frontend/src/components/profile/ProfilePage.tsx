@@ -175,7 +175,7 @@ const ProfilePage = () => {
   return (
     <div className="space-y-6">
       
-      {/* Header */}
+      {}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
@@ -184,7 +184,7 @@ const ProfilePage = () => {
         {!isEditing && activeTab === 'profile' && (
           <button
             onClick={() => setIsEditing(true)}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center"
+            className="bg-brand text-white px-6 py-2 rounded-lg hover:bg-brand/90 transition-all duration-200 flex items-center"
           >
             <Edit className="w-5 h-5 mr-2" />
             Edit Profile
@@ -192,12 +192,12 @@ const ProfilePage = () => {
         )}
       </div>
 
-      {/* Profile Header Card */}
+      {}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 h-32"></div>
+  <div className="bg-brand h-32"></div>
         <div className="relative px-6 pb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-end space-y-4 sm:space-y-0 sm:space-x-6 -mt-16">
-            <div className="relative">
+                <div className="relative">
               {user?.avatar ? (
                 <img
                   src={user.avatar}
@@ -205,7 +205,7 @@ const ProfilePage = () => {
                   className="w-24 h-24 rounded-full border-4 border-white object-cover"
                 />
               ) : (
-                <div className="w-24 h-24 rounded-full border-4 border-white bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center">
+                <div className="w-24 h-24 rounded-full border-4 border-white bg-brand flex items-center justify-center">
                   <span className="text-white font-bold text-2xl">
                     {user?.name?.split(' ').map(n => n[0]).join('')}
                   </span>
@@ -249,7 +249,7 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
@@ -267,7 +267,7 @@ const ProfilePage = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm ${
                     activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
+                      ? 'border-brand text-brand'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -293,7 +293,7 @@ const ProfilePage = () => {
                   </button>
                   <button
                     onClick={handleSaveProfile}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                    className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors flex items-center"
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
@@ -310,7 +310,7 @@ const ProfilePage = () => {
                         type="text"
                         value={profileData.name}
                         onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent"
                       />
                     ) : (
                       <p className="text-gray-900">{profileData.name}</p>
@@ -324,7 +324,7 @@ const ProfilePage = () => {
                         type="email"
                         value={profileData.email}
                         onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent"
                       />
                     ) : (
                       <p className="text-gray-900">{profileData.email}</p>
@@ -338,7 +338,7 @@ const ProfilePage = () => {
                         type="tel"
                         value={profileData.phone}
                         onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent"
                       />
                     ) : (
                       <p className="text-gray-900">{profileData.phone}</p>
@@ -352,7 +352,7 @@ const ProfilePage = () => {
                         value={profileData.address}
                         onChange={(e) => setProfileData({...profileData, address: e.target.value})}
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent"
                       />
                     ) : (
                       <p className="text-gray-900">{profileData.address}</p>
@@ -379,7 +379,7 @@ const ProfilePage = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">Specializations</label>
                     <div className="flex flex-wrap gap-2">
                       {profileData.specializations.map((spec, index) => (
-                        <span key={index} className="inline-flex px-3 py-1 text-sm font-medium bg-blue-100 text-blue-700 rounded-full">
+                        <span key={index} className="inline-flex px-3 py-1 text-sm font-medium bg-brand/10 text-brand rounded-full">
                           {spec}
                         </span>
                       ))}
@@ -420,14 +420,14 @@ const ProfilePage = () => {
           {activeTab === 'performance' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-blue-50 rounded-xl p-6">
+                <div className="bg-brand/10 rounded-xl p-6">
                   <div className="flex items-center">
-                    <div className="bg-blue-500 p-3 rounded-lg">
+                    <div className="bg-brand p-3 rounded-lg">
                       <Camera className="w-6 h-6 text-white" />
                     </div>
                     <div className="ml-4">
-                      <p className="text-sm font-medium text-blue-600">Total Projects</p>
-                      <p className="text-2xl font-bold text-blue-900">{performanceData.totalProjects}</p>
+                      <p className="text-sm font-medium text-brand">Total Projects</p>
+                      <p className="text-2xl font-bold text-brand">{performanceData.totalProjects}</p>
                     </div>
                   </div>
                 </div>
@@ -451,7 +451,7 @@ const ProfilePage = () => {
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-600">Total Revenue</p>
-                      <p className="text-2xl font-bold text-purple-900">${performanceData.totalRevenue.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-purple-900">₹{performanceData.totalRevenue.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
@@ -529,7 +529,7 @@ const ProfilePage = () => {
 
                     <div className="flex items-center p-3 bg-white rounded-lg">
                       <div className="bg-blue-100 p-2 rounded-lg mr-3">
-                        <Star className="w-5 h-5 text-blue-600" />
+                        <Star className="w-5 h-5 text-brand" />
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">5-Star Rating</p>
@@ -597,7 +597,7 @@ const ProfilePage = () => {
                       {task.location}
                     </div>
                     <div className="flex justify-end">
-                      <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                      <button className="px-3 py-1 bg-brand/10 text-brand rounded-lg hover:bg-brand/20 transition-colors">
                         View Details
                       </button>
                     </div>

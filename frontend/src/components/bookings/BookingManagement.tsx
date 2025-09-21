@@ -116,21 +116,31 @@ const BookingManagement = () => {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [formData, setFormData] = useState({
     clientId: "",
-    functionType: "",
-    functionStartDate: "",
-    functionEndDate: "",
-    functionDate: "",
-    functionStartTime: "",
-    functionEndTime: "",
+    // servicesSchedule allows multiple service entries (date/time/staff/equipment per entry)
+    servicesSchedule: [{ serviceName: '', date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }] as Array<{
+      serviceName: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      venueName?: string;
+      venueAddress?: string;
+      assignedStaff: string[];
+      inventorySelection: string[];
+      quantity?: number;
+      price?: number;
+      amount?: number;
+    }> ,
+  functionType: "",
     venueName: "",
     venueAddress: "",
     serviceNeeded: "",
-    inventorySelection: [] as string[],
-    assignedStaff: [] as string[],
+    inventorySelection: [] as string[], // fallback/global selection (kept for compatibility)
+    assignedStaff: [] as string[], // fallback/global (kept for compatibility)
     bookingBranch: "",
-    services: [] as string[],
+    services: [] as any[],
     totalAmount: 0,
     advanceAmount: 0,
+    status: 'pending',
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -210,12 +220,9 @@ const BookingManagement = () => {
   const resetForm = () => {
     setFormData({
       clientId: "",
-      functionType: "",
-      functionStartDate: "",
-      functionEndDate: "",
-      functionDate: "",
-      functionStartTime: "",
-      functionEndTime: "",
+      // start with one empty service schedule entry (include pricing fields)
+      servicesSchedule: [{ serviceName: '', date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }],
+  functionType: "",
       venueName: "",
       venueAddress: "",
       serviceNeeded: "",
@@ -225,6 +232,7 @@ const BookingManagement = () => {
       services: [],
       totalAmount: 0,
       advanceAmount: 0,
+      status: 'pending',
       notes: "",
     });
   };
@@ -249,24 +257,55 @@ const BookingManagement = () => {
 
   const handleEditBooking = (booking: Booking) => {
     setSelectedBooking(booking);
+    // Build servicesSchedule from existing booking details. If booking has only single functionDetails,
+    // convert it into a single-element schedule. Include assigned staff and inventory selection per entry.
+    // Try to map existing booking.services (if present) to schedule entries so pricing is editable per schedule
+    let scheduleEntries: any[] = [];
+    if (Array.isArray(booking.services) && booking.services.length > 0) {
+      // Map each service item to a schedule entry where possible
+      scheduleEntries = booking.services.map((svc: any) => ({
+        serviceName: svc.service || svc.serviceName || booking.serviceNeeded || booking.functionDetails.type || '',
+        date: booking.functionDetails?.date ? booking.functionDetails.date.split('T')[0] : '',
+        startTime: booking.functionDetails?.time?.start || '',
+        endTime: booking.functionDetails?.time?.end || '',
+        venueName: booking.functionDetails?.venue?.name || '',
+        venueAddress: booking.functionDetails?.venue?.address || '',
+        assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
+        inventorySelection: booking.inventorySelection?.map((i) => i._id) || [],
+        quantity: svc.quantity ?? svc.qty ?? 1,
+        price: svc.rate ?? svc.price ?? 0,
+        amount: svc.amount ?? svc.total ?? ((svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0)),
+      }));
+    } else {
+      scheduleEntries = [{
+        serviceName: booking.serviceNeeded || booking.functionDetails.type || '',
+        date: booking.functionDetails.date ? booking.functionDetails.date.split('T')[0] : '',
+        startTime: booking.functionDetails.time?.start || '',
+        endTime: booking.functionDetails.time?.end || '',
+        venueName: booking.functionDetails.venue?.name || '',
+        venueAddress: booking.functionDetails.venue?.address || '',
+        assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
+        inventorySelection: booking.inventorySelection?.map((i) => i._id) || [],
+        quantity: 1,
+        price: 0,
+        amount: 0,
+      }];
+    }
+
     setFormData({
       clientId: booking.client._id,
-      functionType: booking.functionDetails.type,
-      functionStartDate: booking.functionDetails.startDate ? booking.functionDetails.startDate.split("T")[0] : "",
-      functionEndDate: booking.functionDetails.endDate ? booking.functionDetails.endDate.split("T")[0] : "",
-      functionDate: booking.functionDetails.date.split("T")[0],
-      functionStartTime: booking.functionDetails.time.start,
-      functionEndTime: booking.functionDetails.time.end,
-      venueName: booking.functionDetails.venue.name,
-      venueAddress: booking.functionDetails.venue.address,
-      serviceNeeded: booking.serviceNeeded || "",
-      inventorySelection:
-        booking.inventorySelection?.map((item) => item._id) || [],
+      servicesSchedule: scheduleEntries,
+      functionType: booking.functionDetails.type || '',
+      venueName: booking.functionDetails.venue?.name || '',
+      venueAddress: booking.functionDetails.venue?.address || '',
+      serviceNeeded: booking.serviceNeeded || '',
+      inventorySelection: booking.inventorySelection?.map((item) => item._id) || [],
       assignedStaff: booking.assignedStaff?.map((staff) => staff._id) || [],
-      bookingBranch: booking.bookingBranch?._id || "",
+  bookingBranch: (booking as any).branch?._id || booking.bookingBranch?._id || "",
       services: booking.services || [],
       totalAmount: booking.pricing.totalAmount,
       advanceAmount: booking.pricing.advanceAmount,
+      status: booking.status || 'pending',
       notes: "",
     });
     setShowEditModal(true);
@@ -280,36 +319,46 @@ const BookingManagement = () => {
       // Generate booking number
       const bookingNumber = `BK-${Date.now()}`;
       
-      // Calculate pricing fields
-      const subtotal = formData.totalAmount;
-      const remainingAmount = formData.totalAmount - formData.advanceAmount;
-      
+  // Build schedule list and calculate pricing fields from servicesSchedule amounts
+  const scheduleList = formData.servicesSchedule && formData.servicesSchedule.length > 0 ? formData.servicesSchedule : [{ serviceName: formData.serviceNeeded || '', date: new Date().toISOString(), startTime: '', endTime: '', venueName: formData.venueName, venueAddress: formData.venueAddress, assignedStaff: formData.assignedStaff || [], inventorySelection: formData.inventorySelection || [], quantity: 1, price: 0, amount: 0 }];
+  const subtotal = (scheduleList || []).reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
+  const remainingAmount = subtotal - (formData.advanceAmount || 0);
+
+      // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
+      const functionDetailsList = scheduleList.map((s: any) => ({
+        type: formData.functionType || s.serviceName || formData.serviceNeeded || '',
+        date: s.date ? new Date(s.date).toISOString() : new Date().toISOString(),
+        time: { start: s.startTime || '', end: s.endTime || '' },
+        venue: { name: s.venueName || formData.venueName || '', address: s.venueAddress || formData.venueAddress || '' },
+      }));
+      // union assigned staff and inventory across schedule entries and global selections
+  const allAssignedStaff = Array.from(new Set([...(formData.assignedStaff || []), ...scheduleList.flatMap((s: any) => s.assignedStaff || [])]));
+  const allInventory = Array.from(new Set([...(formData.inventorySelection || []), ...scheduleList.flatMap((s: any) => s.inventorySelection || [])]));
+
+      // Build services array from schedule entries for backend compatibility
+      const servicesFromSchedule = scheduleList.map((s: any) => ({
+        service: s.serviceName || '',
+        quantity: s.quantity ?? 1,
+        rate: s.price ?? 0,
+        amount: s.amount ?? ((s.quantity ?? 1) * (s.price ?? 0)),
+        description: '',
+      }));
+
       const bookingData = {
         bookingNumber,
         client: formData.clientId,
         branch: formData.bookingBranch,
-        functionDetails: {
-          type: formData.functionType,
-          startDate: formData.functionStartDate,
-          endDate: formData.functionEndDate,
-          date: formData.functionStartDate || formData.functionDate || new Date().toISOString(),
-          time: {
-            start: formData.functionStartTime,
-            end: formData.functionEndTime,
-          },
-          venue: {
-            name: formData.venueName,
-            address: formData.venueAddress,
-          },
-        },
-        serviceNeeded: formData.serviceNeeded,
-        inventorySelection: formData.inventorySelection,
-        assignedStaff: formData.assignedStaff,
+        functionDetails: functionDetailsList[0] || functionDetailsList,
+        functionDetailsList,
+  serviceNeeded: formData.serviceNeeded || (scheduleList[0] && scheduleList[0].serviceName) || '',
+        inventorySelection: allInventory,
+        assignedStaff: allAssignedStaff,
         bookingBranch: formData.bookingBranch,
-        services: formData.services,
+  status: formData.status,
+        services: servicesFromSchedule,
         pricing: {
           subtotal,
-          totalAmount: formData.totalAmount,
+          totalAmount: subtotal,
           advanceAmount: formData.advanceAmount,
           remainingAmount,
         },
@@ -331,6 +380,13 @@ const BookingManagement = () => {
         });
       }
 
+      // Notify other parts of the app (e.g., CompanyManagement) that branches may have updated
+      try {
+        window.dispatchEvent(new CustomEvent('branchesUpdated'));
+      } catch (e) {
+        console.warn('Could not dispatch branchesUpdated event', e);
+      }
+
       fetchData();
       setShowAddModal(false);
       setShowEditModal(false);
@@ -346,6 +402,38 @@ const BookingManagement = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Helpers for servicesSchedule entries
+  const addScheduleEntry = () => {
+    setFormData((prev: any) => ({
+      ...prev,
+      servicesSchedule: [
+        ...(prev.servicesSchedule || []),
+        { serviceName: '', date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }
+      ]
+    }));
+  };
+
+  const removeScheduleEntry = (index: number) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      servicesSchedule: (prev.servicesSchedule || []).filter((_: any, i: number) => i !== index)
+    }));
+  };
+
+  const updateScheduleEntry = (index: number, field: string, value: any) => {
+    setFormData((prev: any) => {
+      const ss = [...(prev.servicesSchedule || [])];
+      ss[index] = { ...ss[index], [field]: value };
+      // auto-calc amount when quantity or price changes
+      if (field === 'quantity' || field === 'price') {
+        const q = Number(ss[index].quantity ?? 0);
+        const p = Number(ss[index].price ?? 0);
+        ss[index].amount = q * p;
+      }
+      return { ...prev, servicesSchedule: ss };
+    });
   };
 
   const handleDeleteBooking = async (id: string, bookingNumber: string) => {
@@ -376,13 +464,19 @@ const BookingManagement = () => {
   const handleStatusUpdate = async (bookingId: string, newStatus: string) => {
     try {
       // Use the new status update endpoint for staff users
-      await bookingAPI.updateBookingStatus(bookingId, newStatus);
+      const res: any = await bookingAPI.updateBookingStatus(bookingId, newStatus);
+      const updatedBooking = res?.data;
       addNotification({
         type: "success",
         title: "Success",
         message: `Booking status updated to ${newStatus}`,
       });
-      fetchData(); // Refresh the data
+      if (updatedBooking) {
+        // Replace booking in local state so UI updates immediately without waiting for full fetch
+        setBookings((prev) => (prev || []).map((b) => (b._id === updatedBooking._id ? updatedBooking : b)));
+      } else {
+        fetchData(); // Fallback
+      }
     } catch (error: unknown) {
       addNotification({
         type: "error",
@@ -394,6 +488,11 @@ const BookingManagement = () => {
   };
 
   const filteredBookings = bookings.filter((booking) => {
+    // If the current user is a branch admin/head, restrict bookings to their branch only
+    const bookingBranchId = (booking as any).branch?._id || booking.bookingBranch?._id || booking.bookingBranch || "";
+    if (user?.role === 'branch_head' && user.branchId) {
+      if (bookingBranchId !== user.branchId) return false;
+    }
     const matchesSearch =
       booking.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -540,6 +639,11 @@ const BookingManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Client
                 </th>
+                  {user?.role === 'chairman' && (
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Branch
+                    </th>
+                  )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Event Details
                 </th>
@@ -577,6 +681,18 @@ const BookingManagement = () => {
                       </div>
                     </div>
                   </td>
+                  {user?.role === 'chairman' && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {(booking as any).branch?.name || booking.bookingBranch?.name || '—'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {(booking as any).branch?._id || booking.bookingBranch?._id || ''}
+                        </div>
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -756,309 +872,105 @@ const BookingManagement = () => {
                 </div>
               </div>
 
-              {/* Function Details */}
+              {/* Function Details - multiple schedule entries */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Function Details
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Function Details</h3>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Function Type *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.functionType}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          functionType: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., Wedding, Birthday, Corporate Event"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.functionStartDate}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          functionStartDate: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      End Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={formData.functionEndDate}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          functionEndDate: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Start Time *
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      value={formData.functionStartTime}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          functionStartTime: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      End Time *
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      value={formData.functionEndTime}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          functionEndTime: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Venue Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.venueName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, venueName: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Venue Address
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.venueAddress}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          venueAddress: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                    <button type="button" onClick={addScheduleEntry} className="px-3 py-1 bg-blue-600 text-white rounded mr-2">Add Service</button>
                   </div>
                 </div>
-              </div>
+                <div className="space-y-4">
+                  {(formData.servicesSchedule || []).map((entry: any, idx: number) => (
+                    <div key={idx} className="p-4 border rounded-lg bg-gray-50">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="font-medium">Service #{idx + 1}</div>
+                        <div>
+                          <button type="button" onClick={() => removeScheduleEntry(idx)} className="text-red-600">Remove</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="text-sm text-gray-600">Service Name</label>
+                          <input value={entry.serviceName} onChange={(e) => updateScheduleEntry(idx, 'serviceName', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Date</label>
+                          <input type="date" value={entry.date} onChange={(e) => updateScheduleEntry(idx, 'date', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Start Time</label>
+                          <input type="time" value={entry.startTime} onChange={(e) => updateScheduleEntry(idx, 'startTime', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">End Time</label>
+                          <input type="time" value={entry.endTime} onChange={(e) => updateScheduleEntry(idx, 'endTime', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Venue Name</label>
+                          <input value={entry.venueName} onChange={(e) => updateScheduleEntry(idx, 'venueName', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Venue Address</label>
+                          <input value={entry.venueAddress} onChange={(e) => updateScheduleEntry(idx, 'venueAddress', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Qty</label>
+                          <input type="number" min={0} value={entry.quantity ?? 0} onChange={(e) => updateScheduleEntry(idx, 'quantity', Number(e.target.value))} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Price</label>
+                          <input type="number" min={0} value={entry.price ?? 0} onChange={(e) => updateScheduleEntry(idx, 'price', Number(e.target.value))} className="w-full px-3 py-2 border rounded" />
+                        </div>
+                        <div>
+                          <label className="text-sm text-gray-600">Amount</label>
+                          <input type="number" min={0} value={entry.amount ?? 0} onChange={(e) => updateScheduleEntry(idx, 'amount', Number(e.target.value))} className="w-full px-3 py-2 border rounded" />
+                          <p className="text-xs text-gray-500 mt-1">kis cheez ka kitna lagega</p>
+                        </div>
+                      </div>
 
-              {/* Service Details */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Service Requirements
-                </h3>
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Service Needed *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.serviceNeeded}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          serviceNeeded: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., Photography, Videography, Photography + Videography"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Assigned Staff
-                    </label>
-                    <div className="overflow-x-auto border rounded-lg">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
-                              Assign
-                            </th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
-                              Name
-                            </th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
-                              Designation
-                            </th>
-                            <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">
-                              Employee ID
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {staff.map((staffMember) => (
-                            <tr key={staffMember._id}>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="checkbox"
-                                  checked={formData.assignedStaff.includes(
-                                    staffMember._id
-                                  )}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setFormData({
-                                        ...formData,
-                                        assignedStaff: [
-                                          ...formData.assignedStaff,
-                                          staffMember._id,
-                                        ],
-                                      });
-                                    } else {
-                                      setFormData({
-                                        ...formData,
-                                        assignedStaff:
-                                          formData.assignedStaff.filter(
-                                            (id) => id !== staffMember._id
-                                          ),
-                                      });
-                                    }
-                                  }}
-                                />
-                              </td>
-                              <td className="px-2 py-2">{staffMember.name}</td>
-                              <td className="px-2 py-2">
-                                {staffMember.designation}
-                              </td>
-                              <td className="px-2 py-2">
-                                {staffMember.employeeId}
-                              </td>
-                            </tr>
+                      <div className="mt-3">
+                        <label className="text-sm font-medium text-gray-700">Assign Staff</label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {staff.map((s) => (
+                            <label key={s._id} className="inline-flex items-center space-x-2">
+                              <input type="checkbox" checked={(entry.assignedStaff || []).includes(s._id)} onChange={(e) => {
+                                const checked = e.target.checked;
+                                const list = new Set(entry.assignedStaff || []);
+                                if (checked) list.add(s._id); else list.delete(s._id);
+                                updateScheduleEntry(idx, 'assignedStaff', Array.from(list));
+                              }} />
+                              <span className="text-sm">{s.name} ({s.designation})</span>
+                            </label>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Equipment Selection
-                    </label>
-                    <div className="overflow-x-auto border rounded-lg">
-                      {(() => {
-                        let inventoryList: InventoryItem[] = [];
-                        if (
-                          inventory &&
-                          typeof inventory === "object" &&
-                          "docs" in inventory &&
-                          Array.isArray((inventory as PaginatedInventory).docs)
-                        ) {
-                          inventoryList = (inventory as PaginatedInventory).docs;
-                        } else if (Array.isArray(inventory)) {
-                          inventoryList = inventory;
-                        }
-                        return (
-                          <>
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
-                                <tr>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Assign</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Name</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Category</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Brand</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Model</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Condition</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Status</th>
-                                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Quantity</th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {inventoryList.map((item: any) => (
-                                  <tr key={item._id}>
-                                    <td className="px-2 py-2">
-                                      <input
-                                        type="checkbox"
-                                        checked={formData.inventorySelection.includes(item._id)}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setFormData({
-                                              ...formData,
-                                              inventorySelection: [
-                                                ...formData.inventorySelection,
-                                                item._id,
-                                              ],
-                                            });
-                                          } else {
-                                            setFormData({
-                                              ...formData,
-                                              inventorySelection: formData.inventorySelection.filter((id) => id !== item._id),
-                                            });
-                                          }
-                                        }}
-                                      />
-                                    </td>
-                                    <td className="px-2 py-2">{item.name}</td>
-                                    <td className="px-2 py-2">{item.category}</td>
-                                    <td className="px-2 py-2">{item.brand || '-'}</td>
-                                    <td className="px-2 py-2">{item.model || '-'}</td>
-                                    <td className="px-2 py-2">{item.condition || '-'}</td>
-                                    <td className="px-2 py-2">{item.status || '-'}</td>
-                                    <td className="px-2 py-2">{item.quantity}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                            {inventoryList.length === 0 && (
-                              <div className="text-center py-4 text-red-600 text-sm">
-                                Inventory is empty or not accessible. Please check your permissions or contact your administrator.
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
+                      <div className="mt-3">
+                        <label className="text-sm font-medium text-gray-700">Select Equipment</label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          {(() => {
+                            let inventoryList: any[] = [];
+                            if (inventory && typeof inventory === 'object' && 'docs' in (inventory as any) && Array.isArray((inventory as any).docs)) inventoryList = (inventory as any).docs;
+                            else if (Array.isArray(inventory)) inventoryList = inventory;
+                            return inventoryList.map((it) => (
+                              <label key={it._id} className="inline-flex items-center space-x-2">
+                                <input type="checkbox" checked={(entry.inventorySelection || []).includes(it._id)} onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  const list = new Set(entry.inventorySelection || []);
+                                  if (checked) list.add(it._id); else list.delete(it._id);
+                                  updateScheduleEntry(idx, 'inventorySelection', Array.from(list));
+                                }} />
+                                <span className="text-sm">{it.name}</span>
+                              </label>
+                            ));
+                          })()}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </div>
-
-              {/* Pricing */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Pricing
@@ -1066,19 +978,13 @@ const BookingManagement = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Total Amount *
+                      Total Amount (calculated from schedule)
                     </label>
                     <input
                       type="number"
-                      required
-                      value={formData.totalAmount}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          totalAmount: Number(e.target.value),
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      readOnly
+                      value={(formData.servicesSchedule || []).reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
                     />
                   </div>
 
@@ -1103,10 +1009,22 @@ const BookingManagement = () => {
                   <p className="text-sm text-gray-600">
                     Balance Amount: ₹
                     {(
-                      formData.totalAmount - formData.advanceAmount
+                      ((formData.servicesSchedule || []).reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0)) - formData.advanceAmount
                     ).toLocaleString()}
                   </p>
                 </div>
+              </div>
+
+              {/* Status selection (admin/managers) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
               </div>
 
               {/* Summary Section */}
@@ -1174,9 +1092,15 @@ const BookingManagement = () => {
                           advanceAmount: Math.max(currentAdvance, currentTotal),
                           remainingAmount: 0,
                         };
-                        await bookingAPI.updateBooking(selectedBooking._id, { paymentStatus: 'completed', pricing: updatedPricing });
+                        // Only update payment fields here; status remains separate
+                        const res: any = await bookingAPI.updateBooking(selectedBooking._id, { paymentStatus: 'completed', pricing: updatedPricing });
+                        const updated = res?.data;
                         addNotification({ type: 'success', title: 'Payment', message: 'Marked booking as paid' });
-                        await fetchData();
+                        if (updated) {
+                          setBookings((prev) => (prev || []).map((b) => (b._id === updated._id ? updated : b)));
+                        } else {
+                          await fetchData();
+                        }
                         setShowEditModal(false);
                         setSelectedBooking(null);
                         resetForm();
@@ -1186,9 +1110,40 @@ const BookingManagement = () => {
                         setSubmitting(false);
                       }
                     }}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors mr-2"
                   >
                     Mark as Paid
+                  </button>
+                )}
+
+                {selectedBooking && selectedBooking.status !== 'completed' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!selectedBooking) return;
+                      if (!window.confirm('Mark this booking as complete? This will set booking status to completed.')) return;
+                      try {
+                        setSubmitting(true);
+                        const res: any = await bookingAPI.updateBooking(selectedBooking._id, { status: 'completed' });
+                        const updated = res?.data;
+                        addNotification({ type: 'success', title: 'Status', message: 'Marked booking as completed' });
+                        if (updated) {
+                          setBookings((prev) => (prev || []).map((b) => (b._id === updated._id ? updated : b)));
+                        } else {
+                          await fetchData();
+                        }
+                        setShowEditModal(false);
+                        setSelectedBooking(null);
+                        resetForm();
+                      } catch (error: unknown) {
+                        addNotification({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'Failed to mark as completed' });
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors mr-2"
+                  >
+                    Mark as Complete
                   </button>
                 )}
                 <button

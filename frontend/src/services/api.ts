@@ -1,11 +1,29 @@
 import axios from 'axios';
 
-// Common interfaces
-interface CompanyData {
+
+interface BranchAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+}
+
+interface BranchData {
   name: string;
-  address: string;
+  address: BranchAddress | string;
   phone: string;
-  email: string;
+  email: string;  // Primary identifier for the branch
+  code?: string;
+  website?: string;
+  industry?: string;
+  foundedYear?: number;
+  employeeCount?: number;
+  // revenue can be a legacy number or a breakdown object { total, invoices, bookings, quotations }
+  revenue?: number | { total: number; invoices?: number; bookings?: number; quotations?: number };
+  description?: string;
+  gstNumber?: string;
+  password?: string;
   [key: string]: unknown;
 }
 
@@ -29,15 +47,20 @@ interface QueryParams {
   [key: string]: unknown;
 }
 
-// Create axios instance
+
+const VITE_API_URL = (import.meta as unknown as { env?: { VITE_API_URL?: string } })?.env?.VITE_API_URL;
+
+// general API data bag type used for untyped request bodies
+type APIData = Record<string, unknown>;
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://abeer-crm.onrender.com/api',
+  baseURL: VITE_API_URL || 'https://abeer-crm-44fd.vercel.app//api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor to add auth token
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -51,7 +74,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -64,7 +87,7 @@ api.interceptors.response.use(
   }
 );
 
-// Auth API calls
+
 export const authAPI = {
   login: async (email: string, password: string) => {
     console.log('🚀 Frontend: Attempting login for:', email);
@@ -90,42 +113,35 @@ export const authAPI = {
   },
 };
 
-export const companyAPI = {
-  getCompanies: async () => {
-    const response = await api.get('/branches');
-    return response.data;
-  },
-  getCompany: async (id: string) => {
-    const response = await api.get(`/branches/${id}`);
-    return response.data;
-  },
-  
-  createCompany: async (companyData: CompanyData) => {
-    const response = await api.post('/branches', companyData);
-    return response.data;
-  },
-  
-  updateCompany: async (id: string, companyData: CompanyData) => {
-    const response = await api.put(`/branches/${id}`, companyData);
-    return response.data;
-  },
-  
-  deleteCompany: async (id: string) => {
-  const response = await api.delete(`/branches/${id}`);
-  return response.data;
-  },
-  
-  getCompanyStats: async () => {
-    const response = await api.get('/branches/stats');
-    return response.data;
-  },
-};
-
 export const branchAPI = {
   getBranches: async (params?: QueryParams) => {
     const response = await api.get('/branches', { params });
     return response.data;
-  }
+  },
+  getBranch: async (id: string) => {
+    const response = await api.get(`/branches/${id}`);
+    return response.data;
+  },
+  
+  createBranch: async (branchData: BranchData) => {
+    const response = await api.post('/branches', branchData);
+    return response.data;
+  },
+  
+  updateBranch: async (id: string, branchData: BranchData) => {
+    const response = await api.put(`/branches/${id}`, branchData);
+    return response.data;
+  },
+  
+  deleteBranch: async (id: string) => {
+    const response = await api.delete(`/branches/${id}`);
+    return response.data;
+  },
+  
+  getBranchStats: async () => {
+    const response = await api.get('/branches/stats');
+    return response.data;
+  },
 };
 
 export const inventoryAPI = {
@@ -170,7 +186,7 @@ export const inventoryAPI = {
   },
 };
 
-// Staff API calls
+
 export const staffAPI = {
   getStaff: async (params?: QueryParams) => {
     const response = await api.get('/staff', { params });
@@ -218,7 +234,7 @@ export const staffAPI = {
   },
 };
 
-// Attendance API calls
+
 export const attendanceAPI = {
   getAttendance: async (params?: QueryParams) => {
     const response = await api.get('/attendance', { params });
@@ -235,40 +251,40 @@ export const attendanceAPI = {
     return response.data;
   },
   
-  checkIn: async (checkInData: any) => {
+  checkIn: async (checkInData: APIData) => {
     const response = await api.post('/attendance/checkin', checkInData);
     return response.data;
   },
   
-  checkOut: async (checkOutData: any) => {
+  checkOut: async (checkOutData: APIData) => {
     const response = await api.post('/attendance/checkout', checkOutData);
     return response.data;
   },
-  
-  markAttendanceManually: async (attendanceData: any) => {
+
+  markAttendanceManually: async (attendanceData: APIData) => {
     const response = await api.post('/attendance/manual', attendanceData);
     return response.data;
   },
-  
-  updateAttendance: async (id: string, attendanceData: any) => {
+
+  updateAttendance: async (id: string, attendanceData: APIData) => {
     const response = await api.put(`/attendance/${id}`, attendanceData);
     return response.data;
   },
-  
+
   deleteAttendance: async (id: string) => {
     const response = await api.delete(`/attendance/${id}`);
     return response.data;
   },
   
-  getAttendanceSummary: async (params?: any) => {
+  getAttendanceSummary: async (params?: QueryParams) => {
     const response = await api.get('/attendance/summary', { params });
     return response.data;
   },
 };
 
-// Client API calls
+
 export const clientAPI = {
-  getClients: async (params?: any) => {
+  getClients: async (params?: QueryParams) => {
     const response = await api.get('/clients', { params });
     return response.data;
   },
@@ -278,12 +294,12 @@ export const clientAPI = {
     return response.data;
   },
   
-  createClient: async (clientData: any) => {
+  createClient: async (clientData: APIData) => {
     const response = await api.post('/clients', clientData);
     return response.data;
   },
   
-  updateClient: async (id: string, clientData: any) => {
+  updateClient: async (id: string, clientData: APIData) => {
     const response = await api.put(`/clients/${id}`, clientData);
     return response.data;
   },
@@ -293,17 +309,17 @@ export const clientAPI = {
     return response.data;
   },
   
-  getClientBookings: async (id: string, params?: any) => {
+  getClientBookings: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/clients/${id}/bookings`, { params });
     return response.data;
   },
   
-  getClientQuotations: async (id: string, params?: any) => {
+  getClientQuotations: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/clients/${id}/quotations`, { params });
     return response.data;
   },
   
-  getClientInvoices: async (id: string, params?: any) => {
+  getClientInvoices: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/clients/${id}/invoices`, { params });
     return response.data;
   },
@@ -319,13 +335,13 @@ export const clientAPI = {
   },
 };
 
-// Booking API calls
+
 export const bookingAPI = {
-  getBookings: async (params?: any) => {
+  getBookings: async (params?: QueryParams) => {
     const response = await api.get('/bookings', { params });
     return response.data;
   },
-  getBookingsForStaff: async (staffId: string, params?: any) => {
+  getBookingsForStaff: async (staffId: string, params?: QueryParams) => {
     const response = await api.get(`/bookings/staff/${staffId}`, { params });
     return response.data;
   },
@@ -333,11 +349,11 @@ export const bookingAPI = {
     const response = await api.get(`/bookings/${id}`);
     return response.data;
   },
-  createBooking: async (bookingData: any) => {
+  createBooking: async (bookingData: APIData) => {
     const response = await api.post('/bookings', bookingData);
     return response.data;
   },
-  updateBooking: async (id: string, bookingData: any) => {
+  updateBooking: async (id: string, bookingData: APIData) => {
     const response = await api.put(`/bookings/${id}`, bookingData);
     return response.data;
   },
@@ -351,9 +367,9 @@ export const bookingAPI = {
   },
 };
 
-// Rental API calls
+
 export const rentalAPI = {
-  getRentals: async (params?: any) => {
+  getRentals: async (params?: QueryParams) => {
     const response = await api.get('/rentals', { params });
     return response.data;
   },
@@ -363,12 +379,12 @@ export const rentalAPI = {
     return response.data;
   },
   
-  createRental: async (rentalData: any) => {
+    createRental: async (rentalData: APIData) => {
     const response = await api.post('/rentals', rentalData);
     return response.data;
   },
   
-  updateRental: async (id: string, rentalData: any) => {
+    updateRental: async (id: string, rentalData: APIData) => {
     const response = await api.put(`/rentals/${id}`, rentalData);
     return response.data;
   },
@@ -378,19 +394,19 @@ export const rentalAPI = {
     return response.data;
   },
   
-  getRentalStats: async (params?: any) => {
+  getRentalStats: async (params?: QueryParams) => {
     const response = await api.get('/rentals/stats', { params });
     return response.data;
   },
   
-  getOverdueRentals: async (params?: any) => {
+  getOverdueRentals: async (params?: QueryParams) => {
     const response = await api.get('/rentals/overdue', { params });
     return response.data;
   }
 };
 
 export const notificationAPI = {
-  getNotifications: async (params?: any) => {
+  getNotifications: async (params?: QueryParams) => {
     const response = await api.get('/notifications', { params });
     return response.data;
   },
@@ -405,7 +421,7 @@ export const notificationAPI = {
     return response.data;
   },
   
-  sendManualNotification: async (notificationData: any) => {
+  sendManualNotification: async (notificationData: APIData) => {
     const response = await api.post('/notifications/send', notificationData);
     return response.data;
   },
@@ -422,7 +438,7 @@ export const notificationAPI = {
 };
 
 export const taskAPI = {
-  getTasks: async (params?: any) => {
+  getTasks: async (params?: QueryParams) => {
     const response = await api.get('/tasks', { params });
     return response.data;
   },
@@ -432,12 +448,12 @@ export const taskAPI = {
     return response.data;
   },
   
-  createTask: async (taskData: any) => {
+  createTask: async (taskData: APIData) => {
     const response = await api.post('/tasks', taskData);
     return response.data;
   },
   
-  updateTask: async (id: string, taskData: any) => {
+  updateTask: async (id: string, taskData: APIData) => {
     const response = await api.put(`/tasks/${id}`, taskData);
     return response.data;
   },
@@ -447,7 +463,7 @@ export const taskAPI = {
     return response.data;
   },
   
-  assignStaffToTask: async (taskId: string, assignmentData: any) => {
+  assignStaffToTask: async (taskId: string, assignmentData: APIData) => {
     const response = await api.post(`/tasks/${taskId}/assign`, assignmentData);
     return response.data;
   },
@@ -457,12 +473,12 @@ export const taskAPI = {
     return response.data;
   },
   
-  completeTask: async (taskId: string, completionData: any) => {
+  completeTask: async (taskId: string, completionData: APIData) => {
     const response = await api.post(`/tasks/${taskId}/complete`, completionData);
     return response.data;
   },
   
-  getMyTasks: async (params?: any) => {
+  getMyTasks: async (params?: QueryParams) => {
     const response = await api.get('/tasks/my-tasks', { params });
     return response.data;
   },
@@ -474,7 +490,7 @@ export const taskAPI = {
 };
 
 export const quotationAPI = {
-  getQuotations: async (params?: any) => {
+  getQuotations: async (params?: QueryParams) => {
     const response = await api.get('/quotations', { params });
     return response.data;
   },
@@ -484,12 +500,12 @@ export const quotationAPI = {
     return response.data;
   },
   
-  createQuotation: async (quotationData: any) => {
+  createQuotation: async (quotationData: APIData) => {
     const response = await api.post('/quotations', quotationData);
     return response.data;
   },
   
-  updateQuotation: async (id: string, quotationData: any) => {
+  updateQuotation: async (id: string, quotationData: APIData) => {
     const response = await api.put(`/quotations/${id}`, quotationData);
     return response.data;
   },
@@ -519,52 +535,42 @@ export const quotationAPI = {
   }
 };
 
-// Production API calls
-export const productionAPI = {
-  getProjects: async (params?: any) => {
-    const response = await api.get('/production/projects', { params });
+
+export const dailyExpensesAPI = {
+  getExpenses: async (params?: QueryParams) => {
+    const response = await api.get('/daily-expenses', { params });
     return response.data;
   },
   
-  getProject: async (id: string) => {
-    const response = await api.get(`/production/projects/${id}`);
+  getExpense: async (id: string) => {
+    const response = await api.get(`/daily-expenses/${id}`);
     return response.data;
   },
   
-  createProject: async (projectData: any) => {
-    const response = await api.post('/production/projects', projectData);
+  createExpense: async (expenseData: APIData) => {
+    const response = await api.post('/daily-expenses', expenseData);
     return response.data;
   },
   
-  updateProject: async (id: string, projectData: any) => {
-    const response = await api.put(`/production/projects/${id}`, projectData);
+  updateExpense: async (id: string, expenseData: APIData) => {
+    const response = await api.put(`/daily-expenses/${id}`, expenseData);
     return response.data;
   },
   
-  deleteProject: async (id: string) => {
-    const response = await api.delete(`/production/projects/${id}`);
+  deleteExpense: async (id: string) => {
+    const response = await api.delete(`/daily-expenses/${id}`);
     return response.data;
   },
   
-  updateProjectStage: async (id: string, stage: string) => {
-    const response = await api.put(`/production/projects/${id}/stage`, { stage });
-    return response.data;
-  },
-  
-  assignTeamMember: async (id: string, memberId: string) => {
-    const response = await api.post(`/production/projects/${id}/assign`, { memberId });
-    return response.data;
-  },
-  
-  getProductionStats: async () => {
-    const response = await api.get('/production/stats');
+  getDailyExpensesStats: async () => {
+    const response = await api.get('/daily-expenses/stats');
     return response.data;
   }
 };
 
-// Vendor API calls
+
 export const vendorAPI = {
-  getVendors: async (params?: any) => {
+  getVendors: async (params?: QueryParams) => {
     const response = await api.get('/vendors', { params });
     return response.data;
   },
@@ -574,12 +580,12 @@ export const vendorAPI = {
     return response.data;
   },
   
-  createVendor: async (vendorData: any) => {
+  createVendor: async (vendorData: APIData) => {
     const response = await api.post('/vendors', vendorData);
     return response.data;
   },
   
-  updateVendor: async (id: string, vendorData: any) => {
+  updateVendor: async (id: string, vendorData: APIData) => {
     const response = await api.put(`/vendors/${id}`, vendorData);
     return response.data;
   },
@@ -600,241 +606,268 @@ export const vendorAPI = {
   }
 };
 
-// Analytics API calls
+
 export const analyticsAPI = {
-  getDashboardData: async (params?: any) => {
+  getDashboardData: async (params?: QueryParams) => {
     const response = await api.get('/analytics/dashboard', { params });
     return response.data;
   },
   
-  getRevenueAnalytics: async (params?: any) => {
+  getRevenueAnalytics: async (params?: QueryParams) => {
     const response = await api.get('/analytics/revenue', { params });
     return response.data;
   },
-  
-  getOperationalAnalytics: async (params?: any) => {
+  getOperationalAnalytics: async (params?: QueryParams) => {
     const response = await api.get('/analytics/operations', { params });
     return response.data;
   },
-  
-  getClientAnalytics: async (params?: any) => {
+  getClientAnalytics: async (params?: QueryParams) => {
     const response = await api.get('/analytics/clients', { params });
     return response.data;
   },
-  
-  getTeamAnalytics: async (params?: any) => {
+  getTeamAnalytics: async (params?: QueryParams) => {
     const response = await api.get('/analytics/team', { params });
     return response.data;
   },
-  
-  getMarketingAnalytics: async (params?: any) => {
+  getMarketingAnalytics: async (params?: QueryParams) => {
     const response = await api.get('/analytics/marketing', { params });
     return response.data;
   },
-  
-  getForecastingData: async (params?: any) => {
+  getForecastingData: async (params?: QueryParams) => {
     const response = await api.get('/analytics/forecasting', { params });
     return response.data;
   },
   
-  exportAnalytics: async (type: string, params?: any) => {
+  exportAnalytics: async (type: string, params?: QueryParams) => {
     const response = await api.get(`/analytics/export/${type}`, { params });
     return response.data;
   }
 };
 
-// Finance & Expenses API
+
 export const expenseAPI = {
-  getExpenses: async (params?: any) => {
+  getExpenses: async (params?: QueryParams) => {
     const response = await api.get('/expenses', { params });
     return response.data;
   },
-  getFinanceAnalytics: async (params?: any) => {
+  getFinanceAnalytics: async (params?: QueryParams) => {
     const response = await api.get('/expenses/analytics', { params });
     return response.data;
   }
 };
 
-// Phase 3 - AI API calls
+
 export const aiAPI = {
-  getInsights: async (params?: any) => {
+  getInsights: async (params?: QueryParams) => {
     const response = await api.get('/ai/insights', { params });
     return response.data;
   },
-  
-  getPredictions: async (params?: any) => {
+
+  getPredictions: async (params?: QueryParams) => {
     const response = await api.get('/ai/predictions', { params });
     return response.data;
   },
-  
-  generateInsights: async (data: any) => {
+
+  generateInsights: async (data: APIData) => {
     const response = await api.post('/ai/generate', data);
     return response.data;
   },
-  
-  getRecommendations: async (params?: any) => {
+
+  getRecommendations: async (params?: QueryParams) => {
     const response = await api.get('/ai/recommendations', { params });
     return response.data;
   },
-  
+
   implementRecommendation: async (id: string) => {
     const response = await api.post(`/ai/recommendations/${id}/implement`);
     return response.data;
   },
-  
+
   getAIAnalytics: async () => {
     const response = await api.get('/ai/analytics');
     return response.data;
   }
 };
 
-// Mobile App API calls
+
 export const mobileAPI = {
-  getFeatures: async (params?: any) => {
+  getFeatures: async (params?: QueryParams) => {
     const response = await api.get('/mobile/features', { params });
     return response.data;
   },
-  
+
   getAnalytics: async () => {
     const response = await api.get('/mobile/analytics');
     return response.data;
   },
-  
-  updateFeature: async (id: string, data: any) => {
+
+  updateFeature: async (id: string, data: APIData) => {
     const response = await api.put(`/mobile/features/${id}`, data);
     return response.data;
   },
-  
+
   getDeviceStats: async () => {
     const response = await api.get('/mobile/device-stats');
     return response.data;
   },
-  
-  generateQR: async (data?: any) => {
+
+  generateQR: async (data?: APIData) => {
     const response = await api.post('/mobile/generate-qr', data);
     return response.data;
   },
-  
-  deployUpdate: async (data: any) => {
+
+  deployUpdate: async (data: APIData) => {
     const response = await api.post('/mobile/deploy', data);
     return response.data;
   },
-  
-  getFeedback: async (params?: any) => {
+
+  getFeedback: async (params?: QueryParams) => {
     const response = await api.get('/mobile/feedback', { params });
     return response.data;
   },
-  
+
   getPerformance: async () => {
     const response = await api.get('/mobile/performance');
     return response.data;
   }
 };
 
-// Automation API calls
+
 export const automationAPI = {
-  getRules: async (params?: any) => {
+  getRules: async (params?: QueryParams) => {
     const response = await api.get('/automation/rules', { params });
     return response.data;
   },
-  
-  createRule: async (data: any) => {
+
+  createRule: async (data: APIData) => {
     const response = await api.post('/automation/rules', data);
     return response.data;
   },
-  
-  updateRule: async (id: string, data: any) => {
+
+  updateRule: async (id: string, data: APIData) => {
     const response = await api.put(`/automation/rules/${id}`, data);
     return response.data;
   },
-  
+
   toggleRule: async (id: string) => {
     const response = await api.post(`/automation/rules/${id}/toggle`);
     return response.data;
   },
-  
-  getTemplates: async (params?: any) => {
+
+  getTemplates: async (params?: QueryParams) => {
     const response = await api.get('/automation/templates', { params });
     return response.data;
   },
-  
+
   installTemplate: async (id: string) => {
     const response = await api.post(`/automation/templates/${id}/install`);
     return response.data;
   },
-  
+
   getStats: async () => {
     const response = await api.get('/automation/stats');
     return response.data;
   },
-  
+
   getAIRecommendations: async () => {
     const response = await api.get('/automation/ai-recommendations');
     return response.data;
   },
-  
+
   executeRule: async (id: string) => {
     const response = await api.post(`/automation/rules/${id}/execute`);
     return response.data;
   }
 };
 
-// Integration API calls
+
+export const companyAPI = {
+  getCompanyInfo: async () => {
+    const response = await api.get('/company');
+    return response.data;
+  },
+
+  updateCompanyInfo: async (data: APIData) => {
+    const response = await api.put('/company', data);
+    return response.data;
+  },
+
+  getCompanyStats: async (params?: QueryParams) => {
+    const response = await api.get('/company/stats', { params });
+    return response.data;
+  },
+
+  getFinancialOverview: async (params?: QueryParams) => {
+    const response = await api.get('/company/finance/overview', { params });
+    return response.data;
+  },
+
+  getBranchStats: async (params?: QueryParams) => {
+    const response = await api.get('/company/branch/stats', { params });
+    return response.data;
+  },
+
+  getEmployeeStats: async (params?: QueryParams) => {
+    const response = await api.get('/company/employee/stats', { params });
+    return response.data;
+  },
+};
+
 export const integrationAPI = {
-  getIntegrations: async (params?: any) => {
+  getIntegrations: async (params?: QueryParams) => {
     const response = await api.get('/integrations', { params });
     return response.data;
   },
-  
-  createIntegration: async (data: any) => {
+
+  createIntegration: async (data: APIData) => {
     const response = await api.post('/integrations', data);
     return response.data;
   },
-  
-  updateIntegration: async (id: string, data: any) => {
+
+  updateIntegration: async (id: string, data: APIData) => {
     const response = await api.put(`/integrations/${id}`, data);
     return response.data;
   },
-  
+
   toggleIntegration: async (id: string) => {
     const response = await api.post(`/integrations/${id}/toggle`);
     return response.data;
   },
-  
+
   syncIntegration: async (id: string) => {
     const response = await api.post(`/integrations/${id}/sync`);
     return response.data;
   },
-  
-  getApiEndpoints: async (params?: any) => {
+
+  getApiEndpoints: async (params?: QueryParams) => {
     const response = await api.get('/integrations/api/endpoints', { params });
     return response.data;
   },
-  
+
   getApiStats: async () => {
     const response = await api.get('/integrations/api/stats');
     return response.data;
   },
-  
+
   testEndpoint: async (id: string) => {
     const response = await api.post(`/integrations/api/endpoints/${id}/test`);
     return response.data;
   },
-  
-  getWebhooks: async (params?: any) => {
+
+  getWebhooks: async (params?: QueryParams) => {
     const response = await api.get('/integrations/webhooks', { params });
     return response.data;
   },
-  
+
   testWebhook: async (id: string) => {
     const response = await api.post(`/integrations/webhooks/${id}/test`);
     return response.data;
   },
-  
+
   getIntegrationStats: async () => {
     const response = await api.get('/integrations/stats');
     return response.data;
   }
 };
 
-export default api; 
+export default api;

@@ -5,9 +5,9 @@ const Invoice = require('../models/Invoice');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 
-// @desc    Get all clients
-// @route   GET /api/clients
-// @access  Private
+
+
+
 const getAllClients = asyncHandler(async (req, res) => {
   const { branch, status, category, search } = req.query;
   
@@ -37,9 +37,9 @@ const getAllClients = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get single client
-// @route   GET /api/clients/:id
-// @access  Private
+
+
+
 const getClient = asyncHandler(async (req, res) => {
   const client = await Client.findById(req.params.id)
     .populate('branch', 'name code');
@@ -54,9 +54,9 @@ const getClient = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Create client
-// @route   POST /api/clients
-// @access  Private
+
+
+
 const createClient = asyncHandler(async (req, res) => {
   const {
     name,
@@ -74,7 +74,7 @@ const createClient = asyncHandler(async (req, res) => {
     password
   } = req.body;
   
-  // Check if client with same phone already exists
+  
   const existingClient = await Client.findOne({ 
     phone,
     branch: req.body.branch || req.user.branchId,
@@ -110,9 +110,9 @@ const createClient = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update client
-// @route   PUT /api/clients/:id
-// @access  Private
+
+
+
 const updateClient = asyncHandler(async (req, res) => {
   const client = await Client.findById(req.params.id);
   
@@ -120,7 +120,7 @@ const updateClient = asyncHandler(async (req, res) => {
     return next(new ErrorResponse('Client not found', 404));
   }
   
-  // Check if phone number is being changed and if it already exists
+  
   if (req.body.phone && req.body.phone !== client.phone) {
     const existingClient = await Client.findOne({ 
       phone: req.body.phone, 
@@ -146,9 +146,9 @@ const updateClient = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete client
-// @route   DELETE /api/clients/:id
-// @access  Private
+
+
+
 const deleteClient = asyncHandler(async (req, res) => {
   const client = await Client.findById(req.params.id);
   
@@ -165,9 +165,9 @@ const deleteClient = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get client bookings
-// @route   GET /api/clients/:id/bookings
-// @access  Private
+
+
+
 const getClientBookings = asyncHandler(async (req, res) => {
   const { status, startDate, endDate } = req.query;
   
@@ -176,10 +176,10 @@ const getClientBookings = asyncHandler(async (req, res) => {
   if (status) query.status = status;
   
   if (startDate && endDate) {
-    query['functionDetails.date'] = {
-      $gte: new Date(startDate),
-      $lte: new Date(endDate)
-    };
+    query.$or = [
+      { 'functionDetails.date': { $gte: new Date(startDate), $lte: new Date(endDate) } },
+      { 'functionDetailsList.date': { $gte: new Date(startDate), $lte: new Date(endDate) } }
+    ];
   }
   
   const bookings = await Booking.find(query)
@@ -194,9 +194,9 @@ const getClientBookings = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get client quotations
-// @route   GET /api/clients/:id/quotations
-// @access  Private
+
+
+
 const getClientQuotations = asyncHandler(async (req, res) => {
   const { status } = req.query;
   
@@ -216,9 +216,9 @@ const getClientQuotations = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get client invoices
-// @route   GET /api/clients/:id/invoices
-// @access  Private
+
+
+
 const getClientInvoices = asyncHandler(async (req, res) => {
   const { status } = req.query;
   
@@ -238,9 +238,9 @@ const getClientInvoices = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get client summary
-// @route   GET /api/clients/:id/summary
-// @access  Private
+
+
+
 const getClientSummary = asyncHandler(async (req, res) => {
   const client = await Client.findById(req.params.id);
   
@@ -248,13 +248,13 @@ const getClientSummary = asyncHandler(async (req, res) => {
     return next(new ErrorResponse('Client not found', 404));
   }
   
-  // Get bookings
+  
   const bookings = await Booking.find({ client: req.params.id, isDeleted: false });
   
-  // Get quotations
+  
   const quotations = await Quotation.find({ client: req.params.id, isDeleted: false });
   
-  // Get invoices
+  
   const invoices = await Invoice.find({ client: req.params.id, isDeleted: false });
   
   const summary = {
@@ -279,9 +279,9 @@ const getClientSummary = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Search clients
-// @route   GET /api/clients/search/:query
-// @access  Private
+
+
+
 const searchClients = asyncHandler(async (req, res) => {
   const { query } = req.params;
   

@@ -14,10 +14,10 @@ const {
 } = require('../controller/clientController');
 const { protect, authorize } = require('../middleware/auth');
 
-// Apply auth middleware to all routes
+
 router.use(protect);
 
-// Routes
+
 
 router.route('/')
   .get(authorize('chairman', 'company_admin', 'branch_admin', 'staff'), getAllClients)

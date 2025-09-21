@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { updateAllBranchesStats } = require('../utils/branchUtils');
 require('dotenv').config();
 
-// Connect to MongoDB
+
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -12,7 +12,7 @@ const initializeBranchStats = async () => {
   try {
     console.log('Starting branch stats initialization...');
     
-    // Update all branches stats
+    
     await updateAllBranchesStats();
     
     console.log('Branch stats initialization completed successfully!');
@@ -23,5 +23,5 @@ const initializeBranchStats = async () => {
   }
 };
 
-// Run the initialization
+
 initializeBranchStats();

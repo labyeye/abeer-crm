@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// @desc    Get all production projects
-// @route   GET /api/production
-// @access  Private
+
+
+
 router.get('/', protect, authorize(['chairman', 'company_admin', 'branch_head']), async (req, res) => {
   try {
-    // Mock data for now - replace with actual database query
+    
     const projects = [
       {
         _id: '1',
@@ -73,9 +73,9 @@ router.get('/', protect, authorize(['chairman', 'company_admin', 'branch_head'])
   }
 });
 
-// @desc    Get production statistics
-// @route   GET /api/production/stats
-// @access  Private
+
+
+
 router.get('/stats', protect, authorize(['chairman', 'company_admin', 'branch_head']), async (req, res) => {
   try {
     const stats = {
@@ -101,15 +101,15 @@ router.get('/stats', protect, authorize(['chairman', 'company_admin', 'branch_he
   }
 });
 
-// @desc    Update project stage
-// @route   PUT /api/production/:projectId/stages/:stageId
-// @access  Private
+
+
+
 router.put('/:projectId/stages/:stageId', protect, authorize(['chairman', 'company_admin', 'branch_head']), async (req, res) => {
   try {
     const { projectId, stageId } = req.params;
     const updates = req.body;
 
-    // Mock response - replace with actual database update
+    
     res.status(200).json({
       success: true,
       message: 'Stage updated successfully',
@@ -123,14 +123,14 @@ router.put('/:projectId/stages/:stageId', protect, authorize(['chairman', 'compa
   }
 });
 
-// @desc    Create new project
-// @route   POST /api/production
-// @access  Private
+
+
+
 router.post('/', protect, authorize(['chairman', 'company_admin', 'branch_head']), async (req, res) => {
   try {
     const projectData = req.body;
 
-    // Mock response - replace with actual database creation
+    
     const newProject = {
       _id: Date.now().toString(),
       ...projectData,

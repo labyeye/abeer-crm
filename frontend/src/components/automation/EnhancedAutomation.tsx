@@ -209,7 +209,7 @@ export const EnhancedAutomation: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Enhanced Automation</h1>
@@ -227,7 +227,7 @@ export const EnhancedAutomation: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Overview */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <NeomorphicCard className="p-6">
           <div className="flex items-center justify-between">
@@ -276,7 +276,7 @@ export const EnhancedAutomation: React.FC = () => {
         </NeomorphicCard>
       </div>
 
-      {/* Tabs */}
+      {}
       <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg">
         {[
           { key: 'rules', label: 'Automation Rules', icon: '⚙️' },
@@ -299,7 +299,7 @@ export const EnhancedAutomation: React.FC = () => {
         ))}
       </div>
 
-      {/* Content */}
+      {}
       {activeTab === 'rules' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
@@ -564,7 +564,7 @@ export const EnhancedAutomation: React.FC = () => {
         </div>
       )}
 
-      {/* Create Rule Modal */}
+      {}
       <NeomorphicModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

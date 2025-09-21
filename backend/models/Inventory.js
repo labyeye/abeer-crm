@@ -175,16 +175,16 @@ const inventorySchema = new mongoose.Schema({
   }
 });
 
-// Update the lastUpdated field before saving
+
 inventorySchema.pre('save', function(next) {
   this.lastUpdated = Date.now();
   next();
 });
 
-// Index for better search performance
+
 inventorySchema.index({ name: 'text', sku: 'text', brand: 'text', category: 'text' });
 
-// Add pagination plugin
+
 inventorySchema.plugin(require('mongoose-paginate-v2'));
 
 module.exports = mongoose.model('Inventory', inventorySchema); 

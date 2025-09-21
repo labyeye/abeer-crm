@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// @desc    Get all vendors
-// @route   GET /api/vendors
-// @access  Private
+
+
+
 router.get('/', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
-    // Mock data for now - replace with actual database query
+    
     const vendors = [
       {
         _id: '1',
@@ -93,9 +93,9 @@ router.get('/', protect, authorize(['chairman', 'admin', 'manager']), async (req
   }
 });
 
-// @desc    Get vendor statistics
-// @route   GET /api/vendors/stats
-// @access  Private
+
+
+
 router.get('/stats', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const stats = {
@@ -129,14 +129,14 @@ router.get('/stats', protect, authorize(['chairman', 'admin', 'manager']), async
   }
 });
 
-// @desc    Add new vendor
-// @route   POST /api/vendors
-// @access  Private
+
+
+
 router.post('/', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const vendorData = req.body;
 
-    // Mock response - replace with actual database creation
+    
     const newVendor = {
       _id: Date.now().toString(),
       ...vendorData,
@@ -158,15 +158,15 @@ router.post('/', protect, authorize(['chairman', 'admin', 'manager']), async (re
   }
 });
 
-// @desc    Update vendor
-// @route   PUT /api/vendors/:id
-// @access  Private
+
+
+
 router.put('/:id', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    // Mock response - replace with actual database update
+    
     res.status(200).json({
       success: true,
       message: 'Vendor updated successfully',

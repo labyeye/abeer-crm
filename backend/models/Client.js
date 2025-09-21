@@ -58,7 +58,7 @@ const clientSchema = new mongoose.Schema({
   lastBookingDate: Date,
   notes: String,
   tags: [String],
-  // Government IDs
+  
   aadharNumber: String,
   panNumber: String,
   isDeleted: {
@@ -69,7 +69,7 @@ const clientSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 clientSchema.index({ branch: 1 });
 clientSchema.index({ phone: 1 });
 clientSchema.index({ email: 1 });

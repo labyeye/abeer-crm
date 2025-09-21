@@ -1,11 +1,11 @@
 const Inventory = require("../models/Inventory");
 const asyncHandler = require("../utils/asyncHandler");
 
-// @desc    Get all inventory items (for chairman, admin, manager)
-// @route   GET /api/inventory
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.getInventory = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -23,7 +23,7 @@ exports.getInventory = asyncHandler(async (req, res, next) => {
     lowStock,
   } = req.query;
 
-  // Build query
+  
   let query = {};
 
   if (search) {
@@ -60,11 +60,11 @@ exports.getInventory = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single inventory item
-// @route   GET /api/inventory/:id
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.getInventoryItem = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -90,11 +90,11 @@ exports.getInventoryItem = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Create new inventory item
-// @route   POST /api/inventory
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.createInventoryItem = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -103,7 +103,7 @@ exports.createInventoryItem = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Add createdBy field
+  
   req.body.createdBy = req.user.id;
 
   const inventory = await Inventory.create(req.body);
@@ -114,11 +114,11 @@ exports.createInventoryItem = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update inventory item
-// @route   PUT /api/inventory/:id
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.updateInventoryItem = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -147,11 +147,11 @@ exports.updateInventoryItem = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Delete inventory item
-// @route   DELETE /api/inventory/:id
-// @access  Private (Chairman, Admin)
+
+
+
 exports.deleteInventoryItem = asyncHandler(async (req, res, next) => {
-  // Only chairman and admin can delete
+  
   if (!["chairman", "admin"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -177,11 +177,11 @@ exports.deleteInventoryItem = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update inventory quantity
-// @route   PATCH /api/inventory/:id/quantity
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.updateQuantity = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -244,11 +244,11 @@ exports.updateQuantity = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get inventory statistics
-// @route   GET /api/inventory/stats
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.getInventoryStats = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -324,11 +324,11 @@ exports.getInventoryStats = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Search inventory
-// @route   GET /api/inventory/search
-// @access  Private (Chairman, Admin, Manager)
+
+
+
 exports.searchInventory = asyncHandler(async (req, res, next) => {
-  // Check if user has permission
+  
   if (!["chairman", "admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,

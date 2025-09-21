@@ -6,9 +6,9 @@ const automatedMessaging = require('../services/automatedMessaging');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 
-// @desc    Get all tasks
-// @route   GET /api/tasks
-// @access  Private
+
+
+
 const getAllTasks = asyncHandler(async (req, res, next) => {
   const { 
     company, 
@@ -24,7 +24,7 @@ const getAllTasks = asyncHandler(async (req, res, next) => {
   
   let query = { isDeleted: false };
   
-  // Filter by user permissions
+  
   if (req.user.role === 'staff') {
     query['assignedTo.staff'] = req.user.staffId;
   } else {
@@ -69,9 +69,9 @@ const getAllTasks = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single task
-// @route   GET /api/tasks/:id
-// @access  Private
+
+
+
 const getTask = asyncHandler(async (req, res, next) => {
   const task = await Task.findById(req.params.id)
     .populate('booking')
@@ -90,9 +90,9 @@ const getTask = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Create task manually
-// @route   POST /api/tasks
-// @access  Private
+
+
+
 const createTask = asyncHandler(async (req, res, next) => {
   const {
     title,
@@ -108,7 +108,7 @@ const createTask = asyncHandler(async (req, res, next) => {
     assignedStaff = []
   } = req.body;
   
-  // Verify booking exists
+  
   const booking = await Booking.findById(bookingId);
   if (!booking) {
     return next(new ErrorResponse('Booking not found', 404));
@@ -133,7 +133,7 @@ const createTask = asyncHandler(async (req, res, next) => {
   
   const task = await Task.create(taskData);
   
-  // Auto-assign if staff specified
+  
   if (assignedStaff.length > 0) {
     const assignmentData = assignedStaff.map(staffId => ({
       staff: staffId,
@@ -145,7 +145,7 @@ const createTask = asyncHandler(async (req, res, next) => {
     task.status = 'assigned';
     await task.save();
     
-    // Send notifications to assigned staff
+    
     const staffMembers = await Staff.find({ _id: { $in: assignedStaff } });
     await automatedMessaging.sendTaskAssigned({
       staff: staffMembers,
@@ -162,9 +162,9 @@ const createTask = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Auto-assign tasks for booking
-// @route   POST /api/tasks/auto-assign/:bookingId
-// @access  Private
+
+
+
 const autoAssignTasks = asyncHandler(async (req, res, next) => {
   const { bookingId } = req.params;
   
@@ -181,9 +181,9 @@ const autoAssignTasks = asyncHandler(async (req, res, next) => {
   }
 });
 
-// @desc    Update task
-// @route   PUT /api/tasks/:id
-// @access  Private
+
+
+
 const updateTask = asyncHandler(async (req, res, next) => {
   let task = await Task.findById(req.params.id);
   
@@ -191,9 +191,9 @@ const updateTask = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Task not found', 404));
   }
   
-  // Check permissions
+  
   if (req.user.role === 'staff') {
-    // Staff can only update tasks assigned to them
+    
     const isAssigned = task.assignedTo.some(assignment => 
       assignment.staff.toString() === req.user.staffId
     );
@@ -201,7 +201,7 @@ const updateTask = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Not authorized to update this task', 403));
     }
     
-    // Staff can only update certain fields
+    
     const allowedFields = ['status', 'progress', 'notes', 'actualStartTime', 'actualEndTime'];
     const updateData = {};
     allowedFields.forEach(field => {
@@ -223,9 +223,9 @@ const updateTask = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Assign staff to task
-// @route   POST /api/tasks/:id/assign
-// @access  Private
+
+
+
 const assignStaffToTask = asyncHandler(async (req, res, next) => {
   const { staffId, role = 'staff' } = req.body;
   
@@ -234,7 +234,7 @@ const assignStaffToTask = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Task not found', 404));
   }
   
-  // Check if staff is already assigned
+  
   const alreadyAssigned = task.assignedTo.some(assignment => 
     assignment.staff.toString() === staffId
   );
@@ -243,7 +243,7 @@ const assignStaffToTask = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Staff already assigned to this task', 400));
   }
   
-  // Add staff assignment
+  
   task.assignedTo.push({
     staff: staffId,
     role,
@@ -253,7 +253,7 @@ const assignStaffToTask = asyncHandler(async (req, res, next) => {
   task.status = 'assigned';
   await task.save();
   
-  // Send notification to newly assigned staff
+  
   const staff = await Staff.findById(staffId).populate('user');
   const booking = await Booking.findById(task.booking).populate('client company branch');
   
@@ -271,9 +271,9 @@ const assignStaffToTask = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Skip task with reason
-// @route   POST /api/tasks/:id/skip
-// @access  Private
+
+
+
 const skipTask = asyncHandler(async (req, res, next) => {
   const { reason } = req.body;
   
@@ -297,9 +297,9 @@ const skipTask = asyncHandler(async (req, res, next) => {
   }
 });
 
-// @desc    Complete task
-// @route   POST /api/tasks/:id/complete
-// @access  Private
+
+
+
 const completeTask = asyncHandler(async (req, res, next) => {
   const { notes, completionPhotos = [] } = req.body;
   
@@ -311,7 +311,7 @@ const completeTask = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Task not found', 404));
   }
   
-  // Check if user is assigned to this task (for staff)
+  
   if (req.user.role === 'staff') {
     const isAssigned = task.assignedTo.some(assignment => 
       assignment.staff._id.toString() === req.user.staffId
@@ -321,7 +321,7 @@ const completeTask = asyncHandler(async (req, res, next) => {
     }
   }
   
-  // Update task status
+  
   task.status = 'completed';
   task.completedAt = new Date();
   task.completionNotes = notes;
@@ -330,12 +330,12 @@ const completeTask = asyncHandler(async (req, res, next) => {
   
   await task.save();
   
-  // Update staff performance scores
+  
   for (const assignment of task.assignedTo) {
     const staff = await Staff.findById(assignment.staff._id);
     if (staff) {
       staff.performance.completedTasks += 1;
-      staff.performance.score = Math.min(100, staff.performance.score + 2); // Increase score for completion
+      staff.performance.score = Math.min(100, staff.performance.score + 2); 
       await staff.save();
     }
   }
@@ -346,9 +346,9 @@ const completeTask = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get tasks for staff dashboard
-// @route   GET /api/tasks/my-tasks
-// @access  Private (Staff)
+
+
+
 const getMyTasks = asyncHandler(async (req, res, next) => {
   if (req.user.role !== 'staff') {
     return next(new ErrorResponse('This endpoint is for staff only', 403));
@@ -369,7 +369,7 @@ const getMyTasks = asyncHandler(async (req, res, next) => {
       $lt: new Date(searchDate.setHours(23, 59, 59, 999))
     };
   } else {
-    // Default to today's and upcoming tasks
+    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     query.scheduledDate = { $gte: today };
@@ -387,13 +387,13 @@ const getMyTasks = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get task statistics
-// @route   GET /api/tasks/stats
-// @access  Private
+
+
+
 const getTaskStats = asyncHandler(async (req, res, next) => {
   let matchQuery = { isDeleted: false };
   
-  // Filter by user permissions
+  
   if (req.user.role === 'staff') {
     matchQuery['assignedTo.staff'] = req.user.staffId;
   } else {

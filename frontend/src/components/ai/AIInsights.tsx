@@ -36,7 +36,7 @@ export const AIInsights: React.FC = () => {
   const loadAIData = async () => {
     try {
       setLoading(true);
-      // Simulate AI API calls
+      
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       setInsights([
@@ -134,7 +134,7 @@ export const AIInsights: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">AI Insights & Predictions</h1>
@@ -150,7 +150,7 @@ export const AIInsights: React.FC = () => {
         </NeomorphicButton>
       </div>
 
-      {/* Tabs */}
+      {}
       <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg">
         {[
           { key: 'insights' as const, label: 'AI Insights', icon: '🤖' },
@@ -172,7 +172,7 @@ export const AIInsights: React.FC = () => {
         ))}
       </div>
 
-      {/* Content */}
+      {}
       {activeTab === 'insights' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {insights.map((insight) => (
@@ -398,7 +398,7 @@ export const AIInsights: React.FC = () => {
               </NeomorphicCard>
             ))}
 
-            {/* Additional AI-generated recommendations */}
+            {}
             <NeomorphicCard className="p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <span className="text-2xl">🎯</span>

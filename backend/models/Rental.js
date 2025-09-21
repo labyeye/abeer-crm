@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const rentalSchema = new mongoose.Schema({
-  // Basic Info
+  
   rentalType: {
     type: String,
     enum: ['outgoing', 'incoming'],
@@ -13,7 +13,7 @@ const rentalSchema = new mongoose.Schema({
     unique: true
   },
   
-  // Equipment Details
+  
   equipment: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Inventory',
@@ -28,7 +28,7 @@ const rentalSchema = new mongoose.Schema({
     required: true
   },
   
-  // Rental Period
+  
   startDate: {
     type: Date,
     required: true
@@ -41,7 +41,7 @@ const rentalSchema = new mongoose.Schema({
     type: Date
   },
   
-  // Financial Details
+  
   dailyRate: {
     type: Number,
     required: true
@@ -60,7 +60,7 @@ const rentalSchema = new mongoose.Schema({
     default: 'pending'
   },
   
-  // For Outgoing Rentals (we rent to others)
+  
   renter: {
     name: String,
     email: String,
@@ -69,7 +69,7 @@ const rentalSchema = new mongoose.Schema({
     address: String
   },
   
-  // For Incoming Rentals (we rent from others)
+  
   vendor: {
     name: String,
     email: String,
@@ -78,7 +78,7 @@ const rentalSchema = new mongoose.Schema({
     address: String
   },
   
-  // Project Details
+  
   projectName: String,
   clientName: String,
   booking: {
@@ -86,7 +86,7 @@ const rentalSchema = new mongoose.Schema({
     ref: 'Booking'
   },
   
-  // Status and Tracking
+  
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'active', 'returned', 'overdue', 'cancelled'],
@@ -102,7 +102,7 @@ const rentalSchema = new mongoose.Schema({
     enum: ['excellent', 'good', 'fair', 'poor']
   },
   
-  // Location and Branch
+  
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -114,7 +114,7 @@ const rentalSchema = new mongoose.Schema({
     required: true
   },
   
-  // Notes and Documentation
+  
   notes: String,
   terms: String,
   documents: [{
@@ -123,7 +123,7 @@ const rentalSchema = new mongoose.Schema({
     type: String
   }],
   
-  // Tracking
+  
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -137,7 +137,7 @@ const rentalSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate rental number
+
 rentalSchema.pre('save', async function(next) {
   if (this.isNew) {
     const year = new Date().getFullYear();
@@ -150,7 +150,7 @@ rentalSchema.pre('save', async function(next) {
   next();
 });
 
-// Calculate total amount
+
 rentalSchema.pre('save', function(next) {
   if (this.startDate && this.endDate && this.dailyRate) {
     const days = Math.ceil((this.endDate - this.startDate) / (1000 * 60 * 60 * 24));
@@ -159,7 +159,7 @@ rentalSchema.pre('save', function(next) {
   next();
 });
 
-// Check if overdue
+
 rentalSchema.methods.isOverdue = function() {
   if (this.status === 'active' && this.endDate < new Date()) {
     return true;
@@ -167,7 +167,7 @@ rentalSchema.methods.isOverdue = function() {
   return false;
 };
 
-// Calculate overdue days
+
 rentalSchema.methods.getOverdueDays = function() {
   if (this.isOverdue()) {
     return Math.ceil((new Date() - this.endDate) / (1000 * 60 * 60 * 24));

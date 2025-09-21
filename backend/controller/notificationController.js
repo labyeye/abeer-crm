@@ -6,13 +6,13 @@ const Task = require('../models/Task');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 
-// @desc    Access smart link and get notification details
-// @route   GET /api/notifications/link/:token
-// @access  Public
+
+
+
 const accessSmartLink = asyncHandler(async (req, res, next) => {
   const { token } = req.params;
   
-  // Find notification by token
+  
   const notification = await Notification.findOne({
     'smartLink.token': token,
     'smartLink.isActive': true,
@@ -31,18 +31,18 @@ const accessSmartLink = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid or expired link', 404));
   }
 
-  // Check access limits
+  
   if (notification.smartLink.accessCount >= notification.smartLink.maxAccess) {
     return next(new ErrorResponse('Link access limit exceeded', 403));
   }
 
-  // Increment access count and mark as read
+  
   notification.smartLink.accessCount += 1;
   notification.status = 'read';
   notification.readAt = new Date();
   await notification.save();
 
-  // Prepare response data based on notification type
+  
   let responseData = {
     notification: {
       type: notification.type,
@@ -54,7 +54,7 @@ const accessSmartLink = asyncHandler(async (req, res, next) => {
     }
   };
 
-  // Add specific data based on related entity
+  
   if (notification.relatedTo.quotation) {
     responseData.quotation = notification.relatedTo.quotation;
     responseData.viewType = 'quotation';
@@ -75,7 +75,7 @@ const accessSmartLink = asyncHandler(async (req, res, next) => {
     responseData.viewType = 'task';
   }
 
-  // Add recipient info
+  
   if (notification.recipient.client) {
     responseData.recipient = {
       type: 'client',
@@ -94,21 +94,21 @@ const accessSmartLink = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get all notifications for a user
-// @route   GET /api/notifications
-// @access  Private
+
+
+
 const getAllNotifications = asyncHandler(async (req, res, next) => {
   const { type, status, unreadOnly, limit = 20 } = req.query;
   
   let query = { isDeleted: false };
   
-  // Filter by user role and permissions
+  
   if (req.user.role === 'client') {
     query['recipient.client'] = req.user.clientId;
   } else if (req.user.role === 'staff') {
     query['recipient.staff'] = req.user.staffId;
   } else {
-    // Admin/Manager can see company/branch notifications
+    
     query.company = req.user.companyId;
     if (req.user.role !== 'chairman' && req.user.branchId) {
       query.branch = req.user.branchId;
@@ -134,9 +134,9 @@ const getAllNotifications = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Mark notification as read
-// @route   PUT /api/notifications/:id/read
-// @access  Private
+
+
+
 const markAsRead = asyncHandler(async (req, res, next) => {
   const notification = await Notification.findById(req.params.id);
   
@@ -154,13 +154,13 @@ const markAsRead = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get notification statistics
-// @route   GET /api/notifications/stats
-// @access  Private
+
+
+
 const getNotificationStats = asyncHandler(async (req, res, next) => {
   let matchQuery = { isDeleted: false };
   
-  // Filter by user permissions
+  
   if (req.user.role === 'client') {
     matchQuery['recipient.client'] = req.user.clientId;
   } else if (req.user.role === 'staff') {
@@ -214,9 +214,9 @@ const getNotificationStats = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Send manual notification
-// @route   POST /api/notifications/send
-// @access  Private (Admin/Manager)
+
+
+
 const sendManualNotification = asyncHandler(async (req, res, next) => {
   const {
     type,
@@ -227,7 +227,7 @@ const sendManualNotification = asyncHandler(async (req, res, next) => {
     priority = 'medium'
   } = req.body;
   
-  // Check permissions
+  
   if (!['chairman', 'admin', 'manager'].includes(req.user.role)) {
     return next(new ErrorResponse('Not authorized to send notifications', 403));
   }
@@ -247,7 +247,7 @@ const sendManualNotification = asyncHandler(async (req, res, next) => {
     }
   };
   
-  // Set recipient details
+  
   if (recipientType === 'client') {
     notificationData.recipient.client = recipientId;
   } else if (recipientType === 'staff') {
@@ -262,9 +262,9 @@ const sendManualNotification = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get smart link details for preview
-// @route   GET /api/notifications/preview/:token
-// @access  Public
+
+
+
 const previewSmartLink = asyncHandler(async (req, res, next) => {
   const { token } = req.params;
   
@@ -279,7 +279,7 @@ const previewSmartLink = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid link', 404));
   }
   
-  // Return basic info without incrementing access count
+  
   res.status(200).json({
     success: true,
     data: {

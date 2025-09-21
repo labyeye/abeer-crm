@@ -110,7 +110,7 @@ const TaskManagement = () => {
   const applyFilters = () => {
     let filtered = [...tasks];
 
-    // Apply search
+    
     if (searchTerm) {
       filtered = filtered.filter(task =>
         task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -119,7 +119,7 @@ const TaskManagement = () => {
       );
     }
 
-    // Apply filters
+    
     if (filters.status) {
       filtered = filtered.filter(task => task.status === filters.status);
     }
@@ -273,14 +273,14 @@ const TaskManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Task Management</h1>
           <p className="text-gray-600 mt-1">Manage and track task assignments</p>
         </div>
         
-        {(user?.role === 'chairman' || user?.role === 'company_admin' || user?.role === 'branch_head') && (
+  {(user?.role === 'chairman' || user?.role === 'admin') && (
           <NeomorphicButton
             onClick={() => setShowCreateModal(true)}
             className="bg-blue-500 text-white hover:bg-blue-600"
@@ -291,7 +291,7 @@ const TaskManagement = () => {
         )}
       </div>
 
-      {/* Stats Cards */}
+      {}
       {taskStats && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <NeomorphicCard className="p-4">
@@ -346,7 +346,7 @@ const TaskManagement = () => {
         </div>
       )}
 
-      {/* Filters */}
+      {}
       <NeomorphicCard className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
@@ -440,12 +440,12 @@ const TaskManagement = () => {
         </div>
       </NeomorphicCard>
 
-      {/* Tasks Grid */}
+      {}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredTasks.map((task) => (
           <NeomorphicCard key={task._id} className="p-6 hover:shadow-lg transition-shadow">
             <div className="space-y-4">
-              {/* Header */}
+              {}
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">{getTypeIcon(task.type)}</span>
@@ -464,7 +464,7 @@ const TaskManagement = () => {
                 </div>
               </div>
 
-              {/* Details */}
+              {}
               <div className="space-y-2">
                 <div className="flex items-center text-sm text-gray-600">
                   <Calendar className="w-4 h-4 mr-2" />
@@ -489,7 +489,7 @@ const TaskManagement = () => {
                 </div>
               </div>
 
-              {/* Assigned Staff */}
+              {}
               {task.assignedTo && task.assignedTo.length > 0 && (
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-2">Assigned Staff:</p>
@@ -504,7 +504,7 @@ const TaskManagement = () => {
                 </div>
               )}
 
-              {/* Progress */}
+              {}
               {task.progress > 0 && (
                 <div>
                   <div className="flex items-center justify-between text-sm mb-1">
@@ -520,7 +520,7 @@ const TaskManagement = () => {
                 </div>
               )}
 
-              {/* Actions */}
+              {}
               <div className="flex items-center space-x-2 pt-2">
                 {task.status === 'assigned' && (
                   <NeomorphicButton
@@ -573,7 +573,7 @@ const TaskManagement = () => {
         </NeomorphicCard>
       )}
 
-      {/* Create Task Modal */}
+      {}
       <NeomorphicModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

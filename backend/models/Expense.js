@@ -90,7 +90,7 @@ const expenseSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 expenseSchema.index({ company: 1, branch: 1 });
 expenseSchema.index({ submittedBy: 1 });
 expenseSchema.index({ status: 1 });

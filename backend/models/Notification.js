@@ -219,7 +219,7 @@ const notificationSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 notificationSchema.index({ company: 1, branch: 1 });
 notificationSchema.index({ 'recipient.user': 1 });
 notificationSchema.index({ 'recipient.client': 1 });

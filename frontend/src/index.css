@@ -1,3 +1,60 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Ensure SVG icons (lucide-react etc.) use the brand color across the app */
+/* Uses currentColor; components should set text-brand or inherit color */
+.icon-brand, svg[class*="w-"] {
+	color: #263f49;
+}
+
+/* Ensure SVG paths inherit currentColor for stroke and remain outline (no solid fill) */
+svg[class*="w-"] path,
+svg[class*="w-"] polyline,
+svg[class*="w-"] circle,
+svg[class*="w-"] rect {
+	stroke: currentColor;
+	fill: none; /* keep icons outlined, not solid */
+	stroke-width: 1.5px; /* reasonable default for visibility */
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* Give icons a white background with slight padding and rounded corners */
+svg[class*="w-"] {
+	background: #ffffff;
+	padding: 0.25rem; /* small padding around icon */
+	border-radius: 0.375rem; /* rounded corners */
+}
+
+/* Increase global icon size and stroke weight for better visibility */
+svg[class*="w-"] {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+svg[class*="w-"] path,
+svg[class*="w-"] polyline,
+svg[class*="w-"] circle,
+svg[class*="w-"] rect {
+  stroke-width: 2px; /* a bit thicker for larger icons */
+}
+
+/* Remove blue background from small icon-cards that use bg-blue-50 / bg-blue-100 */
+/* Make the icon itself larger inside those containers */
+.bg-blue-50, .bg-blue-100 {
+	background-color: transparent !important;
+}
+
+.bg-blue-50 svg[class*="w-"], .bg-blue-100 svg[class*="w-"] {
+	width: 28px !important;
+	height: 28px !important;
+	padding: 0.1rem !important; /* slightly smaller padding inside card */
+}
+
+/* If icon container uses bg-blue-500 (solid), remove the fill too */
+.bg-blue-500 {
+	background-color: transparent !important;
+}
+
+

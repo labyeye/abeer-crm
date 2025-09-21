@@ -2,14 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// @desc    Get advanced analytics data
-// @route   GET /api/analytics
-// @access  Private
+
+
+
 router.get('/', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
-    // Mock analytics data - replace with actual database aggregation
+    
     const analyticsData = {
       overview: {
         totalRevenue: 2850000,
@@ -135,14 +135,14 @@ router.get('/', protect, authorize(['chairman', 'admin', 'manager']), async (req
   }
 });
 
-// @desc    Export analytics report
-// @route   GET /api/analytics/export
-// @access  Private
+
+
+
 router.get('/export', protect, authorize(['chairman', 'admin', 'manager']), async (req, res) => {
   try {
     const { format = 'pdf', type = 'comprehensive' } = req.query;
 
-    // Mock export response - replace with actual export logic
+    
     res.status(200).json({
       success: true,
       message: 'Export initiated',

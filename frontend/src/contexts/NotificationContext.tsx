@@ -33,7 +33,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     setNotifications(prev => [...prev, newNotification]);
     
-    // Auto remove after 5 seconds
+    
     setTimeout(() => {
       removeNotification(id);
     }, 5000);
@@ -65,7 +65,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     <NotificationContext.Provider value={{ notifications, addNotification, removeNotification }}>
       {children}
       
-      {/* Notification Container */}
+      {}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {notifications.map((notification) => {
           const Icon = getIcon(notification.type);

@@ -10,14 +10,14 @@ const {
 } = require('../controller/notificationController');
 const { protect, authorize } = require('../middleware/auth');
 
-// Public routes (for smart links)
+
 router.route('/link/:token')
   .get(accessSmartLink);
 
 router.route('/preview/:token')
   .get(previewSmartLink);
 
-// Protected routes
+
 router.use(protect);
 
 router.route('/')

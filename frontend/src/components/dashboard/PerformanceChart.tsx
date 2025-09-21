@@ -29,7 +29,7 @@ const PerformanceChart = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* Revenue Chart */}
+        {}
         <div>
           <h3 className="font-semibold text-gray-900 mb-4">Monthly Revenue</h3>
           <div className="space-y-3">
@@ -52,7 +52,7 @@ const PerformanceChart = () => {
           </div>
         </div>
 
-        {/* Bookings Chart */}
+        {}
         <div>
           <h3 className="font-semibold text-gray-900 mb-4">Monthly Bookings</h3>
           <div className="space-y-3">

@@ -251,7 +251,7 @@ const ReportsAndAnalytics = () => {
   return (
     <div className="space-y-6">
       
-      {/* Header */}
+      {}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
@@ -267,7 +267,7 @@ const ReportsAndAnalytics = () => {
           </button>
           <button
             onClick={handleGenerateReport}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center"
+            className="bg-brand text-white px-6 py-2 rounded-lg transition-all duration-200 flex items-center"
           >
             <Plus className="w-5 h-5 mr-2" />
             Generate Report
@@ -275,13 +275,13 @@ const ReportsAndAnalytics = () => {
         </div>
       </div>
 
-      {/* Key Metrics Cards */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-              <p className="text-3xl font-bold text-gray-900">${overviewStats.totalRevenue.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-gray-900">₹{overviewStats.totalRevenue.toLocaleString()}</p>
               <div className="flex items-center mt-2">
                 <TrendingUp className="w-4 h-4 text-emerald-600 mr-1" />
                 <span className="text-sm text-emerald-600 font-medium">+{overviewStats.monthlyGrowth}%</span>
@@ -299,11 +299,11 @@ const ReportsAndAnalytics = () => {
               <p className="text-sm font-medium text-gray-600">Total Bookings</p>
               <p className="text-3xl font-bold text-gray-900">{overviewStats.totalBookings}</p>
               <div className="flex items-center mt-2">
-                <TrendingUp className="w-4 h-4 text-blue-600 mr-1" />
-                <span className="text-sm text-blue-600 font-medium">+12.3%</span>
+                <TrendingUp className="w-4 h-4 text-brand mr-1" />
+                <span className="text-sm text-brand font-medium">+12.3%</span>
               </div>
             </div>
-            <div className="bg-blue-500 p-3 rounded-lg">
+            <div className="bg-brand p-3 rounded-lg">
               <Calendar className="w-6 h-6 text-white" />
             </div>
           </div>
@@ -342,7 +342,7 @@ const ReportsAndAnalytics = () => {
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="flex space-x-8 px-6">
@@ -373,7 +373,7 @@ const ReportsAndAnalytics = () => {
           </nav>
         </div>
 
-        {/* Filters */}
+        {}
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
             <div className="flex items-center space-x-4">
@@ -409,7 +409,7 @@ const ReportsAndAnalytics = () => {
         <div className="p-6">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Performance Trends */}
+              {}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend (7 Months)</h3>
@@ -452,7 +452,7 @@ const ReportsAndAnalytics = () => {
                 </div>
               </div>
 
-              {/* Key Insights */}
+              {}
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Insights</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -671,7 +671,7 @@ const ReportsAndAnalytics = () => {
           {activeTab === 'financial' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Revenue Breakdown */}
+                {}
                 <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Breakdown</h3>
                   <div className="space-y-4">
@@ -698,7 +698,7 @@ const ReportsAndAnalytics = () => {
                   </div>
                 </div>
 
-                {/* Expense Breakdown */}
+                {}
                 <div className="bg-gray-50 rounded-xl border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Expense Breakdown</h3>
                   <div className="space-y-4">
@@ -726,7 +726,7 @@ const ReportsAndAnalytics = () => {
                 </div>
               </div>
 
-              {/* Profit Analysis */}
+              {}
               <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Profit Analysis</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -1,11 +1,6 @@
 const mongoose = require('mongoose');
 
 const bookingSchema = new mongoose.Schema({
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Branch', // Company info is embedded in Branch
-    required: true
-  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -50,6 +45,45 @@ const bookingSchema = new mongoose.Schema({
       pincode: String
     }
   },
+  
+  functionDetailsList: [{
+    type: {
+      type: String,
+      required: true
+    },
+    startDate: {
+      type: Date,
+      required: false
+    },
+    endDate: {
+      type: Date,
+      required: false
+    },
+    date: {
+      type: Date,
+      required: true
+    },
+    time: {
+      start: String,
+      end: String
+    },
+    venue: {
+      name: String,
+      address: String,
+      city: String,
+      state: String,
+      pincode: String
+    },
+    
+    assignedStaff: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Staff'
+    }],
+    inventorySelection: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Inventory'
+    }]
+  }],
   services: [{
     service: {
       type: String,
@@ -180,7 +214,7 @@ const bookingSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 bookingSchema.index({ company: 1, branch: 1 });
 bookingSchema.index({ client: 1 });
 bookingSchema.index({ bookingNumber: 1 });

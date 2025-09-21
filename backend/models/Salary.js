@@ -129,13 +129,13 @@ const salarySchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 salarySchema.index({ company: 1, branch: 1 });
 salarySchema.index({ staff: 1 });
 salarySchema.index({ month: 1, year: 1 });
 salarySchema.index({ paymentStatus: 1 });
 
-// Compound unique index to prevent duplicate salary records
+
 salarySchema.index({ staff: 1, month: 1, year: 1 }, { unique: true });
 
 module.exports = mongoose.model('Salary', salarySchema); 

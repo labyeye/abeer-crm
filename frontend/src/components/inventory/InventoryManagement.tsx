@@ -130,7 +130,7 @@ const InventoryManagement = () => {
   const { addNotification } = useNotification();
   const { user } = useAuth();
 
-  // Check if user has access to inventory management
+  
   const hasAccess = user && ['chairman', 'admin', 'manager'].includes(user.role);
 
   const fetchData = async () => {

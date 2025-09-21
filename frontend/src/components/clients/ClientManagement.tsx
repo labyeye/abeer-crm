@@ -23,7 +23,7 @@ interface Branch {
 interface Client {
   _id: string;
   name: string;
-  email: string;
+  email: string;  // Primary identifier for the client
   phone: string;
   address: {
     street: string;
@@ -37,7 +37,6 @@ interface Client {
     relationship: string;
   };
   category: 'individual' | 'professional';
-  userId: string;
   status: 'active' | 'inactive' | 'lead';
   totalBookings: number;
   totalSpent: number;
@@ -83,7 +82,6 @@ const ClientManagement = () => {
       relationship: ''
     },
     category: 'individual' as 'individual' | 'professional',
-    userId: '',
     password: '',
     status: 'active' as 'active' | 'inactive' | 'lead',
     notes: '',
@@ -99,7 +97,7 @@ const ClientManagement = () => {
     try {
       setLoading(true);
       const response = await clientAPI.getClients();
-      // Try different ways to access the data, like staff management
+      
       const clientData = response.data?.data || response.data || response;
       if (Array.isArray(clientData)) {
         setClients(clientData);
@@ -161,7 +159,6 @@ const ClientManagement = () => {
         relationship: ''
       },
       category: 'individual',
-      userId: '',
       password: '',
       status: 'active',
       notes: '',
@@ -185,8 +182,7 @@ const ClientManagement = () => {
       address: client.address,
       reference: client.reference,
       category: client.category,
-      userId: client.userId,
-      password: '', // Don't pre-fill password
+      password: '', 
       status: client.status,
       notes: client.notes || '',
       aadharNumber: client.aadharNumber || '',
@@ -203,7 +199,7 @@ const ClientManagement = () => {
     if (!isChairman) {
       payload.branch = user?.branchId || '';
     }
-    // Remove company from payload if present
+    
     if ('company' in payload) {
       delete payload.company;
     }
@@ -267,7 +263,7 @@ const ClientManagement = () => {
     return matchesSearch && matchesStatus;
   });
 
-  // Stats for the dashboard
+  
   const stats = {
     total: clients.length,
     active: clients.filter(c => c.status === 'active').length,
@@ -286,7 +282,7 @@ const ClientManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Client Management</h1>
@@ -301,7 +297,7 @@ const ClientManagement = () => {
         </button>
       </div>
 
-      {/* Stats Cards */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
@@ -364,7 +360,7 @@ const ClientManagement = () => {
         </div>
       </div>
 
-      {/* Search and Filter */}
+      {}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -388,7 +384,7 @@ const ClientManagement = () => {
         </select>
       </div>
 
-      {/* Clients Table */}
+      {}
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white rounded-xl shadow-sm border border-gray-200">
           <thead>
@@ -445,7 +441,7 @@ const ClientManagement = () => {
         </table>
       </div>
 
-      {/* Add/Edit Modal */}
+      {}
       {(showAddModal || showEditModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -467,7 +463,7 @@ const ClientManagement = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Basic Information */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -535,7 +531,7 @@ const ClientManagement = () => {
                 </div>
               </div>
 
-              {/* Address */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Address</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -593,19 +589,13 @@ const ClientManagement = () => {
                 </div>
               </div>
 
-              {/* Login Credentials */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Login Credentials</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">User ID *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.userId}
-                      onChange={(e) => setFormData({...formData, userId: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                    {}
                   </div>
 
                   <div>
@@ -625,7 +615,7 @@ const ClientManagement = () => {
                 </div>
               </div>
 
-              {/* Government IDs */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Government IDs</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -650,7 +640,7 @@ const ClientManagement = () => {
                 </div>
               </div>
 
-              {/* Reference */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Reference (Optional)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -695,7 +685,7 @@ const ClientManagement = () => {
                 </div>
               </div>
 
-              {/* Status and Notes */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Additional Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -726,7 +716,7 @@ const ClientManagement = () => {
                 </div>
               </div>
 
-              {/* Submit Buttons */}
+              {}
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
                 <button
                   type="button"

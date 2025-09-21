@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Building2, 
   Phone, 
@@ -13,7 +13,6 @@ import {
   Search,
   Download
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import NeomorphicCard from '../ui/NeomorphicCard';
 import NeomorphicButton from '../ui/NeomorphicButton';
@@ -73,10 +72,10 @@ interface Vendor {
     terms: string[];
   };
   performance: {
-    onTimeDelivery: number; // percentage
-    qualityScore: number; // percentage
-    responsiveness: number; // hours average
-    issueResolutionTime: number; // hours average
+    onTimeDelivery: number; 
+    qualityScore: number; 
+    responsiveness: number; 
+    issueResolutionTime: number; 
   };
   status: 'active' | 'inactive' | 'blacklisted' | 'pending_verification';
   documents: Array<{
@@ -112,7 +111,6 @@ interface VendorStats {
 }
 
 const VendorManagement = () => {
-  const { user } = useAuth();
   const { addNotification } = useNotification();
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [filteredVendors, setFilteredVendors] = useState<Vendor[]>([]);
@@ -153,19 +151,10 @@ const VendorManagement = () => {
     }
   });
 
-  useEffect(() => {
-    fetchVendors();
-    fetchVendorStats();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [vendors, filters, searchTerm]);
-
-  const fetchVendors = async () => {
+  const fetchVendors = useCallback(async () => {
     try {
       setLoading(true);
-      // API call would go here
+      
       const mockVendors: Vendor[] = [
         {
           _id: '1',
@@ -323,18 +312,20 @@ const VendorManagement = () => {
         }
       ];
       setVendors(mockVendors);
-    } catch (error: any) {
+    } catch (err) {
       addNotification({
         type: 'error',
         title: 'Error',
         message: 'Failed to fetch vendors'
       });
+      // keep a console log for debugging
+      console.error('Failed to fetch vendors:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [addNotification]);
 
-  const fetchVendorStats = async () => {
+  const fetchVendorStats = useCallback(async () => {
     try {
       const mockStats: VendorStats = {
         totalVendors: 45,
@@ -355,15 +346,15 @@ const VendorManagement = () => {
         }
       };
       setVendorStats(mockStats);
-    } catch (error) {
-      console.error('Failed to fetch vendor stats:', error);
+    } catch (err) {
+      console.error('Failed to fetch vendor stats:', err);
     }
-  };
+  }, []);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...vendors];
 
-    // Apply search
+    
     if (searchTerm) {
       filtered = filtered.filter(vendor =>
         vendor.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -372,7 +363,7 @@ const VendorManagement = () => {
       );
     }
 
-    // Apply filters
+    
     if (filters.status) {
       filtered = filtered.filter(vendor => vendor.status === filters.status);
     }
@@ -391,11 +382,21 @@ const VendorManagement = () => {
     }
 
     setFilteredVendors(filtered);
-  };
+  }, [vendors, filters, searchTerm]);
+
+  useEffect(() => {
+    fetchVendors();
+    fetchVendorStats();
+  }, [fetchVendors, fetchVendorStats]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
 
   const handleAddVendor = async () => {
     try {
-      // API call would go here
+      
       console.log('Adding vendor:', newVendor);
       addNotification({
         type: 'success',
@@ -404,12 +405,13 @@ const VendorManagement = () => {
       });
       setShowAddVendorModal(false);
       await fetchVendors();
-    } catch (error: any) {
+    } catch (err) {
       addNotification({
         type: 'error',
         title: 'Error',
         message: 'Failed to add vendor'
       });
+      console.error('Failed to add vendor:', err);
     }
   };
 
@@ -451,7 +453,7 @@ const VendorManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Vendor Management</h1>
@@ -473,7 +475,7 @@ const VendorManagement = () => {
         </div>
       </div>
 
-      {/* Stats Dashboard */}
+      {}
       {vendorStats && (
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <NeomorphicCard className="p-4 lg:col-span-2">
@@ -539,7 +541,7 @@ const VendorManagement = () => {
         </div>
       )}
 
-      {/* Filters */}
+      {}
       <NeomorphicCard className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
@@ -634,7 +636,7 @@ const VendorManagement = () => {
         </div>
       </NeomorphicCard>
 
-      {/* Vendors Grid */}
+      {}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredVendors.map((vendor) => (
           <div key={vendor._id} 
@@ -646,7 +648,7 @@ const VendorManagement = () => {
           >
             <NeomorphicCard className="p-6 hover:shadow-lg transition-shadow">
               <div className="space-y-4">
-                {/* Header */}
+                {}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
                     <span className="text-2xl">{getBusinessTypeIcon(vendor.businessInfo.businessType)}</span>
@@ -660,7 +662,7 @@ const VendorManagement = () => {
                   </span>
                 </div>
 
-                {/* Contact & Location */}
+                {}
                 <div className="space-y-2">
                   <div className="flex items-center text-sm text-gray-600">
                     <Phone className="w-4 h-4 mr-2" />
@@ -676,7 +678,7 @@ const VendorManagement = () => {
                   </div>
                 </div>
 
-                {/* Rating & Performance */}
+                {}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center space-x-1">
@@ -692,7 +694,7 @@ const VendorManagement = () => {
                   </div>
                 </div>
 
-                {/* Financial Summary */}
+                {}
                 <div className="border-t pt-3">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
@@ -713,7 +715,7 @@ const VendorManagement = () => {
                   )}
                 </div>
 
-                {/* Services Preview */}
+                {}
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-2">Services:</p>
                   <div className="flex flex-wrap gap-1">
@@ -735,7 +737,7 @@ const VendorManagement = () => {
         ))}
       </div>
 
-      {/* Vendor Detail Modal */}
+      {}
       <NeomorphicModal
         isOpen={showVendorModal}
         onClose={() => setShowVendorModal(false)}
@@ -743,7 +745,7 @@ const VendorManagement = () => {
       >
         {selectedVendor && (
           <div className="space-y-6">
-            {/* Vendor Overview */}
+            {}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h4 className="font-medium text-gray-900 mb-3">Contact Information</h4>
@@ -792,7 +794,7 @@ const VendorManagement = () => {
               </div>
             </div>
 
-            {/* Performance Metrics */}
+            {}
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Performance Metrics</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -815,7 +817,7 @@ const VendorManagement = () => {
               </div>
             </div>
 
-            {/* Services */}
+            {}
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Services Offered</h4>
               <div className="space-y-3">
@@ -840,7 +842,7 @@ const VendorManagement = () => {
               </div>
             </div>
 
-            {/* Recent Orders */}
+            {}
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Recent Orders</h4>
               <div className="space-y-2">
@@ -869,7 +871,7 @@ const VendorManagement = () => {
         )}
       </NeomorphicModal>
 
-      {/* Add Vendor Modal */}
+      {}
       <NeomorphicModal
         isOpen={showAddVendorModal}
         onClose={() => setShowAddVendorModal(false)}

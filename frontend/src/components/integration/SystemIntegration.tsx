@@ -262,7 +262,7 @@ export const SystemIntegration: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">System Integration</h1>
@@ -280,7 +280,7 @@ export const SystemIntegration: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Overview */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <NeomorphicCard className="p-6">
           <div className="flex items-center justify-between">
@@ -327,7 +327,7 @@ export const SystemIntegration: React.FC = () => {
         </NeomorphicCard>
       </div>
 
-      {/* Tabs */}
+      {}
       <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg">
         {[
           { key: 'integrations', label: 'Integrations', icon: '🔗' },
@@ -350,7 +350,7 @@ export const SystemIntegration: React.FC = () => {
         ))}
       </div>
 
-      {/* Content */}
+      {}
       {activeTab === 'integrations' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -530,7 +530,7 @@ export const SystemIntegration: React.FC = () => {
       {activeTab === 'marketplace' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Available Integrations */}
+            {}
             <NeomorphicCard className="p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <span className="text-2xl">📧</span>
@@ -624,7 +624,7 @@ export const SystemIntegration: React.FC = () => {
         </div>
       )}
 
-      {/* Add Integration Modal */}
+      {}
       <NeomorphicModal
         isOpen={showIntegrationModal}
         onClose={() => setShowIntegrationModal(false)}

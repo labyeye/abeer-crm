@@ -14,10 +14,10 @@ const {
 } = require('../controller/taskController');
 const { protect, authorize } = require('../middleware/auth');
 
-// Apply auth middleware to all routes
+
 router.use(protect);
 
-// Routes
+
 router.route('/')
   .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllTasks)
   .post(authorize('chairman', 'admin', 'manager'), createTask);

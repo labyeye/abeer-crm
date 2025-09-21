@@ -190,7 +190,7 @@ const invoiceSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 invoiceSchema.index({ company: 1, branch: 1 });
 invoiceSchema.index({ client: 1 });
 invoiceSchema.index({ invoiceNumber: 1 });

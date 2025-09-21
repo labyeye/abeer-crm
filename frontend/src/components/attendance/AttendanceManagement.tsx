@@ -106,7 +106,7 @@ const AttendanceManagement = () => {
         message: "Check-in marked successfully.",
       });
       if (user?.role === 'staff') {
-        fetchMyAttendance(); // Refresh staff's own attendance
+        fetchMyAttendance(); 
       }
     } catch (error: unknown) {
       addNotification({
@@ -130,7 +130,7 @@ const AttendanceManagement = () => {
         message: "Check-out marked successfully.",
       });
       if (user?.role === 'staff') {
-        fetchMyAttendance(); // Refresh staff's own attendance
+        fetchMyAttendance(); 
       }
     } catch (error: unknown) {
       addNotification({
@@ -184,7 +184,7 @@ const AttendanceManagement = () => {
     }
   };
 
-  // Staff View
+  
   if (user?.role === 'staff') {
     return (
       <div className="space-y-6">
@@ -309,7 +309,7 @@ const AttendanceManagement = () => {
           </div>
         </div>
 
-        {/* Staff Check In Modal */}
+        {}
         {showCheckInModal && user?.role === 'staff' && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl w-full max-w-md p-6">
@@ -337,9 +337,9 @@ const AttendanceManagement = () => {
                   </button>
                   <button
                     onClick={() => {
-                      // For staff, we need to find their staff record first
-                      // This is a simplified version - in real implementation, 
-                      // you'd need to get the staff ID from the user's profile
+                      
+                      
+                      
                       setShowCheckInModal(false);
                       addNotification({
                         type: "info",
@@ -357,7 +357,7 @@ const AttendanceManagement = () => {
           </div>
         )}
 
-        {/* Staff Check Out Modal */}
+        {}
         {showCheckOutModal && user?.role === 'staff' && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl w-full max-w-md p-6">
@@ -405,7 +405,7 @@ const AttendanceManagement = () => {
     );
   }
 
-  // Management View (for non-staff users)
+  
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 mb-4">
@@ -467,7 +467,7 @@ const AttendanceManagement = () => {
           </tbody>
         </table>
       </div>
-      {/* Check In Modal */}
+      {}
       {showCheckInModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
@@ -519,7 +519,7 @@ const AttendanceManagement = () => {
           </div>
         </div>
       )}
-      {/* Check Out Modal */}
+      {}
       {showCheckOutModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">

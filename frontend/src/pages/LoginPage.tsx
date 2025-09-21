@@ -37,13 +37,13 @@ const LoginPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
       <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         
-        {/* Left Side - Branding */}
+        {}
         <div className="text-center lg:text-left">
           <div className="flex items-center justify-center lg:justify-start mb-6">
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 rounded-xl">
+            <div className="bg-brand p-3 rounded-xl">
               <Camera className="w-8 h-8 text-white" />
             </div>
             <div className="ml-3">
@@ -54,7 +54,7 @@ const LoginPage = () => {
           
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
             Streamline Your
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"> Photography Business</span>
+            <span className="text-brand"> Photography Business</span>
           </h2>
           
           <p className="text-lg text-gray-600 mb-8">
@@ -63,7 +63,7 @@ const LoginPage = () => {
           </p>
         </div>
 
-        {/* Right Side - Login Form */}
+        {}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
           <div className="text-center mb-8">
             <h3 className="text-2xl font-bold text-gray-900">Welcome Back</h3>
@@ -83,7 +83,7 @@ const LoginPage = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent transition-all duration-200"
                   placeholder="Enter your email"
                 />
               </div>
@@ -101,7 +101,7 @@ const LoginPage = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent transition-all duration-200"
                   placeholder="Enter your password"
                 />
                 <button
@@ -117,7 +117,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold py-3 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="w-full bg-brand text-white font-semibold py-3 rounded-lg hover:opacity-95 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isLoading ? (
                 <>
@@ -131,7 +131,7 @@ const LoginPage = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            <button className="text-brand hover:text-opacity-90 text-sm font-medium">
               Forgot your password?
             </button>
           </div>

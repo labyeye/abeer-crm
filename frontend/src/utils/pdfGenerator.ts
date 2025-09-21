@@ -10,9 +10,9 @@ export const generateQuotationPDF = async (
   }
 
   try {
-    // Create canvas from HTML element
+    
     const canvas = await html2canvas(elementRef.current, {
-      scale: 2, // Higher scale for better quality
+      scale: 2, 
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff',
@@ -22,7 +22,7 @@ export const generateQuotationPDF = async (
 
     const imgData = canvas.toDataURL('image/png');
     
-    // Calculate PDF dimensions
+    
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -35,20 +35,20 @@ export const generateQuotationPDF = async (
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
     
-    // Calculate scaling to fit A4
+    
     const ratio = Math.min(pdfWidth / (canvasWidth * 0.264583), pdfHeight / (canvasHeight * 0.264583));
     
     const imgWidth = canvasWidth * 0.264583 * ratio;
     const imgHeight = canvasHeight * 0.264583 * ratio;
     
-    // Center the image on the page
+    
     const x = (pdfWidth - imgWidth) / 2;
-    const y = 10; // Small margin from top
+    const y = 10; 
 
-    // Add image to PDF
+    
     pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
     
-    // Save the PDF
+    
     pdf.save(filename);
     
     return true;
@@ -100,7 +100,7 @@ export const printQuotation = (elementRef: React.RefObject<HTMLDivElement>) => {
   printWindow.document.write(htmlContent);
   printWindow.document.close();
   
-  // Wait for content to load, then print
+  
   printWindow.onload = () => {
     setTimeout(() => {
       printWindow.print();

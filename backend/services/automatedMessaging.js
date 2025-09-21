@@ -7,21 +7,21 @@ class AutomatedMessagingService {
     this.baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   }
 
-  /**
-   * Create a smart link token
-   */
+  
+
+
   generateToken() {
     return crypto.randomBytes(32).toString('hex');
   }
 
-  /**
-   * Create smart link for notification
-   */
+  
+
+
   createSmartLink(type, relatedData = {}) {
     const token = this.generateToken();
     const url = generateSmartLink(this.baseUrl, token, type);
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // Expire in 30 days
+    expiresAt.setDate(expiresAt.getDate() + 30); 
 
     return {
       token,
@@ -33,9 +33,9 @@ class AutomatedMessagingService {
     };
   }
 
-  /**
-   * Send quotation created notification
-   */
+  
+
+
   async sendQuotationCreated(quotationData) {
     const { client, quotation, company, branch } = quotationData;
     
@@ -79,9 +79,9 @@ class AutomatedMessagingService {
     return notification;
   }
 
-  /**
-   * Send 7-day follow-up for quotation
-   */
+  
+
+
   async sendQuotationFollowUp(quotationData) {
     const { client, quotation, company, branch } = quotationData;
     
@@ -118,19 +118,24 @@ class AutomatedMessagingService {
     });
   }
 
-  /**
-   * Send booking confirmation notification
-   */
+  
+
+
   async sendBookingConfirmed(bookingData) {
     const { client, booking, company, branch, staffDetails } = bookingData;
     
     const smartLink = this.createSmartLink('booking', { bookingId: booking._id });
     
+    
+    const primaryFD = (Array.isArray(booking.functionDetailsList) && booking.functionDetailsList.length > 0)
+      ? booking.functionDetailsList[0]
+      : booking.functionDetails || {};
+
     const variables = {
-      date: new Date(booking.functionDetails.date).toLocaleDateString('hi-IN'),
-      function: booking.functionDetails.type,
-      time: `${booking.functionDetails.time?.start} - ${booking.functionDetails.time?.end}`,
-      venue: booking.functionDetails.venue?.name || booking.functionDetails.venue?.address,
+      date: new Date(primaryFD.date).toLocaleDateString('hi-IN'),
+      function: primaryFD.type,
+      time: `${primaryFD.time?.start || ''} - ${primaryFD.time?.end || ''}`,
+      venue: primaryFD.venue?.name || primaryFD.venue?.address || '',
       staffDetails: staffDetails || 'जल्द ही भेजी जाएगी',
       link: smartLink.url
     };
@@ -161,7 +166,7 @@ class AutomatedMessagingService {
       priority: 'high'
     });
 
-    // Send notification to assigned staff
+    
     if (booking.staffAssignment && booking.staffAssignment.length > 0) {
       await this.notifyAssignedStaff(booking, company, branch);
     }
@@ -169,9 +174,9 @@ class AutomatedMessagingService {
     return notification;
   }
 
-  /**
-   * Send payment reminder
-   */
+  
+
+
   async sendPaymentReminder(paymentData) {
     const { client, invoice, company, branch, dueTime } = paymentData;
     
@@ -211,9 +216,9 @@ class AutomatedMessagingService {
     });
   }
 
-  /**
-   * Send task assignment notification to staff
-   */
+  
+
+
   async sendTaskAssigned(taskData) {
     const { staff, task, booking, company, branch } = taskData;
     
@@ -263,9 +268,9 @@ class AutomatedMessagingService {
     return notifications;
   }
 
-  /**
-   * Send staff assignment notification to client
-   */
+  
+
+
   async sendStaffAssignment(assignmentData) {
     const { client, booking, staffList, equipmentList, company, branch } = assignmentData;
     
@@ -309,9 +314,9 @@ class AutomatedMessagingService {
     });
   }
 
-  /**
-   * Send task skip notification to client
-   */
+  
+
+
   async sendTaskSkipped(skipData) {
     const { client, task, problem, company, branch, contact } = skipData;
     
@@ -350,15 +355,15 @@ class AutomatedMessagingService {
     });
   }
 
-  /**
-   * Schedule follow-up notification
-   */
+  
+
+
   async scheduleFollowUp(notification, days) {
     const followUpDate = new Date();
     followUpDate.setDate(followUpDate.getDate() + days);
 
-    // This would typically integrate with a job scheduler like node-cron or Bull Queue
-    // For now, we'll update the notification with follow-up info
+    
+    
     await Notification.findByIdAndUpdate(notification._id, {
       'automation.nextFollowUp': followUpDate
     });
@@ -366,20 +371,24 @@ class AutomatedMessagingService {
     return followUpDate;
   }
 
-  /**
-   * Notify assigned staff about task
-   */
+  
+
+
   async notifyAssignedStaff(booking, company, branch) {
-    // This method would be called when staff is assigned to a booking
+    
     const staffNotifications = [];
 
     for (const assignment of booking.staffAssignment) {
       const smartLink = this.createSmartLink('booking_assignment', { bookingId: booking._id });
       
+      const primaryFD = (Array.isArray(booking.functionDetailsList) && booking.functionDetailsList.length > 0)
+        ? booking.functionDetailsList[0]
+        : booking.functionDetails || {};
+
       const variables = {
-        date: new Date(booking.functionDetails.date).toLocaleDateString('hi-IN'),
-        time: `${booking.functionDetails.time?.start} - ${booking.functionDetails.time?.end}`,
-        location: booking.functionDetails.venue?.address,
+        date: new Date(primaryFD.date).toLocaleDateString('hi-IN'),
+        time: `${primaryFD.time?.start || ''} - ${primaryFD.time?.end || ''}`,
+        location: primaryFD.venue?.address || booking.functionDetails?.venue?.address || '',
         client: booking.client?.name,
         link: smartLink.url
       };

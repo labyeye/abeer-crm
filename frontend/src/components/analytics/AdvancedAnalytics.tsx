@@ -112,7 +112,7 @@ const AdvancedAnalytics = () => {
   const fetchAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
-      // API call would go here
+      
       const mockData: AnalyticsData = {
         overview: {
           totalRevenue: 2850000,
@@ -308,7 +308,7 @@ const AdvancedAnalytics = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Advanced Analytics</h1>
@@ -347,7 +347,7 @@ const AdvancedAnalytics = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
+      {}
       <NeomorphicCard className="p-2">
         <div className="flex items-center space-x-1 overflow-x-auto">
           {[
@@ -378,10 +378,10 @@ const AdvancedAnalytics = () => {
         </div>
       </NeomorphicCard>
 
-      {/* Overview Tab */}
+      {}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Key Metrics */}
+          {}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <NeomorphicCard className="p-6">
               <div className="flex items-center justify-between">
@@ -440,7 +440,7 @@ const AdvancedAnalytics = () => {
             </NeomorphicCard>
           </div>
 
-          {/* Revenue Chart */}
+          {}
           <NeomorphicCard className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Revenue Trend</h3>
             <div className="h-64 flex items-end justify-between space-x-2">
@@ -464,7 +464,7 @@ const AdvancedAnalytics = () => {
             </div>
           </NeomorphicCard>
 
-          {/* Service Revenue Breakdown */}
+          {}
           <NeomorphicCard className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Service</h3>
             <div className="space-y-4">
@@ -490,10 +490,10 @@ const AdvancedAnalytics = () => {
         </div>
       )}
 
-      {/* Operations Tab */}
+      {}
       {activeTab === 'operations' && (
         <div className="space-y-6">
-          {/* Productivity Metrics */}
+          {}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <NeomorphicCard className="p-6">
               <div className="flex items-center justify-between">
@@ -536,7 +536,7 @@ const AdvancedAnalytics = () => {
             </NeomorphicCard>
           </div>
 
-          {/* Quality Metrics */}
+          {}
           <NeomorphicCard className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quality Metrics</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -565,10 +565,10 @@ const AdvancedAnalytics = () => {
         </div>
       )}
 
-      {/* Team Performance Tab */}
+      {}
       {activeTab === 'team' && (
         <div className="space-y-6">
-          {/* Staff Performance */}
+          {}
           <NeomorphicCard className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Performance</h3>
             <div className="overflow-x-auto">
@@ -611,7 +611,7 @@ const AdvancedAnalytics = () => {
             </div>
           </NeomorphicCard>
 
-          {/* Department Performance */}
+          {}
           <NeomorphicCard className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Performance</h3>
             <div className="space-y-4">
@@ -647,10 +647,10 @@ const AdvancedAnalytics = () => {
         </div>
       )}
 
-      {/* Forecasting Tab */}
+      {}
       {activeTab === 'forecasting' && (
         <div className="space-y-6">
-          {/* Growth Predictions */}
+          {}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <NeomorphicCard className="p-6">
               <div className="text-center">
@@ -677,7 +677,7 @@ const AdvancedAnalytics = () => {
             </NeomorphicCard>
           </div>
 
-          {/* Seasonal Trends */}
+          {}
           <NeomorphicCard className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Seasonal Trends</h3>
             <div className="space-y-3">

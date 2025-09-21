@@ -11,7 +11,7 @@ const attendanceSchema = new mongoose.Schema({
     ref: 'Client',
     required: false
   },
-  // Removed company field; use branch for multi-tenancy
+  
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -54,11 +54,11 @@ const attendanceSchema = new mongoose.Schema({
     }
   },
   workingHours: {
-    type: Number, // in hours
+    type: Number, 
     default: 0
   },
   overtime: {
-    type: Number, // in hours
+    type: Number, 
     default: 0
   },
   status: {
@@ -88,12 +88,12 @@ const attendanceSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 attendanceSchema.index({ staff: 1, date: 1 });
 attendanceSchema.index({ company: 1, branch: 1, date: 1 });
 attendanceSchema.index({ date: 1 });
 
-// Compound unique index to prevent duplicate attendance records
+
 attendanceSchema.index({ staff: 1, date: 1 }, { unique: true });
 
 module.exports = mongoose.model('Attendance', attendanceSchema); 

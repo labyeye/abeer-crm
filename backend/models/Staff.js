@@ -90,7 +90,7 @@ const staffSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  // New fields added for staff information
+  
   maritalStatus: {
     type: String,
     enum: ['married', 'unmarried'],
@@ -167,7 +167,7 @@ const staffSchema = new mongoose.Schema({
   }
 });
 
-// Index for efficient queries
+
 staffSchema.index({ branch: 1 });
 staffSchema.index({ employeeId: 1 });
 staffSchema.index({ userId: 1 });

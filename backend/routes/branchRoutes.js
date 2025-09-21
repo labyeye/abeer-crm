@@ -8,6 +8,7 @@ const {
   getBranchStats,
   updateBranchStats,
   updateAllBranchesStats,
+  forceUpdateBranchStats,
   getBranches
 } = require('../controller/branchController');
 
@@ -15,10 +16,10 @@ const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Protect all routes
+
 router.use(protect);
 
-// Routes
+
 
 router.route('/')
   .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllBranches)
@@ -38,6 +39,9 @@ router.route('/:id')
 
 router.route('/:id/stats')
   .put(authorize('chairman', 'admin'), updateBranchStats);
+
+router.route('/:id/stats/force')
+  .put(authorize('chairman', 'admin'), forceUpdateBranchStats);
 
 module.exports = router;
 

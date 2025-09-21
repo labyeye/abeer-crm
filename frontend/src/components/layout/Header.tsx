@@ -39,10 +39,10 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen }) => {
   const unreadCount = mockNotifications.filter(n => n.unread).length;
 
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+  <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
         
-        {/* Left side */}
+        {}
         <div className="flex items-center">
           <button
             onClick={() => setSidebarOpen(true)}
@@ -51,7 +51,7 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen }) => {
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
           
-          {/* Search */}
+          {}
           <div className="ml-4 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -62,24 +62,24 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen }) => {
           </div>
         </div>
 
-        {/* Right side */}
+        {}
         <div className="flex items-center space-x-4">
           
-          {/* Notifications */}
+          {}
           <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 rounded-lg hover:bg-gray-100 relative"
-            >
-              <Bell className="w-5 h-5 text-gray-600" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2 rounded-lg hover:bg-gray-100 relative"
+              >
+                <Bell className="w-5 h-5 text-gray-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Notifications dropdown */}
+            {}
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                 <div className="p-4 border-b border-gray-200">
@@ -115,7 +115,7 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen }) => {
             )}
           </div>
 
-          {/* User menu */}
+          {}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -128,7 +128,7 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen }) => {
                   className="w-8 h-8 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center">
                   <span className="text-white font-semibold text-sm">
                     {user?.name?.split(' ').map(n => n[0]).join('')}
                   </span>
@@ -138,7 +138,7 @@ const Header: React.FC<HeaderProps> = ({ setSidebarOpen }) => {
               <ChevronDown className="w-4 h-4 text-gray-500" />
             </button>
 
-            {/* User dropdown */}
+            {}
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                 <div className="p-2">

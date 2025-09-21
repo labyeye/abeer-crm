@@ -1,11 +1,13 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
+import { mapBackendRoleToFrontend, extractErrorMessage } from './authUtils';
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'chairman' | 'company_admin' | 'branch_head' | 'staff' | 'client';
+  role: 'chairman' | 'admin' | 'staff' | 'client';
   companyId?: string;
   branchId?: string;
   avatar?: string;
@@ -29,17 +31,7 @@ export const useAuth = () => {
   return context;
 };
 
-// Helper function to map backend roles to frontend roles
-const mapBackendRoleToFrontend = (backendRole: string): User['role'] => {
-  switch (backendRole) {
-    case 'admin':
-      return 'company_admin';
-    case 'manager':
-      return 'branch_head';
-    default:
-      return backendRole as User['role'];
-  }
-};
+
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -52,15 +44,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (token && savedUser) {
         try {
-          // Verify token with backend
+          
           const response = await authAPI.getMe();
-          const mappedUser = {
-            ...response.user,
-            role: mapBackendRoleToFrontend(response.user.role)
-          };
+              const mappedUser = {
+                ...response.user,
+                role: mapBackendRoleToFrontend(response.user.role)
+              } as User;
           setUser(mappedUser);
         } catch (error) {
-          // Token is invalid, clear storage
+          
           console.error('Token verification failed:', error);
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -81,7 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await authAPI.login(email, password);
       console.log('📨 AuthContext: Login response:', response);
       
-      // Store token and user data
+      
       localStorage.setItem('token', response.token);
       const mappedUser = {
         ...response.user,
@@ -94,9 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('✅ AuthContext: User state set successfully');
     } catch (error: unknown) {
       console.error('❌ AuthContext: Login failed:', error);
-      const message = error instanceof Error && 'response' in error 
-        ? (error as any).response?.data?.message || error.message
-        : 'Login failed';
+      const message = extractErrorMessage(error) || 'Login failed';
       throw new Error(message);
     } finally {
       setLoading(false);
@@ -114,8 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const rolePermissions = {
       chairman: ['all'],
-      company_admin: ['company_manage', 'branch_manage', 'staff_manage', 'reports'],
-      branch_head: ['branch_manage', 'staff_manage', 'bookings'],
+        admin: ['company_manage', 'branch_manage', 'staff_manage', 'reports'],
+        // branch-level manager maps to admin in the canonical role set
+        // keep branch-specific permissions if needed under 'admin'
+        // branch_head: ['branch_manage', 'staff_manage', 'bookings'],
       staff: ['own_tasks', 'attendance'],
       client: ['own_bookings', 'payments']
     };

@@ -1,10 +1,11 @@
+const mongoose = require('mongoose');
 const Branch = require('../models/Branch');
 const Staff = require('../models/Staff');
 const Invoice = require('../models/Invoice');
 const Booking = require('../models/Booking');
 const Quotation = require('../models/Quotation');
 
-// Update employee count for a specific branch
+
 const updateBranchEmployeeCount = async (branchId) => {
   try {
     const activeStaffCount = await Staff.countDocuments({
@@ -24,45 +25,78 @@ const updateBranchEmployeeCount = async (branchId) => {
   }
 };
 
-// Calculate and update revenue for a specific branch
+
 const updateBranchRevenue = async (branchId) => {
   try {
-    // Calculate revenue from invoices
-    const invoiceRevenue = await Invoice.aggregate([
-      { $match: { branch: branchId, status: 'paid', isDeleted: false } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-
-    // Calculate revenue from bookings
-    const bookingRevenue = await Booking.aggregate([
-      { $match: { branch: branchId, status: 'completed', isDeleted: false } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-
-    // Calculate revenue from quotations (converted to invoices)
-    const quotationRevenue = await Quotation.aggregate([
-      { $match: { branch: branchId, status: 'accepted', isDeleted: false } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-
-    const totalRevenue = (
-      (invoiceRevenue[0]?.total || 0) +
-      (bookingRevenue[0]?.total || 0) +
-      (quotationRevenue[0]?.total || 0)
-    );
-
-    await Branch.findByIdAndUpdate(branchId, {
-      revenue: totalRevenue
-    });
-
-    return totalRevenue;
+    const breakdown = await computeBranchRevenueBreakdown(branchId);
+    return breakdown.total;
   } catch (error) {
     console.error('Error updating branch revenue:', error);
     throw error;
   }
 };
 
-// Update both employee count and revenue for a branch
+
+const computeBranchRevenueBreakdown = async (branchId) => {
+  try {
+    const invoiceRevenue = await Invoice.aggregate([
+      { $match: { branch: branchId, status: 'paid', isDeleted: false } },
+      { $group: { _id: null, total: { $sum: {
+        $ifNull: [
+          '$pricing.totalAmount',
+          { $ifNull: ['$pricing.finalAmount', { $ifNull: ['$pricing.total', '$totalAmount'] }] }
+        ]
+      } } } }
+    ]);
+
+    const bookingRevenue = await Booking.aggregate([
+      { $match: { 
+          status: 'completed',
+          isDeleted: false,
+          $or: [ { branch: mongoose.Types.ObjectId(branchId) }, { bookingBranch: mongoose.Types.ObjectId(branchId) }, { branch: branchId }, { bookingBranch: branchId } ]
+      } },
+      { $group: { _id: null, total: { $sum: {
+        $ifNull: [
+          '$pricing.totalAmount',
+          { $ifNull: ['$pricing.finalAmount', { $ifNull: ['$pricing.total', '$totalAmount'] }] }
+        ]
+      } } } }
+    ]);
+
+    const quotationRevenue = await Quotation.aggregate([
+      { $match: { branch: branchId, status: 'accepted', isDeleted: false } },
+      { $group: { _id: null, total: { $sum: {
+        $ifNull: [
+          '$pricing.totalAmount',
+          { $ifNull: ['$pricing.finalAmount', { $ifNull: ['$pricing.total', '$totalAmount'] }] }
+        ]
+      } } } }
+    ]);
+
+    const breakdown = {
+      invoices: invoiceRevenue[0]?.total || 0,
+      bookings: bookingRevenue[0]?.total || 0,
+      quotations: quotationRevenue[0]?.total || 0,
+    };
+
+    breakdown.total = breakdown.invoices + breakdown.bookings + breakdown.quotations;
+
+    // persist breakdown object to branch.revenue
+    await Branch.findByIdAndUpdate(branchId, { revenue: {
+      total: breakdown.total,
+      invoices: breakdown.invoices,
+      bookings: breakdown.bookings,
+      quotations: breakdown.quotations
+    } });
+
+    return breakdown;
+  } catch (err) {
+    console.error('Error computing branch revenue breakdown:', err);
+    throw err;
+  }
+};
+
+
 const updateBranchStats = async (branchId) => {
   try {
     await Promise.all([
@@ -75,7 +109,7 @@ const updateBranchStats = async (branchId) => {
   }
 };
 
-// Update all branches stats (for periodic updates)
+
 const updateAllBranchesStats = async () => {
   try {
     const branches = await Branch.find({ isDeleted: false });
@@ -92,6 +126,7 @@ const updateAllBranchesStats = async () => {
 module.exports = {
   updateBranchEmployeeCount,
   updateBranchRevenue,
+  computeBranchRevenueBreakdown,
   updateBranchStats,
   updateAllBranchesStats
 };

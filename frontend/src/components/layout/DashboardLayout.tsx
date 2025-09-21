@@ -9,17 +9,16 @@ import FinanceManagement from '../finance/FinanceManagement';
 import InventoryManagement from '../inventory/InventoryManagement';
 import AttendanceManagement from '../attendance/AttendanceManagement';
 import QuotationManagement from '../quotations/QuotationManagement';
-import CompanyManagement from '../company/CompanyManagement';
+import BranchManagement from '../branch/BranchManagement';
 import ReportsAndAnalytics from '../reports/ReportsAndAnalytics';
 import ProfilePage from '../profile/ProfilePage';
 import TaskManagement from '../tasks/TaskManagement';
-import ProductionWorkflow from '../production/ProductionWorkflow';
 import VendorManagement from '../vendors/VendorManagement';
 import AdvancedAnalytics from '../analytics/AdvancedAnalytics';
 import { AIInsights } from '../ai/AIInsights';
-import { MobileApp } from '../mobile/MobileApp';
 import { EnhancedAutomation } from '../automation/EnhancedAutomation';
 import { SystemIntegration } from '../integration/SystemIntegration';
+import DailyExpenses from '../dailyExpenses/DailyExpenses';
 
 const DashboardLayout = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -46,25 +45,25 @@ const DashboardLayout = () => {
       case 'tasks':
         return <TaskManagement />;
       case 'production':
-        return <ProductionWorkflow />;
+        return <DailyExpenses />; 
       case 'vendors':
         return <VendorManagement />;
       case 'analytics':
         return <AdvancedAnalytics />;
       case 'ai-insights':
         return <AIInsights />;
-      case 'mobile-app':
-        return <MobileApp />;
       case 'automation':
         return <EnhancedAutomation />;
       case 'integrations':
         return <SystemIntegration />;
       case 'company':
-        return <CompanyManagement />;
+        return <BranchManagement />;
       case 'reports':
         return <ReportsAndAnalytics />;
       case 'profile':
         return <ProfilePage />;
+      case 'daily-expenses':
+        return <DailyExpenses />;
       default:
         return <Dashboard />;
     }

@@ -181,7 +181,7 @@ const StaffManagement = () => {
     },
     referredBy: "",
     password: "",
-    branch: "", // will store branch code now
+    branch: "", 
     staffType: "monthly",
     designation: "",
     department: "",
@@ -214,7 +214,7 @@ const StaffManagement = () => {
   const [attendanceModalStaff, setAttendanceModalStaff] =
     useState<StaffMember | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
-  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceLoading] = useState(false);
 
   const { addNotification } = useNotification();
   const { user } = useAuth();
@@ -224,18 +224,18 @@ const StaffManagement = () => {
     fetchBranches();
   }, []);
 
-  // Handle form initialization when editing staff
+  
   useEffect(() => {
     if (selectedStaff) {
       handleEditStaff(selectedStaff);
     } else {
       resetForm();
     }
-  }, [selectedStaff, branches]); // Add branches as dependency
+  }, [selectedStaff, branches]); 
 
-  // Update branch in formData when branches load and user is branch admin/manager
+  
   useEffect(() => {
-    if (user && (user.role === 'company_admin' || user.role === 'branch_head') && 
+    if (user && (user.role === 'admin') && 
         user.branchId && branches.length > 0 && !selectedStaff) {
       const userBranch = branches.find(b => b._id === user.branchId);
       if (userBranch && formData.branch !== userBranch._id) {
@@ -244,7 +244,7 @@ const StaffManagement = () => {
     }
   }, [branches, user, selectedStaff, formData.branch]);
 
-  // Refetch staff when filters change
+  
   useEffect(() => {
     fetchStaff();
   }, [filterBranch, filterStatus, searchTerm]);
@@ -253,7 +253,7 @@ const StaffManagement = () => {
     try {
       setLoading(true);
       
-      // Prepare query parameters
+      
       const params: any = {};
       if (user?.role === 'chairman' && filterBranch !== 'all') {
         params.branch = filterBranch;
@@ -268,7 +268,7 @@ const StaffManagement = () => {
       const staffResponse = await staffAPI.getStaff(params);
       console.log("Full API response:", staffResponse);
 
-      // Try different ways to access the data
+      
       const staffData =
         staffResponse.data?.data || staffResponse.data || staffResponse;
 
@@ -310,28 +310,28 @@ const StaffManagement = () => {
   };
 
   const resetForm = () => {
-    // Auto-set branch based on user role
+    
     let defaultBranch = "";
     if (user) {
-      if (user.role === 'company_admin' || user.role === 'branch_head') {
-        // For branch admin/manager, auto-select their branch
+      if (user.role === 'admin') {
+        
         if (user.branchId) {
-          // If branches are loaded, find the branch
+          
           if (branches.length > 0) {
             const userBranch = branches.find(b => b._id === user.branchId);
             if (userBranch) {
               defaultBranch = userBranch._id;
             } else {
-              // If branch not found in list, still use the branchId
+              
               defaultBranch = user.branchId;
             }
           } else {
-            // If branches not loaded yet, use the branchId directly
+            
             defaultBranch = user.branchId;
           }
         }
       }
-      // For chairman, leave branch empty so they can choose
+      
     }
 
     setFormData({
@@ -360,7 +360,7 @@ const StaffManagement = () => {
       },
       referredBy: "",
       password: "",
-      branch: defaultBranch, // Auto-set based on user role
+      branch: defaultBranch, 
       staffType: "monthly",
       designation: "",
       department: "",
@@ -408,7 +408,7 @@ const StaffManagement = () => {
       aadharNumbers: staff.aadharNumbers,
       contacts: staff.contacts,
       referredBy: staff.referredBy || "",
-      password: "", // Don't pre-fill password
+      password: "", 
       branch: staff.branch?._id || "",
       staffType: staff.staffType,
       designation: staff.designation,
@@ -471,6 +471,8 @@ const StaffManagement = () => {
         });
       }
       fetchStaff();
+      // notify other components (e.g., BranchManagement) to refresh branch stats/counts
+      try { window.dispatchEvent(new Event('branchesUpdated')); } catch (err) { /* ignore */ }
       setShowAddModal(false);
       setShowEditModal(false);
       setSelectedStaff(null);
@@ -496,6 +498,7 @@ const StaffManagement = () => {
           message: "Staff member deleted successfully",
         });
         fetchStaff();
+        try { window.dispatchEvent(new Event('branchesUpdated')); } catch(err) { /* ignore */ }
       } catch (error: any) {
         addNotification({
           type: "error",
@@ -507,8 +510,8 @@ const StaffManagement = () => {
   };
 
   const filteredStaff = staffMembers.filter((staff) => {
-    // Show all staff if filters are 'all' and search is empty
-    // For branch admins/managers, skip branch filtering since backend already filters
+    
+    
     const shouldApplyBranchFilter = user?.role === 'chairman';
     
     if (
@@ -529,7 +532,7 @@ const StaffManagement = () => {
       filterStatus === "all" ||
       (staff.isActive ? "active" : "inactive") === filterStatus;
 
-    // Only apply branch filter for chairman
+    
     const matchesBranch =
       !shouldApplyBranchFilter ||
       filterBranch === "all" ||
@@ -549,7 +552,7 @@ const StaffManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Staff Management</h1>
@@ -566,7 +569,7 @@ const StaffManagement = () => {
         </button>
       </div>
 
-      {/* Search and Filter */}
+      {}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -591,7 +594,7 @@ const StaffManagement = () => {
             <option value="terminated">Terminated</option>
           </select>
 
-          {/* Only show branch filter for chairman */}
+          {}
           {user?.role === 'chairman' && (
             <select
               value={filterBranch}
@@ -609,7 +612,7 @@ const StaffManagement = () => {
         </div>
       </div>
 
-      {/* Staff Grid */}
+      {}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStaff.map((staff) => (
           <div
@@ -704,7 +707,7 @@ const StaffManagement = () => {
         </div>
       )}
 
-      {/* Add/Edit Modal */}
+      {}
       {(showAddModal || showEditModal) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -726,7 +729,7 @@ const StaffManagement = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Photo Upload */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Profile Photo
@@ -754,7 +757,7 @@ const StaffManagement = () => {
                   />
                 )}
               </div>
-              {/* Education: Class/Subject */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Education: Class/Subject</h3>
                 <input
@@ -765,7 +768,7 @@ const StaffManagement = () => {
                   placeholder="Enter class/subject (e.g. 12th Science, B.Com, etc.)"
                 />
               </div>
-              {/* Experience: Previous Workplaces */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Experience: Previous Workplaces</h3>
                 <textarea
@@ -776,7 +779,7 @@ const StaffManagement = () => {
                   placeholder="List previous workplaces, one per line"
                 />
               </div>
-              {/* Basic Information */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Basic Information
@@ -864,15 +867,15 @@ const StaffManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Branch Assignment *
                     </label>
-                    {user && (user.role === 'company_admin' || user.role === 'branch_head') ? (
-                      // Show read-only branch for branch admins/managers
+                    {user && (user.role === 'admin') ? (
+                      
                       <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
                         {(() => {
                           const userBranch = branches.find(b => b._id === user.branchId);
                           if (userBranch) {
                             return `${userBranch.name} (${userBranch.code})`;
                           } else if (user.branchId) {
-                            // If branch not found in list but user has branchId, show the ID
+                            
                             return `Branch ID: ${user.branchId}`;
                           } else {
                             return 'No branch assigned';
@@ -880,22 +883,39 @@ const StaffManagement = () => {
                         })()}
                       </div>
                     ) : selectedStaff ? (
-                      // When editing, show current branch as read-only for all users
-                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                        {(() => {
-                          const currentBranch = branches.find(b => b._id === formData.branch);
-                          if (currentBranch) {
-                            return `${currentBranch.name} (${currentBranch.code})`;
-                          } else if (formData.branch) {
-                            // If branch not found in list but formData has branch, show the ID
-                            return `Branch ID: ${formData.branch}`;
-                          } else {
-                            return 'No branch assigned';
+                      // When editing a staff member allow chairman to change the branch assignment
+                      user && user.role === 'chairman' ? (
+                        <select
+                          required
+                          value={formData.branch}
+                          onChange={(e) =>
+                            setFormData({ ...formData, branch: e.target.value })
                           }
-                        })()}
-                      </div>
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Select a branch</option>
+                          {branches.map((branch) => (
+                            <option key={branch._id} value={branch._id}>
+                              {branch.name} ({branch.code})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                          {(() => {
+                            const currentBranch = branches.find(b => b._id === formData.branch);
+                            if (currentBranch) {
+                              return `${currentBranch.name} (${currentBranch.code})`;
+                            } else if (formData.branch) {
+                              return `Branch ID: ${formData.branch}`;
+                            } else {
+                              return 'No branch assigned';
+                            }
+                          })()}
+                        </div>
+                      )
                     ) : (
-                      // Show dropdown for chairman when adding new staff
+                      
                       <select
                         required
                         value={formData.branch}
@@ -934,7 +954,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Address */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Address
@@ -1026,7 +1046,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Family Information */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Family Information
@@ -1064,7 +1084,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Personal Details */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Personal Details
@@ -1107,7 +1127,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Aadhar Numbers */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Aadhar Numbers
@@ -1178,7 +1198,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Children Details */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Children Details
@@ -1279,7 +1299,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Education */}
+              {}
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -1352,7 +1372,7 @@ const StaffManagement = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
-                      {/* Removed boardOrUniversity field, not in type */}
+                      {}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Passing Year
@@ -1433,7 +1453,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Contact Numbers */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Contact Numbers
@@ -1504,7 +1524,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Login Credentials */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Login Credentials
@@ -1562,7 +1582,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Employment Details */}
+              {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Employment Details
@@ -1632,7 +1652,7 @@ const StaffManagement = () => {
                 </div>
               </div>
 
-              {/* Submit Buttons */}
+              {}
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
                 <button
                   type="button"
@@ -1662,7 +1682,7 @@ const StaffManagement = () => {
         </div>
       )}
 
-      {/* Attendance History Modal */}
+      {}
       {attendanceModalStaff && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">

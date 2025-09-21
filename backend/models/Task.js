@@ -66,7 +66,7 @@ const taskSchema = new mongoose.Schema({
     default: 'manual'
   },
   estimatedDuration: {
-    type: Number, // in minutes
+    type: Number, 
     default: 240
   },
   actualStartTime: Date,
@@ -93,7 +93,7 @@ const taskSchema = new mongoose.Schema({
     specialRequirements: String
   },
   progress: {
-    type: Number, // percentage 0-100
+    type: Number, 
     min: 0,
     max: 100,
     default: 0
@@ -133,7 +133,7 @@ const taskSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for efficient queries
+
 taskSchema.index({ company: 1, branch: 1 });
 taskSchema.index({ booking: 1 });
 taskSchema.index({ 'assignedTo.staff': 1 });

@@ -3,9 +3,9 @@ const Inventory = require('../models/Inventory');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 
-// @desc    Get all rentals
-// @route   GET /api/rentals
-// @access  Private
+
+
+
 const getAllRentals = asyncHandler(async (req, res, next) => {
   const { rentalType, status, branch } = req.query;
   
@@ -37,9 +37,9 @@ const getAllRentals = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get single rental
-// @route   GET /api/rentals/:id
-// @access  Private
+
+
+
 const getRental = asyncHandler(async (req, res, next) => {
   const rental = await Rental.findById(req.params.id)
     .populate('equipment', 'name type condition')
@@ -52,7 +52,7 @@ const getRental = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Rental not found with id of ${req.params.id}`, 404));
   }
   
-  // Check if overdue
+  
   if (rental.isOverdue()) {
     rental.status = 'overdue';
     await rental.save();
@@ -64,14 +64,14 @@ const getRental = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Create new rental
-// @route   POST /api/rentals
-// @access  Private
+
+
+
 const createRental = asyncHandler(async (req, res, next) => {
   req.body.company = req.user.companyId;
   req.body.createdBy = req.user.id;
   
-  // Check if equipment is available
+  
   if (req.body.rentalType === 'outgoing') {
     const equipment = await Inventory.findById(req.body.equipment);
     if (!equipment) {
@@ -82,7 +82,7 @@ const createRental = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Equipment not available for rental', 400));
     }
     
-    // Update equipment quantity
+    
     equipment.quantity -= 1;
     await equipment.save();
   }
@@ -101,9 +101,9 @@ const createRental = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update rental
-// @route   PUT /api/rentals/:id
-// @access  Private
+
+
+
 const updateRental = asyncHandler(async (req, res, next) => {
   req.body.updatedBy = req.user.id;
   
@@ -113,7 +113,7 @@ const updateRental = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Rental not found with id of ${req.params.id}`, 404));
   }
   
-  // If status is changing to returned, update equipment quantity
+  
   if (req.body.status === 'returned' && rental.status !== 'returned') {
     if (rental.rentalType === 'outgoing') {
       const equipment = await Inventory.findById(rental.equipment);
@@ -142,9 +142,9 @@ const updateRental = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Delete rental
-// @route   DELETE /api/rentals/:id
-// @access  Private
+
+
+
 const deleteRental = asyncHandler(async (req, res, next) => {
   const rental = await Rental.findById(req.params.id);
   
@@ -152,7 +152,7 @@ const deleteRental = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Rental not found with id of ${req.params.id}`, 404));
   }
   
-  // Return equipment to inventory if it was rented out
+  
   if (rental.rentalType === 'outgoing' && rental.status !== 'returned') {
     const equipment = await Inventory.findById(rental.equipment);
     if (equipment) {
@@ -169,9 +169,9 @@ const deleteRental = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get rental statistics
-// @route   GET /api/rentals/stats
-// @access  Private
+
+
+
 const getRentalStats = asyncHandler(async (req, res, next) => {
   const { branch } = req.query;
   
@@ -213,9 +213,9 @@ const getRentalStats = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Get overdue rentals
-// @route   GET /api/rentals/overdue
-// @access  Private
+
+
+
 const getOverdueRentals = asyncHandler(async (req, res, next) => {
   const { branch } = req.query;
   

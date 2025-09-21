@@ -1,4 +1,3 @@
-
 const express = require('express');
 const dotenv = require('dotenv');
 const colors = require('colors');
@@ -6,13 +5,13 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorHandler');
 
-// Load env vars
+
 dotenv.config();
 
-// Connect to database
+
 connectDB();
 
-// Route files
+
 const auth = require('./routes/authRoutes');
 const inventory = require('./routes/inventoryRoutes');
 const staff = require('./routes/staffRoutes');
@@ -24,10 +23,11 @@ const notifications = require('./routes/notificationRoutes');
 const tasks = require('./routes/taskRoutes');
 const quotations = require('./routes/quotationRoutes');
 const production = require('./routes/productionRoutes');
+const dailyExpenses = require('./routes/dailyExpensesRoutes');
 const vendors = require('./routes/vendorRoutes');
 const analytics = require('./routes/analyticsRoutes');
 const expenses = require('./routes/expenseRoutes');
-// Phase 3 - Advanced Features
+
 const ai = require('./routes/aiRoutes');
 const mobile = require('./routes/mobileRoutes');
 const automation = require('./routes/automationRoutes');
@@ -35,16 +35,16 @@ const integrations = require('./routes/integrationRoutes');
 
 const app = express();
 
-// Body parser
+
 app.use(express.json());
 
-// Enable CORS
+
 const corsOptions = {
   origin: [
-    'http://localhost:3000', // Local development
-    'http://localhost:5173', // Vite dev server
-    'https://abeer-crm.vercel.app', // Production frontend
-    'http://localhost:2500' // Production backend (for API calls)
+    'http://localhost:3000', 
+    'http://localhost:5173', 
+    'https://abeer-crm.vercel.app', 
+    'http://localhost:2500' 
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -53,7 +53,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Mount routers
+
 app.use('/api/auth', auth);
 app.use('/api/inventory', inventory);
 app.use('/api/staff', staff);
@@ -67,16 +67,17 @@ app.use('/api/notifications', notifications);
 app.use('/api/tasks', tasks);
 app.use('/api/quotations', quotations);
 app.use('/api/production', production);
+app.use('/api/daily-expenses', dailyExpenses);
 app.use('/api/vendors', vendors);
 app.use('/api/analytics', analytics);
 app.use('/api/expenses', expenses);
-// Phase 3 - Advanced Features
+
 app.use('/api/ai', ai);
 app.use('/api/mobile', mobile);
 app.use('/api/automation', automation);
 app.use('/api/integrations', integrations);
 
-// Error handler middleware
+
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
@@ -88,9 +89,9 @@ const server = app.listen(
   )
 );
 
-// Handle unhandled promise rejections
+
 process.on('unhandledRejection', (err, promise) => {
   console.log(`Error: ${err.message}`.red);
-  // Close server & exit process
+  
   server.close(() => process.exit(1));
 });

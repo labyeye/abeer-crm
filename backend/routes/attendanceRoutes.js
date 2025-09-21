@@ -13,10 +13,10 @@ const {
 } = require('../controller/attendanceController');
 const { protect, authorize } = require('../middleware/auth');
 
-// Apply auth middleware to all routes
+
 router.use(protect);
 
-// Routes
+
 router.route('/')
   .get(authorize('chairman', 'admin', 'manager', 'staff'), getAllAttendance);
 

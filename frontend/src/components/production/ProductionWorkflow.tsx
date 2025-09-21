@@ -58,7 +58,7 @@ interface ProductionProject {
   qualityMetrics: {
     clientRating?: number;
     revisionsCount: number;
-    deliveryScore: number; // Based on timeline adherence
+    deliveryScore: number; 
   };
   createdAt: string;
   updatedAt: string;
@@ -68,15 +68,15 @@ interface ProductionStage {
   _id: string;
   name: string;
   description: string;
-  estimatedDuration: number; // in hours
+  estimatedDuration: number; 
   status: 'pending' | 'in_progress' | 'completed' | 'delayed' | 'skipped';
   startDate?: string;
   endDate?: string;
-  dependencies: string[]; // Stage IDs that must be completed first
+  dependencies: string[]; 
   deliverables: string[];
   assignedStaff: string[];
   notes: string;
-  progress: number; // 0-100
+  progress: number; 
 }
 
 const ProductionWorkflow = () => {
@@ -111,7 +111,7 @@ const ProductionWorkflow = () => {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      // API call would go here
+      
       const mockProjects: ProductionProject[] = [
         {
           _id: '1',
@@ -240,13 +240,13 @@ const ProductionWorkflow = () => {
 
   const fetchProductionStats = async () => {
     try {
-      // API call would go here
+      
       const mockStats = {
         totalProjects: 15,
         activeProjects: 8,
         completedThisMonth: 4,
         delayedProjects: 2,
-        averageDeliveryTime: 12, // days
+        averageDeliveryTime: 12, 
         clientSatisfactionScore: 4.6,
         resourceUtilization: 78,
         upcomingDeadlines: 3
@@ -275,7 +275,7 @@ const ProductionWorkflow = () => {
 
   const handleStageUpdate = async (projectId: string, stageId: string, updates: Partial<ProductionStage>) => {
     try {
-      // API call would go here - using parameters in future implementation
+      
       console.log('Updating stage:', { projectId, stageId, updates });
       addNotification({
         type: 'success',
@@ -332,7 +332,7 @@ const ProductionWorkflow = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Production Workflow</h1>
@@ -369,7 +369,7 @@ const ProductionWorkflow = () => {
         </div>
       </div>
 
-      {/* Stats Dashboard */}
+      {}
       {productionStats && (
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
           <NeomorphicCard className="p-4 md:col-span-2">
@@ -414,7 +414,7 @@ const ProductionWorkflow = () => {
         </div>
       )}
 
-      {/* Filters */}
+      {}
       <NeomorphicCard className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
@@ -497,7 +497,7 @@ const ProductionWorkflow = () => {
         </div>
       </NeomorphicCard>
 
-      {/* Projects Display */}
+      {}
       {viewMode === 'kanban' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProjects.map((project) => (
@@ -510,7 +510,7 @@ const ProductionWorkflow = () => {
             >
               <NeomorphicCard className="p-6 hover:shadow-lg transition-shadow">
                 <div className="space-y-4">
-                  {/* Header */}
+                  {}
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold text-gray-900">{project.projectName}</h3>
@@ -526,7 +526,7 @@ const ProductionWorkflow = () => {
                     </div>
                   </div>
 
-                  {/* Client & Event Details */}
+                  {}
                   <div className="space-y-2">
                     <div className="flex items-center text-sm text-gray-600">
                       <User className="w-4 h-4 mr-2" />
@@ -538,7 +538,7 @@ const ProductionWorkflow = () => {
                     </div>
                   </div>
 
-                  {/* Current Stage Progress */}
+                  {}
                   <div>
                     <div className="flex items-center justify-between text-sm mb-2">
                       <span className="text-gray-600">Current Stage</span>
@@ -556,7 +556,7 @@ const ProductionWorkflow = () => {
                     )}
                   </div>
 
-                  {/* Timeline */}
+                  {}
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Est. Delivery:</span>
                     <span className="text-gray-900 font-medium">
@@ -564,7 +564,7 @@ const ProductionWorkflow = () => {
                     </span>
                   </div>
 
-                  {/* Assigned Team */}
+                  {}
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">Team:</p>
                     <div className="flex flex-wrap gap-1">
@@ -587,7 +587,7 @@ const ProductionWorkflow = () => {
         </div>
       )}
 
-      {/* Project Detail Modal */}
+      {}
       <NeomorphicModal
         isOpen={showProjectModal}
         onClose={() => setShowProjectModal(false)}
@@ -595,7 +595,7 @@ const ProductionWorkflow = () => {
       >
         {selectedProject && (
           <div className="space-y-6">
-            {/* Project Overview */}
+            {}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h4 className="font-medium text-gray-900 mb-3">Project Information</h4>
@@ -646,7 +646,7 @@ const ProductionWorkflow = () => {
               </div>
             </div>
 
-            {/* Production Stages */}
+            {}
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Production Stages</h4>
               <div className="space-y-3">
@@ -708,7 +708,7 @@ const ProductionWorkflow = () => {
               </div>
             </div>
 
-            {/* Resource Usage */}
+            {}
             <div>
               <h4 className="font-medium text-gray-900 mb-3">Resource Usage</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -755,7 +755,7 @@ const ProductionWorkflow = () => {
         )}
       </NeomorphicModal>
 
-      {/* Stage Update Modal */}
+      {}
       <NeomorphicModal
         isOpen={showStageModal}
         onClose={() => setShowStageModal(false)}

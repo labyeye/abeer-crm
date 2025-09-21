@@ -3,9 +3,9 @@ const Staff = require('../models/Staff');
 const asyncHandler = require('../utils/asyncHandler');
 const ErrorResponse = require('../utils/ErrorResponse');
 
-// @desc    Get all attendance records
-// @route   GET /api/attendance
-// @access  Private
+
+
+
 const getAllAttendance = asyncHandler(async (req, res) => {
   const { branch, staff, client, date, status, startDate, endDate } = req.query;
 
@@ -43,13 +43,13 @@ const getAllAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get staff's own attendance records
-// @route   GET /api/attendance/my-attendance
-// @access  Private (Staff only)
+
+
+
 const getMyAttendance = asyncHandler(async (req, res) => {
   const { date, startDate, endDate, status } = req.query;
 
-  // Find staff record for current user
+  
   const staff = await Staff.findOne({ user: req.user._id });
   if (!staff) {
     return res.status(404).json({
@@ -93,9 +93,9 @@ const getMyAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get attendance record by ID (with access control)
-// @route   GET /api/attendance/:id
-// @access  Private
+
+
+
 const getAttendanceById = asyncHandler(async (req, res) => {
   const attendance = await Attendance.findById(req.params.id)
     .populate('staff', 'employeeId designation name user')
@@ -109,7 +109,7 @@ const getAttendanceById = asyncHandler(async (req, res) => {
     });
   }
 
-  // If user is staff, only allow viewing their own attendance
+  
   if (req.user.role === 'staff') {
     const staff = await Staff.findOne({ user: req.user._id });
     if (!staff || attendance.staff.toString() !== staff._id.toString()) {
@@ -126,13 +126,13 @@ const getAttendanceById = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Check in staff
-// @route   POST /api/attendance/checkin
-// @access  Private
+
+
+
 const checkIn = asyncHandler(async (req, res) => {
   const { staffId, photo, location, deviceInfo } = req.body;
 
-  // Check if staff exists
+  
   const staff = await Staff.findById(staffId);
   if (!staff || staff.isDeleted) {
     return next(new ErrorResponse('Staff not found', 404));
@@ -141,7 +141,7 @@ const checkIn = asyncHandler(async (req, res) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Check if already checked in today
+  
   const existingAttendance = await Attendance.findOne({
     staff: staffId,
     date: {
@@ -153,7 +153,7 @@ const checkIn = asyncHandler(async (req, res) => {
   const checkInTime = new Date();
   let status = 'present';
 
-  // Check if late (after 9:30 AM)
+  
   const lateThreshold = new Date(today);
   lateThreshold.setHours(9, 30, 0, 0);
 
@@ -176,7 +176,7 @@ const checkIn = asyncHandler(async (req, res) => {
 
   const attendance = await Attendance.create(attendanceData);
 
-  // Update staff performance score
+  
   if (status === 'late') {
     staff.performance.lateArrivals += 1;
     staff.performance.score = Math.max(0, staff.performance.score - 5);
@@ -189,16 +189,16 @@ const checkIn = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Check out staff
-// @route   POST /api/attendance/checkout
-// @access  Private
+
+
+
 const checkOut = asyncHandler(async (req, res) => {
   const { staffId, photo, location, deviceInfo } = req.body;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Find today's attendance record
+  
   const attendance = await Attendance.findOne({
     staff: staffId,
     date: {
@@ -209,11 +209,11 @@ const checkOut = asyncHandler(async (req, res) => {
   });
   const checkOutTime = new Date();
 
-  // Calculate working hours
+  
   const checkInTime = new Date(attendance.checkIn.time);
-  const workingHours = (checkOutTime - checkInTime) / (1000 * 60 * 60); // Convert to hours
+  const workingHours = (checkOutTime - checkInTime) / (1000 * 60 * 60); 
 
-  // Calculate overtime (if working more than 8 hours)
+  
   const overtime = Math.max(0, workingHours - 8);
 
   attendance.checkOut = {
@@ -234,9 +234,9 @@ const checkOut = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Mark attendance manually
-// @route   POST /api/attendance/manual
-// @access  Private
+
+
+
 const markAttendanceManually = asyncHandler(async (req, res, next) => {
   const {
     staffId,
@@ -249,7 +249,7 @@ const markAttendanceManually = asyncHandler(async (req, res, next) => {
     notes
   } = req.body;
 
-  // Check if staff exists
+  
   const staff = await Staff.findById(staffId);
   if (!staff || staff.isDeleted) {
     return next(new ErrorResponse('Staff not found', 404));
@@ -258,7 +258,7 @@ const markAttendanceManually = asyncHandler(async (req, res, next) => {
   const attendanceDate = new Date(date);
   attendanceDate.setHours(0, 0, 0, 0);
 
-  // Check if attendance already exists for this date
+  
   const existingAttendance = await Attendance.findOne({
     staff: staffId,
     date: attendanceDate,
@@ -306,9 +306,9 @@ const markAttendanceManually = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Update attendance
-// @route   PUT /api/attendance/:id
-// @access  Private
+
+
+
 const updateAttendance = asyncHandler(async (req, res, next) => {
   const attendance = await Attendance.findById(req.params.id);
 
@@ -328,9 +328,9 @@ const updateAttendance = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc    Delete attendance
-// @route   DELETE /api/attendance/:id
-// @access  Private
+
+
+
 const deleteAttendance = asyncHandler(async (req, res) => {
   const attendance = await Attendance.findById(req.params.id);
 
@@ -347,9 +347,9 @@ const deleteAttendance = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Get attendance summary
-// @route   GET /api/attendance/summary
-// @access  Private
+
+
+
 const getAttendanceSummary = asyncHandler(async (req, res) => {
   const { branch, startDate, endDate } = req.query;
 

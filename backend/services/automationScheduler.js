@@ -9,9 +9,9 @@ class AutomationScheduler {
     this.isRunning = false;
   }
 
-  /**
-   * Start all scheduled tasks
-   */
+  
+
+
   start() {
     if (this.isRunning) {
       console.log('Automation scheduler is already running');
@@ -21,32 +21,32 @@ class AutomationScheduler {
     console.log('Starting automation scheduler...');
     this.isRunning = true;
 
-    // Check for 7-day quotation follow-ups every day at 10:00 AM
+    
     cron.schedule('0 10 * * *', () => {
       this.checkQuotationFollowUps();
     });
 
-    // Check for payment reminders every day at 11:00 AM
+    
     cron.schedule('0 11 * * *', () => {
       this.checkPaymentReminders();
     });
 
-    // Check for photo selection reminders every day at 2:00 PM
+    
     cron.schedule('0 14 * * *', () => {
       this.checkPhotoSelectionReminders();
     });
 
-    // Check for appointment reminders every day at 9:00 AM
+    
     cron.schedule('0 9 * * *', () => {
       this.checkAppointmentReminders();
     });
 
-    // Process pending notifications every hour
+    
     cron.schedule('0 * * * *', () => {
       this.processPendingNotifications();
     });
 
-    // Clean up expired smart links every day at midnight
+    
     cron.schedule('0 0 * * *', () => {
       this.cleanupExpiredLinks();
     });
@@ -54,18 +54,18 @@ class AutomationScheduler {
     console.log('Automation scheduler started successfully');
   }
 
-  /**
-   * Stop all scheduled tasks
-   */
+  
+
+
   stop() {
     cron.destroy();
     this.isRunning = false;
     console.log('Automation scheduler stopped');
   }
 
-  /**
-   * Check for quotations that need 7-day follow-up
-   */
+  
+
+
   async checkQuotationFollowUps() {
     try {
       console.log('Checking quotation follow-ups...');
@@ -73,7 +73,7 @@ class AutomationScheduler {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
-      // Find quotations created 7 days ago that haven't been converted or followed up
+      
       const quotations = await Quotation.find({
         createdAt: {
           $gte: new Date(sevenDaysAgo.setHours(0, 0, 0, 0)),
@@ -86,7 +86,7 @@ class AutomationScheduler {
       .populate('client company branch');
 
       for (const quotation of quotations) {
-        // Check if follow-up notification already sent today
+        
         const existingFollowUp = await Notification.findOne({
           'relatedTo.quotation': quotation._id,
           type: 'quotation_followup_7days',
@@ -103,7 +103,7 @@ class AutomationScheduler {
             branch: quotation.branch
           });
 
-          // Update quotation with follow-up date
+          
           quotation.lastFollowUp = new Date();
           await quotation.save();
         }
@@ -115,16 +115,16 @@ class AutomationScheduler {
     }
   }
 
-  /**
-   * Check for payment reminders
-   */
+  
+
+
   async checkPaymentReminders() {
     try {
       console.log('Checking payment reminders...');
       
       const today = new Date();
       
-      // Find overdue invoices
+      
       const overdueInvoices = await Invoice.find({
         dueDate: { $lt: today },
         status: { $in: ['pending', 'partial'] },
@@ -133,7 +133,7 @@ class AutomationScheduler {
       .populate('client company branch');
 
       for (const invoice of overdueInvoices) {
-        // Check if reminder already sent today
+        
         const existingReminder = await Notification.findOne({
           'relatedTo.invoice': invoice._id,
           type: 'payment_reminder',
@@ -159,27 +159,27 @@ class AutomationScheduler {
     }
   }
 
-  /**
-   * Check for photo selection reminders
-   */
+  
+
+
   async checkPhotoSelectionReminders() {
     try {
       console.log('Checking photo selection reminders...');
       
-      // This would typically check for bookings where photos are ready
-      // but client hasn't selected them yet
-      // Implementation depends on photo management system
       
-      // Placeholder for photo selection reminder logic
+      
+      
+      
+      
       console.log('Photo selection reminders check completed');
     } catch (error) {
       console.error('Error checking photo selection reminders:', error);
     }
   }
 
-  /**
-   * Check for appointment reminders
-   */
+  
+
+
   async checkAppointmentReminders() {
     try {
       console.log('Checking appointment reminders...');
@@ -187,7 +187,7 @@ class AutomationScheduler {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      // Find bookings scheduled for tomorrow
+      
       const upcomingBookings = await Quotation.find({
         'appointmentDetails.date': {
           $gte: new Date(tomorrow.setHours(0, 0, 0, 0)),
@@ -199,7 +199,7 @@ class AutomationScheduler {
       .populate('client company branch');
 
       for (const quotation of upcomingBookings) {
-        // Check if reminder already sent
+        
         const existingReminder = await Notification.findOne({
           'relatedTo.quotation': quotation._id,
           type: 'appointment_reminder',
@@ -209,8 +209,8 @@ class AutomationScheduler {
         });
 
         if (!existingReminder && quotation.appointmentDetails) {
-          // Send appointment reminder (implement based on your message template)
-          // This is a simplified version
+          
+          
           console.log(`Appointment reminder needed for quotation ${quotation.quotationNumber}`);
         }
       }
@@ -221,9 +221,9 @@ class AutomationScheduler {
     }
   }
 
-  /**
-   * Process pending notifications
-   */
+  
+
+
   async processPendingNotifications() {
     try {
       console.log('Processing pending notifications...');
@@ -232,12 +232,12 @@ class AutomationScheduler {
         status: 'pending',
         scheduledFor: { $lte: new Date() },
         retryCount: { $lt: 3 }
-      }).limit(50); // Process in batches
+      }).limit(50); 
 
       for (const notification of pendingNotifications) {
         try {
-          // Here you would integrate with actual SMS/WhatsApp/Email services
-          // For now, we'll just mark as sent
+          
+          
           notification.status = 'sent';
           notification.sentAt = new Date();
           await notification.save();
@@ -258,9 +258,9 @@ class AutomationScheduler {
     }
   }
 
-  /**
-   * Clean up expired smart links
-   */
+  
+
+
   async cleanupExpiredLinks() {
     try {
       console.log('Cleaning up expired smart links...');
@@ -281,9 +281,9 @@ class AutomationScheduler {
     }
   }
 
-  /**
-   * Manually trigger a specific automation check
-   */
+  
+
+
   async runManualCheck(type) {
     switch (type) {
       case 'quotation_followups':
@@ -306,9 +306,9 @@ class AutomationScheduler {
     }
   }
 
-  /**
-   * Get scheduler status
-   */
+  
+
+
   getStatus() {
     return {
       isRunning: this.isRunning,

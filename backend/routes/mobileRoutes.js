@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 
-// Mock mobile app data
+
 const mockFeatures = [
   {
     id: '1',
@@ -51,9 +51,9 @@ const mockAnalytics = {
   revenue: 15400
 };
 
-// @desc    Get mobile app features
-// @route   GET /api/mobile/features
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/features', protect, authorize('chairman', 'admin', 'manager'), async (req, res) => {
   try {
     res.status(200).json({
@@ -67,9 +67,9 @@ router.get('/features', protect, authorize('chairman', 'admin', 'manager'), asyn
   }
 });
 
-// @desc    Get mobile app analytics
-// @route   GET /api/mobile/analytics
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/analytics', protect, authorize('chairman', 'admin', 'manager'), async (req, res) => {
   try {
     res.status(200).json({
@@ -82,9 +82,9 @@ router.get('/analytics', protect, authorize('chairman', 'admin', 'manager'), asy
   }
 });
 
-// @desc    Update feature status
-// @route   PUT /api/mobile/features/:id
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.put('/features/:id', protect, authorize('chairman', 'admin', 'manager'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -108,9 +108,9 @@ router.put('/features/:id', protect, authorize('chairman', 'admin', 'manager'), 
   }
 });
 
-// @desc    Get device statistics
-// @route   GET /api/mobile/device-stats
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/device-stats', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const deviceStats = {
@@ -130,19 +130,19 @@ router.get('/device-stats', protect, authorize('chairman', 'company_admin', 'bra
   }
 });
 
-// @desc    Generate QR code for app download
-// @route   POST /api/mobile/generate-qr
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.post('/generate-qr', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
-    // Simulate QR generation
+    
     await new Promise(resolve => setTimeout(resolve, 500));
     
     const qrData = {
       id: Date.now().toString(),
       url: 'https://app.abeer-crm.com/download',
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() 
     };
     
     res.status(201).json({
@@ -155,14 +155,14 @@ router.post('/generate-qr', protect, authorize('chairman', 'company_admin', 'bra
   }
 });
 
-// @desc    Deploy app update
-// @route   POST /api/mobile/deploy
-// @access  Private (Chairman, Company Admin)
+
+
+
 router.post('/deploy', protect, authorize('chairman', 'company_admin'), async (req, res) => {
   try {
     const { version, platform, releaseNotes } = req.body;
     
-    // Simulate deployment process
+    
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     const deployment = {
@@ -172,7 +172,7 @@ router.post('/deploy', protect, authorize('chairman', 'company_admin'), async (r
       releaseNotes,
       status: 'deploying',
       startedAt: new Date().toISOString(),
-      estimatedCompletion: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutes
+      estimatedCompletion: new Date(Date.now() + 30 * 60 * 1000).toISOString() 
     };
     
     res.status(201).json({
@@ -185,9 +185,9 @@ router.post('/deploy', protect, authorize('chairman', 'company_admin'), async (r
   }
 });
 
-// @desc    Get user feedback
-// @route   GET /api/mobile/feedback
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/feedback', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const feedback = [
@@ -220,9 +220,9 @@ router.get('/feedback', protect, authorize('chairman', 'company_admin', 'branch_
   }
 });
 
-// @desc    Get app performance metrics
-// @route   GET /api/mobile/performance
-// @access  Private (Chairman, Company Admin, Branch Head)
+
+
+
 router.get('/performance', protect, authorize('chairman', 'company_admin', 'branch_head'), async (req, res) => {
   try {
     const performance = {
