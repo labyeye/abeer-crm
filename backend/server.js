@@ -32,6 +32,7 @@ const ai = require('./routes/aiRoutes');
 const mobile = require('./routes/mobileRoutes');
 const automation = require('./routes/automationRoutes');
 const integrations = require('./routes/integrationRoutes');
+const bookings = require('./routes/bookingRoutes');
 
 const app = express();
 
@@ -53,13 +54,24 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+// Ensure preflight (OPTIONS) requests are handled early and won't be redirected.
+// Some hosting platforms or proxies may issue redirects for unknown paths —
+// responding to OPTIONS here prevents the browser CORS preflight from failing.
+app.options('*', cors(corsOptions));
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    // short-circuit OPTIONS requests with 200 OK
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 
 app.use('/api/auth', auth);
 app.use('/api/inventory', inventory);
 app.use('/api/staff', staff);
 app.use('/api/branches', branches);
 app.use('/api/attendance', attendance);
-const bookings = require('./routes/bookingRoutes');
 app.use('/api/bookings', bookings);
 app.use('/api/clients', clients);
 app.use('/api/rentals', rentals);
