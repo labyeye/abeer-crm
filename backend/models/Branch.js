@@ -126,11 +126,6 @@ const branchSchema = new mongoose.Schema(
       required: true,
     },
     panNumber: String,
-    userId: {
-      type: String,
-      required: true,
-      unique: true,
-    },
     password: {
       type: String,
       required: true,
