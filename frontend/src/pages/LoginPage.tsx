@@ -37,13 +37,13 @@ const LoginPage = () => {
 
 
   return (
-  <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+  <div className="min-h-screen app-bg flex items-center justify-center px-4">
       <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         
         {}
         <div className="text-center lg:text-left">
           <div className="flex items-center justify-center lg:justify-start mb-6">
-            <div className="bg-brand p-3 rounded-xl">
+            <div className="bg-primary p-3 rounded-xl shadow-md">
               <Camera className="w-8 h-8 text-white" />
             </div>
             <div className="ml-3">
@@ -54,7 +54,7 @@ const LoginPage = () => {
           
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
             Streamline Your
-            <span className="text-brand"> Photography Business</span>
+            <span className="text-primary"> Photography Business</span>
           </h2>
           
           <p className="text-lg text-gray-600 mb-8">
@@ -64,7 +64,7 @@ const LoginPage = () => {
         </div>
 
         {}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+  <div className="card">
           <div className="text-center mb-8">
             <h3 className="text-2xl font-bold text-gray-900">Welcome Back</h3>
             <p className="text-gray-600 mt-2">Sign in to your account</p>
@@ -83,7 +83,7 @@ const LoginPage = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent transition-all duration-200"
+                  className="w-full pl-11 pr-4 py-3 neu-input transition-all duration-200"
                   placeholder="Enter your email"
                 />
               </div>
@@ -101,7 +101,7 @@ const LoginPage = () => {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent transition-all duration-200"
+                  className="w-full pl-11 pr-12 py-3 neu-input transition-all duration-200"
                   placeholder="Enter your password"
                 />
                 <button
@@ -117,7 +117,7 @@ const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-brand text-white font-semibold py-3 rounded-lg hover:opacity-95 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed justify-center"
             >
               {isLoading ? (
                 <>
@@ -131,7 +131,7 @@ const LoginPage = () => {
           </form>
 
           <div className="mt-6 text-center">
-            <button className="text-brand hover:text-opacity-90 text-sm font-medium">
+            <button className="text-primary hover:text-opacity-90 text-sm font-medium">
               Forgot your password?
             </button>
           </div>

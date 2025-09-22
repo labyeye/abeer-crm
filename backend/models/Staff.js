@@ -138,11 +138,11 @@ const staffSchema = new mongoose.Schema({
       min: 1900,
       max: new Date().getFullYear()
     },
-    marks: {
-      type: Number,
-      min: 0,
-      max: 100
-    },
+    // subject-wise marks for the qualification
+    subjects: [{
+      name: { type: String, trim: true },
+      marks: { type: Number, min: 0, max: 100 }
+    }],
     division: {
       type: String,
       enum: ['first', 'second', 'third', 'pass']
@@ -154,8 +154,12 @@ const staffSchema = new mongoose.Schema({
     default: ''
   },
   experience: [{
-    type: String,
-    trim: true
+    company: { type: String, trim: true },
+    role: { type: String, trim: true },
+    location: { type: String, trim: true },
+    startDate: { type: Date },
+    endDate: { type: Date },
+    description: { type: String, trim: true }
   }],
   isActive: {
     type: Boolean,

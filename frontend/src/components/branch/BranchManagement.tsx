@@ -467,7 +467,7 @@ const BranchManagement = () => {
 
         {/* Create Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
             <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
@@ -568,12 +568,24 @@ const BranchManagement = () => {
                       <input name="revenue" value={formData.revenue} onChange={handleInputChange} className="w-full mt-1 p-2 border rounded" />
                     </div>
                   </div>
-                  <button
-                    type="submit"
-                    className="w-full bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
-                  >
-                    Create Branch
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreateModal(false);
+                        resetForm();
+                      }}
+                      className="flex-1 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+                    >
+                      Create Branch
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
@@ -582,7 +594,7 @@ const BranchManagement = () => {
 
         {/* Edit Modal */}
         {showEditModal && selectedBranch && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
             <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-6">
@@ -683,12 +695,24 @@ const BranchManagement = () => {
                       <input name="revenue" value={formData.revenue} onChange={handleInputChange} className="w-full mt-1 p-2 border rounded" />
                     </div>
                   </div>
-                  <button
-                    type="submit"
-                    className="w-full bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
-                  >
-                    Update Branch
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        resetForm();
+                      }}
+                      className="flex-1 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+                    >
+                      Update Branch
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>

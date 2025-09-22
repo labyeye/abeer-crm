@@ -106,6 +106,46 @@ const createStaff = asyncHandler(async (req, res, next) => {
     contacts,
     referredBy
   } = req.body;
+  // accept structured experience array if provided
+  let experience = req.body.experience;
+  if (experience && Array.isArray(experience)) {
+    experience = experience.map(exp => ({
+      company: exp.company || exp.companyName || exp.company_name || '',
+      role: exp.role || exp.position || '',
+      location: exp.location || '',
+      startDate: exp.startDate ? new Date(exp.startDate) : (exp.start ? new Date(exp.start) : undefined),
+      endDate: exp.endDate ? new Date(exp.endDate) : (exp.end ? new Date(exp.end) : undefined),
+      description: exp.description || ''
+    }));
+  } else {
+    experience = [];
+  }
+  // normalize education array if provided (support subject-wise marks or legacy marks field)
+  let normalizedEducation = [];
+  if (education && Array.isArray(education)) {
+    normalizedEducation = education.map(ed => {
+      const subjectsRaw = ed.subjects;
+      let subjects = [];
+      if (Array.isArray(subjectsRaw)) {
+        subjects = subjectsRaw.map(s => ({
+          name: s.name || s.subject || s.subjectName || '',
+          marks: s.marks !== undefined ? Number(s.marks) : (s.score !== undefined ? Number(s.score) : undefined)
+        })).filter(s => s.name);
+      } else if (ed.marks !== undefined) {
+        // legacy single marks field -> convert to a single subject entry
+        subjects = [{ name: ed.subjectName || 'Overall', marks: Number(ed.marks) }];
+      }
+
+      return {
+        degree: ed.degree || ed.class || ed.qualification || '',
+        institution: ed.institution || ed.school || ed.college || '',
+        year: ed.year ? Number(ed.year) : (ed.passedYear ? Number(ed.passedYear) : undefined),
+        subjects
+      };
+    });
+  } else {
+    normalizedEducation = [];
+  }
   
   
   const existingEmployeeId = await Staff.findOne({ employeeId, isDeleted: false });
@@ -175,7 +215,7 @@ const createStaff = asyncHandler(async (req, res, next) => {
     maritalStatus,
     children,
     grandfatherName,
-    education,
+  education: normalizedEducation,
     name,
     phone,
     address,
@@ -184,6 +224,8 @@ const createStaff = asyncHandler(async (req, res, next) => {
     aadharNumbers,
     contacts,
     referredBy
+    ,
+    experience
   };
 
   const staff = await Staff.create(staffData);
@@ -237,6 +279,39 @@ const updateStaff = asyncHandler(async (req, res) => {
       // try to coerce to number if a primitive was sent
       req.body.salary = Number(req.body.salary);
     }
+  }
+  // sanitize experience array if present
+  if (req.body.experience && Array.isArray(req.body.experience)) {
+    req.body.experience = req.body.experience.map(exp => ({
+      company: exp.company || exp.companyName || exp.company_name || '',
+      role: exp.role || exp.position || '',
+      location: exp.location || '',
+      startDate: exp.startDate ? new Date(exp.startDate) : (exp.start ? new Date(exp.start) : undefined),
+      endDate: exp.endDate ? new Date(exp.endDate) : (exp.end ? new Date(exp.end) : undefined),
+      description: exp.description || ''
+    }));
+  }
+  // normalize education payload if present
+  if (req.body.education && Array.isArray(req.body.education)) {
+    req.body.education = req.body.education.map(ed => {
+      const subjectsRaw = ed.subjects;
+      let subjects = [];
+      if (Array.isArray(subjectsRaw)) {
+        subjects = subjectsRaw.map(s => ({
+          name: s.name || s.subject || s.subjectName || '',
+          marks: s.marks !== undefined ? Number(s.marks) : (s.score !== undefined ? Number(s.score) : undefined)
+        })).filter(s => s.name);
+      } else if (ed.marks !== undefined) {
+        subjects = [{ name: ed.subjectName || 'Overall', marks: Number(ed.marks) }];
+      }
+
+      return {
+        degree: ed.degree || ed.class || ed.qualification || '',
+        institution: ed.institution || ed.school || ed.college || '',
+        year: ed.year ? Number(ed.year) : (ed.passedYear ? Number(ed.passedYear) : undefined),
+        subjects
+      };
+    });
   }
   
   const updatedStaff = await Staff.findByIdAndUpdate(

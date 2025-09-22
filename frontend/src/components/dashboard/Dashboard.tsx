@@ -16,7 +16,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import { inventoryAPI, bookingAPI, staffAPI } from "../../services/api";
 import StatCard from "../ui/StatCard";
 
-
 interface BookingStat {
   _id: string;
   createdAt: string;
@@ -70,6 +69,7 @@ const Dashboard = () => {
           change: "Tasks assigned to you",
           changeType: "neutral" as const,
           icon: CheckCircle,
+          color: "primary" as const,
         },
         {
           title: "Attendance",
@@ -77,6 +77,7 @@ const Dashboard = () => {
           change: "Today's status",
           changeType: "increase" as const,
           icon: Clock,
+          color: "success" as const,
         },
         {
           title: "Working Hours",
@@ -84,6 +85,7 @@ const Dashboard = () => {
           change: "Today's hours",
           changeType: "neutral" as const,
           icon: TrendingUp,
+          color: "secondary" as const,
         },
         {
           title: "Performance",
@@ -91,6 +93,7 @@ const Dashboard = () => {
           change: "This month",
           changeType: "increase" as const,
           icon: Users,
+          color: "purple" as const,
         },
       ];
     }
@@ -100,6 +103,7 @@ const Dashboard = () => {
         title: "Total Bookings",
         value: bookingStats ? bookingStats.length.toString() : "0",
         icon: Calendar,
+        color: "secondary" as const,
       },
       {
         title: "Active Projects",
@@ -112,6 +116,7 @@ const Dashboard = () => {
               .length.toString()
           : "0",
         icon: Camera,
+        color: "success" as const,
       },
       {
         title: "Monthly Revenue",
@@ -124,16 +129,16 @@ const Dashboard = () => {
               )
               .toLocaleString()}`
           : "₹0",
-
         changeType: "increase" as const,
         icon: IndianRupee,
+        color: "warning" as const,
       },
       {
         title: "Team Members",
         value: staffStats ? staffStats.length.toString() : "0",
-
         changeType: "increase" as const,
         icon: Users,
+        color: "teal" as const,
       },
     ];
   };
@@ -145,14 +150,14 @@ const Dashboard = () => {
         {
           title: "Total Inventory Items",
           value: inventoryStats.overview.totalItems.toString(),
-
           icon: Package,
+          color: "indigo" as const,
         },
         {
           title: "Total Quantity",
           value: inventoryStats.overview.totalQuantity.toString(),
-
           icon: Package,
+          color: "purple" as const,
         },
         {
           title: "Inventory Value",
@@ -161,13 +166,14 @@ const Dashboard = () => {
               ? inventoryStats.overview.totalValue.toLocaleString()
               : "0"
           }`,
-          icon: IndianRupee,
+    icon: IndianRupee,
+    color: "secondary" as const,
         },
         {
           title: "Low Stock Alert",
           value: inventoryStats.overview.lowStockItems.toString(),
-
           icon: AlertTriangle,
+          color: "error" as const,
         },
       ]
     : [];
@@ -210,12 +216,27 @@ const Dashboard = () => {
         return "text-emerald-600 bg-emerald-50";
       case "in_progress":
         return "text-blue-600 bg-blue-50";
-        <Camera className="w-16 h-16 text-white/80" />;
+      case "confirmed":
         return "text-indigo-600 bg-indigo-50";
       case "scheduled":
         return "text-amber-600 bg-amber-50";
       default:
         return "text-gray-600 bg-gray-50";
+    }
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "badge-success";
+      case "in_progress":
+        return "badge-primary";
+      case "confirmed":
+        return "badge-secondary";
+      case "scheduled":
+        return "badge-warning";
+      default:
+        return "badge-neutral";
     }
   };
 
@@ -229,46 +250,44 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {}
-      <div className="bg-brand rounded-2xl text-white p-8">
+      {/* Welcome Banner */}
+      <div className="card-gradient-primary text-white p-8 rounded-2xl">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">
+            <h1 className="text-3xl font-bold font-display text-white">
               {user?.role === "staff"
                 ? `Welcome back, ${user?.name?.split(" ")[0]}!`
                 : `Welcome back, ${user?.name?.split(" ")[0]}!`}
             </h1>
-            <p className="text-white/90 mt-2">
+            <p className="text-primary-100 mt-2 text-lg">
               {user?.role === "staff"
                 ? "Here's your personal dashboard with tasks and attendance information."
                 : "Here's what's happening with your photography business today."}
             </p>
           </div>
-          <div className="hidden md:block">
-            <Camera className="w-16 h-16 text-white/80" />
-          </div>
+          
         </div>
       </div>
 
-      {}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Business Stats Grid */}
+      <div className="dashboard-grid">
         {stats.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
       </div>
 
-      {}
+      {/* Inventory Overview - Only show for management roles */}
       {inventoryStats &&
         ["chairman", "company_admin", "branch_head"].includes(
           user?.role || ""
         ) && (
           <>
-            <div className="border-t border-gray-200 pt-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
+            <div className="border-t border-neutral-200 pt-6">
+              <h2 className="text-2xl font-bold text-neutral-900 mb-4 font-display">
                 Inventory Overview
               </h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="dashboard-grid">
               {inventoryStatsCards.map((stat, index) => (
                 <StatCard key={index} {...stat} />
               ))}
@@ -305,7 +324,7 @@ const Dashboard = () => {
               <h2 className="text-xl font-bold text-gray-900">
                 {user?.role === "staff" ? "My Tasks" : "Today's Schedule"}
               </h2>
-              <button className="text-brand hover:text-opacity-90 font-medium text-sm">
+              <button className="text-primary hover:text-opacity-90 font-medium text-sm">
                 View All
               </button>
             </div>
@@ -321,10 +340,11 @@ const Dashboard = () => {
                   </p>
                 </div>
               ) : (
-                <>
+                <div className="space-y-4">
                   {todayTasks.length === 0 && (
-                    <div className="text-gray-500 text-center py-8">
-                      No bookings scheduled for today.
+                    <div className="text-neutral-500 text-center py-8">
+                      <Calendar className="w-12 h-12 text-neutral-400 mx-auto mb-4" />
+                      <p>No bookings scheduled for today.</p>
                     </div>
                   )}
                   {todayTasks.map((task: any) => {
@@ -332,7 +352,7 @@ const Dashboard = () => {
                     return (
                       <div
                         key={task.id}
-                        className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="flex items-center p-4 bg-neutral-50 rounded-lg hover:bg-neutral-100 transition-colors"
                       >
                         <div
                           className={`p-2 rounded-lg mr-4 ${getStatusColor(
@@ -342,19 +362,19 @@ const Dashboard = () => {
                           <StatusIcon className="w-4 h-4" />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-medium text-gray-900">
+                          <h3 className="font-medium text-neutral-900">
                             {task.title}
                           </h3>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-neutral-600">
                             {task.location}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium text-gray-900">
+                          <p className="font-medium text-neutral-900">
                             {task.time}
                           </p>
                           <span
-                            className={`inline-block px-2 py-1 text-xs rounded-full ${getStatusColor(
+                            className={`badge ${getStatusBadgeColor(
                               task.status
                             )}`}
                           >
@@ -364,7 +384,7 @@ const Dashboard = () => {
                       </div>
                     );
                   })}
-                </>
+                </div>
               )}
             </div>
           </div>

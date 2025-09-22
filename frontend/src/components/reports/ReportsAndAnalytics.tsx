@@ -267,7 +267,7 @@ const ReportsAndAnalytics = () => {
           </button>
           <button
             onClick={handleGenerateReport}
-            className="bg-brand text-white px-6 py-2 rounded-lg transition-all duration-200 flex items-center"
+            className="btn-primary px-6 py-2 transition-all duration-200 flex items-center"
           >
             <Plus className="w-5 h-5 mr-2" />
             Generate Report
@@ -277,7 +277,7 @@ const ReportsAndAnalytics = () => {
 
       {}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Revenue</p>
@@ -287,23 +287,23 @@ const ReportsAndAnalytics = () => {
                 <span className="text-sm text-emerald-600 font-medium">+{overviewStats.monthlyGrowth}%</span>
               </div>
             </div>
-            <div className="bg-emerald-500 p-3 rounded-lg">
+              <div className="icon-circle icon-bg-5 p-3 rounded-lg">
               <DollarSign className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>
         
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Bookings</p>
               <p className="text-3xl font-bold text-gray-900">{overviewStats.totalBookings}</p>
               <div className="flex items-center mt-2">
-                <TrendingUp className="w-4 h-4 text-brand mr-1" />
-                <span className="text-sm text-brand font-medium">+12.3%</span>
+                <TrendingUp className="w-4 h-4 text-primary mr-1" />
+                <span className="text-sm text-primary font-medium">+12.3%</span>
               </div>
             </div>
-            <div className="bg-brand p-3 rounded-lg">
+              <div className="icon-circle icon-bg-1 p-3 rounded-lg">
               <Calendar className="w-6 h-6 text-white" />
             </div>
           </div>

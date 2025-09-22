@@ -74,11 +74,21 @@ interface StaffMember {
   };
   grandfatherName?: string;
   education?: Array<{
-    institution: string;
-    type: "school" | "college" | "university";
-    passingYear?: number;
-    marks?: number;
-    division?: "first" | "second" | "third" | "pass";
+    degree?: string;
+    institution?: string;
+    year?: number;
+    subjects?: Array<{
+      name: string;
+      marks?: number;
+    }>;
+  }>;
+  experience?: Array<{
+    company?: string;
+    role?: string;
+    location?: string;
+    startDate?: string;
+    endDate?: string;
+    description?: string;
   }>;
 }
 
@@ -133,14 +143,23 @@ interface StaffFormData {
     girlsNames: string[];
   };
   education: Array<{
-    institution: string;
-    type: "school" | "college" | "university";
-    passingYear?: number;
-    marks?: number;
-    division?: "first" | "second" | "third" | "pass";
+    degree?: string;
+    institution?: string;
+    year?: number;
+    subjects?: Array<{
+      name: string;
+      marks?: number;
+    }>;
   }>;
   educationClassSubject?: string;
-  experience?: string[];
+  experience?: Array<{
+    company?: string;
+    role?: string;
+    location?: string;
+    startDate?: string;
+    endDate?: string;
+    description?: string;
+  }>;
   [key: string]: unknown;
 }
 
@@ -181,7 +200,7 @@ const StaffManagement = () => {
     },
     referredBy: "",
     password: "",
-    branch: "", 
+    branch: "",
     staffType: "monthly",
     designation: "",
     department: "",
@@ -200,11 +219,10 @@ const StaffManagement = () => {
     },
     education: [
       {
+        degree: "",
         institution: "",
-        type: "school",
-        passingYear: undefined,
-        marks: undefined,
-        division: undefined,
+        year: undefined,
+        subjects: [{ name: "", marks: undefined }],
       },
     ],
     educationClassSubject: "",
@@ -224,27 +242,29 @@ const StaffManagement = () => {
     fetchBranches();
   }, []);
 
-  
   useEffect(() => {
     if (selectedStaff) {
       handleEditStaff(selectedStaff);
     } else {
       resetForm();
     }
-  }, [selectedStaff, branches]); 
+  }, [selectedStaff, branches]);
 
-  
   useEffect(() => {
-    if (user && (user.role === 'admin') && 
-        user.branchId && branches.length > 0 && !selectedStaff) {
-      const userBranch = branches.find(b => b._id === user.branchId);
+    if (
+      user &&
+      user.role === "admin" &&
+      user.branchId &&
+      branches.length > 0 &&
+      !selectedStaff
+    ) {
+      const userBranch = branches.find((b) => b._id === user.branchId);
       if (userBranch && formData.branch !== userBranch._id) {
-        setFormData(prev => ({ ...prev, branch: userBranch._id }));
+        setFormData((prev) => ({ ...prev, branch: userBranch._id }));
       }
     }
   }, [branches, user, selectedStaff, formData.branch]);
 
-  
   useEffect(() => {
     fetchStaff();
   }, [filterBranch, filterStatus, searchTerm]);
@@ -252,23 +272,21 @@ const StaffManagement = () => {
   const fetchStaff = async () => {
     try {
       setLoading(true);
-      
-      
+
       const params: any = {};
-      if (user?.role === 'chairman' && filterBranch !== 'all') {
+      if (user?.role === "chairman" && filterBranch !== "all") {
         params.branch = filterBranch;
       }
-      if (filterStatus !== 'all') {
+      if (filterStatus !== "all") {
         params.status = filterStatus;
       }
       if (searchTerm.trim()) {
         params.search = searchTerm.trim();
       }
-      
+
       const staffResponse = await staffAPI.getStaff(params);
       console.log("Full API response:", staffResponse);
 
-      
       const staffData =
         staffResponse.data?.data || staffResponse.data || staffResponse;
 
@@ -310,28 +328,22 @@ const StaffManagement = () => {
   };
 
   const resetForm = () => {
-    
     let defaultBranch = "";
     if (user) {
-      if (user.role === 'admin') {
-        
+      if (user.role === "admin") {
         if (user.branchId) {
-          
           if (branches.length > 0) {
-            const userBranch = branches.find(b => b._id === user.branchId);
+            const userBranch = branches.find((b) => b._id === user.branchId);
             if (userBranch) {
               defaultBranch = userBranch._id;
             } else {
-              
               defaultBranch = user.branchId;
             }
           } else {
-            
             defaultBranch = user.branchId;
           }
         }
       }
-      
     }
 
     setFormData({
@@ -360,7 +372,7 @@ const StaffManagement = () => {
       },
       referredBy: "",
       password: "",
-      branch: defaultBranch, 
+      branch: defaultBranch,
       staffType: "monthly",
       designation: "",
       department: "",
@@ -379,13 +391,14 @@ const StaffManagement = () => {
       },
       education: [
         {
+          degree: "",
           institution: "",
-          type: "school",
-          passingYear: undefined,
-          marks: undefined,
-          division: undefined,
+          year: undefined,
+          subjects: [{ name: "", marks: undefined }],
         },
       ],
+      educationClassSubject: "",
+      experience: [],
     });
   };
 
@@ -408,7 +421,7 @@ const StaffManagement = () => {
       aadharNumbers: staff.aadharNumbers,
       contacts: staff.contacts,
       referredBy: staff.referredBy || "",
-      password: "", 
+      password: "",
       branch: staff.branch?._id || "",
       staffType: staff.staffType,
       designation: staff.designation,
@@ -430,22 +443,50 @@ const StaffManagement = () => {
       },
       education:
         staff.education && staff.education.length > 0
-          ? staff.education.map((e) => ({
-              institution: e.institution,
-              type: e.type,
-              passingYear: e.passingYear,
-              marks: e.marks,
-              division: e.division,
+          ? staff.education.map((e: any) => ({
+              degree: e.degree || e.class || e.qualification || "",
+              institution: e.institution || e.school || e.college || "",
+              year: e.year || e.passingYear || undefined,
+              subjects:
+                Array.isArray(e.subjects) && e.subjects.length > 0
+                  ? e.subjects.map((s: any) => ({
+                      name: s.name || s.subject || "Overall",
+                      marks:
+                        s.marks !== undefined
+                          ? Number(s.marks)
+                          : s.score !== undefined
+                          ? Number(s.score)
+                          : undefined,
+                    }))
+                  : e.marks !== undefined
+                  ? [
+                      {
+                        name: e.subjectName || "Overall",
+                        marks: Number(e.marks),
+                      },
+                    ]
+                  : [],
             }))
           : [
               {
+                degree: "",
                 institution: "",
-                type: "school",
-                passingYear: undefined,
-                marks: undefined,
-                division: undefined,
+                year: undefined,
+                subjects: [{ name: "", marks: undefined }],
               },
             ],
+      // map experience subdocuments to form-friendly values
+      experience:
+        staff.experience && staff.experience.length > 0
+          ? staff.experience.map((e: any) => ({
+              company: e.company || "",
+              role: e.role || "",
+              location: e.location || "",
+              startDate: e.startDate ? e.startDate.split("T")[0] : "",
+              endDate: e.endDate ? e.endDate.split("T")[0] : "",
+              description: e.description || "",
+            }))
+          : [],
     });
     setShowEditModal(true);
   };
@@ -472,7 +513,11 @@ const StaffManagement = () => {
       }
       fetchStaff();
       // notify other components (e.g., BranchManagement) to refresh branch stats/counts
-      try { window.dispatchEvent(new Event('branchesUpdated')); } catch (err) { /* ignore */ }
+      try {
+        window.dispatchEvent(new Event("branchesUpdated"));
+      } catch (err) {
+        /* ignore */
+      }
       setShowAddModal(false);
       setShowEditModal(false);
       setSelectedStaff(null);
@@ -488,6 +533,132 @@ const StaffManagement = () => {
     }
   };
 
+  // Experience helpers
+  const addExperienceEntry = () => {
+    setFormData((prev) => ({
+      ...prev,
+      experience: [
+        ...((prev.experience as any[]) || []),
+        {
+          company: "",
+          role: "",
+          location: "",
+          startDate: "",
+          endDate: "",
+          description: "",
+        },
+      ],
+    }));
+  };
+
+  const updateExperienceEntry = (
+    index: number,
+    field: string,
+    value: string
+  ) => {
+    setFormData((prev) => {
+      const exp = Array.isArray(prev.experience)
+        ? [...(prev.experience as any[])]
+        : [];
+      exp[index] = { ...(exp[index] || {}), [field]: value };
+      return { ...prev, experience: exp };
+    });
+  };
+
+  const removeExperienceEntry = (index: number) => {
+    setFormData((prev) => {
+      const exp = Array.isArray(prev.experience)
+        ? [...(prev.experience as any[])]
+        : [];
+      exp.splice(index, 1);
+      return { ...prev, experience: exp };
+    });
+  };
+
+  // Education helpers (subject-wise)
+  const addEducationEntry = () => {
+    setFormData((prev) => ({
+      ...prev,
+      education: [
+        ...(Array.isArray(prev.education) ? prev.education : []),
+        {
+          degree: "",
+          institution: "",
+          year: undefined,
+          subjects: [{ name: "", marks: undefined }],
+        },
+      ],
+    }));
+  };
+
+  const updateEducationField = (index: number, field: string, value: any) => {
+    setFormData((prev) => {
+      const education = Array.isArray(prev.education)
+        ? [...(prev.education as any[])]
+        : [];
+      education[index] = { ...(education[index] || {}), [field]: value };
+      return { ...prev, education };
+    });
+  };
+
+  const removeEducationEntry = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      education: ((prev.education as any[]) || []).filter(
+        (_, i) => i !== index
+      ),
+    }));
+  };
+
+  const addSubjectEntry = (eduIndex: number) => {
+    setFormData((prev) => {
+      const education = Array.isArray(prev.education)
+        ? [...(prev.education as any[])]
+        : [];
+      const edu = { ...(education[eduIndex] || {}) };
+      edu.subjects = Array.isArray(edu.subjects)
+        ? [...edu.subjects, { name: "", marks: undefined }]
+        : [{ name: "", marks: undefined }];
+      education[eduIndex] = edu;
+      return { ...prev, education };
+    });
+  };
+
+  const updateSubjectEntry = (
+    eduIndex: number,
+    subjIndex: number,
+    field: string,
+    value: any
+  ) => {
+    setFormData((prev) => {
+      const education = Array.isArray(prev.education)
+        ? [...(prev.education as any[])]
+        : [];
+      const edu = { ...(education[eduIndex] || {}) };
+      edu.subjects = Array.isArray(edu.subjects) ? [...edu.subjects] : [];
+      edu.subjects[subjIndex] = {
+        ...(edu.subjects[subjIndex] || {}),
+        [field]: value,
+      };
+      education[eduIndex] = edu;
+      return { ...prev, education };
+    });
+  };
+
+  const removeSubjectEntry = (eduIndex: number, subjIndex: number) => {
+    setFormData((prev) => {
+      const education = Array.isArray(prev.education)
+        ? [...(prev.education as any[])]
+        : [];
+      const edu = { ...(education[eduIndex] || {}) };
+      edu.subjects = (edu.subjects || []).filter(
+        (_: any, i: number) => i !== subjIndex
+      );
+      education[eduIndex] = edu;
+      return { ...prev, education };
+    });
+  };
+
   const handleDeleteStaff = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete ${name}?`)) {
       try {
@@ -498,7 +669,11 @@ const StaffManagement = () => {
           message: "Staff member deleted successfully",
         });
         fetchStaff();
-        try { window.dispatchEvent(new Event('branchesUpdated')); } catch(err) { /* ignore */ }
+        try {
+          window.dispatchEvent(new Event("branchesUpdated"));
+        } catch (err) {
+          /* ignore */
+        }
       } catch (error: any) {
         addNotification({
           type: "error",
@@ -510,10 +685,8 @@ const StaffManagement = () => {
   };
 
   const filteredStaff = staffMembers.filter((staff) => {
-    
-    
-    const shouldApplyBranchFilter = user?.role === 'chairman';
-    
+    const shouldApplyBranchFilter = user?.role === "chairman";
+
     if (
       filterStatus === "all" &&
       (!shouldApplyBranchFilter || filterBranch === "all") &&
@@ -532,7 +705,6 @@ const StaffManagement = () => {
       filterStatus === "all" ||
       (staff.isActive ? "active" : "inactive") === filterStatus;
 
-    
     const matchesBranch =
       !shouldApplyBranchFilter ||
       filterBranch === "all" ||
@@ -595,7 +767,7 @@ const StaffManagement = () => {
           </select>
 
           {}
-          {user?.role === 'chairman' && (
+          {user?.role === "chairman" && (
             <select
               value={filterBranch}
               onChange={(e) => setFilterBranch(e.target.value)}
@@ -757,28 +929,7 @@ const StaffManagement = () => {
                   />
                 )}
               </div>
-              {}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Education: Class/Subject</h3>
-                <input
-                  type="text"
-                  value={formData.educationClassSubject || ""}
-                  onChange={e => setFormData({ ...formData, educationClassSubject: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter class/subject (e.g. 12th Science, B.Com, etc.)"
-                />
-              </div>
-              {}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Experience: Previous Workplaces</h3>
-                <textarea
-                  value={formData.experience?.join('\n') || ""}
-                  onChange={e => setFormData({ ...formData, experience: e.target.value.split(/\r?\n/).filter(x => x.trim()) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  rows={3}
-                  placeholder="List previous workplaces, one per line"
-                />
-              </div>
+
               {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -867,24 +1018,24 @@ const StaffManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Branch Assignment *
                     </label>
-                    {user && (user.role === 'admin') ? (
-                      
+                    {user && user.role === "admin" ? (
                       <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
                         {(() => {
-                          const userBranch = branches.find(b => b._id === user.branchId);
+                          const userBranch = branches.find(
+                            (b) => b._id === user.branchId
+                          );
                           if (userBranch) {
                             return `${userBranch.name} (${userBranch.code})`;
                           } else if (user.branchId) {
-                            
                             return `Branch ID: ${user.branchId}`;
                           } else {
-                            return 'No branch assigned';
+                            return "No branch assigned";
                           }
                         })()}
                       </div>
                     ) : selectedStaff ? (
                       // When editing a staff member allow chairman to change the branch assignment
-                      user && user.role === 'chairman' ? (
+                      user && user.role === "chairman" ? (
                         <select
                           required
                           value={formData.branch}
@@ -903,19 +1054,20 @@ const StaffManagement = () => {
                       ) : (
                         <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
                           {(() => {
-                            const currentBranch = branches.find(b => b._id === formData.branch);
+                            const currentBranch = branches.find(
+                              (b) => b._id === formData.branch
+                            );
                             if (currentBranch) {
                               return `${currentBranch.name} (${currentBranch.code})`;
                             } else if (formData.branch) {
                               return `Branch ID: ${formData.branch}`;
                             } else {
-                              return 'No branch assigned';
+                              return "No branch assigned";
                             }
                           })()}
                         </div>
                       )
                     ) : (
-                      
                       <select
                         required
                         value={formData.branch}
@@ -1307,152 +1459,257 @@ const StaffManagement = () => {
                   </h3>
                   <button
                     type="button"
-                    onClick={() =>
-                      setFormData({
-                        ...formData,
-                        education: [
-                          ...formData.education,
-                          {
-                            institution: "",
-                            type: "school",
-                            passingYear: undefined,
-                            marks: undefined,
-                            division: undefined,
-                          },
-                        ],
-                      })
-                    }
+                    onClick={addEducationEntry}
                     className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
                   >
                     Add Education
                   </button>
                 </div>
+              </div>
+
+              {}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Education: Class/Subject
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Add education entries and subjects with marks for each entry.
+                </p>
                 <div className="space-y-4">
-                  {formData.education.map((edu, index) => (
-                    <div
-                      key={index}
-                      className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border border-gray-200 rounded-lg"
-                    >
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Type
-                        </label>
-                        <select
-                          value={edu.type}
-                          onChange={(e) => {
-                            const education = [...formData.education];
-                            education[index] = {
-                              ...education[index],
-                              type: e.target.value as any,
-                            };
-                            setFormData({ ...formData, education });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="school">School</option>
-                          <option value="college">College</option>
-                          <option value="university">University</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Institution
-                        </label>
+                  {(formData.education || []).map((edu: any, eIdx: number) => (
+                    <div key={eIdx} className="border rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <input
                           type="text"
+                          placeholder="Degree / Class (e.g. 12th Science, B.Com)"
+                          value={edu.degree || ""}
+                          onChange={(ev) =>
+                            updateEducationField(
+                              eIdx,
+                              "degree",
+                              ev.target.value
+                            )
+                          }
+                          className="px-3 py-2 border rounded"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Institution"
                           value={edu.institution || ""}
-                          onChange={(e) => {
-                            const education = [...formData.education];
-                            education[index] = {
-                              ...education[index],
-                              institution: e.target.value,
-                            };
-                            setFormData({ ...formData, education });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          onChange={(ev) =>
+                            updateEducationField(
+                              eIdx,
+                              "institution",
+                              ev.target.value
+                            )
+                          }
+                          className="px-3 py-2 border rounded"
                         />
-                      </div>
-                      {}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Passing Year
-                        </label>
                         <input
                           type="number"
-                          value={edu.passingYear || ""}
-                          onChange={(e) => {
-                            const education = [...formData.education];
-                            education[index] = {
-                              ...education[index],
-                              passingYear: Number(e.target.value),
-                            };
-                            setFormData({ ...formData, education });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Year"
+                          value={edu.year || ""}
+                          onChange={(ev) =>
+                            updateEducationField(
+                              eIdx,
+                              "year",
+                              ev.target.value
+                                ? Number(ev.target.value)
+                                : undefined
+                            )
+                          }
+                          className="px-3 py-2 border rounded"
                         />
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Marks
-                        </label>
-                        <input
-                          type="number"
-                          value={edu.marks || ""}
-                          onChange={(e) => {
-                            const education = [...formData.education];
-                            education[index] = {
-                              ...education[index],
-                              marks: Number(e.target.value),
-                            };
-                            setFormData({ ...formData, education });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Division
-                        </label>
-                        <select
-                          value={edu.division || ""}
-                          onChange={(e) => {
-                            const education = [...formData.education];
-                            education[index] = {
-                              ...education[index],
-                              division: e.target.value as any,
-                            };
-                            setFormData({ ...formData, education });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">Select</option>
-                          <option value="first">First</option>
-                          <option value="second">Second</option>
-                          <option value="third">Third</option>
-                          <option value="pass">Pass</option>
-                        </select>
-                      </div>
-                      {formData.education.length > 1 && (
-                        <div className="md:col-span-6 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const education = formData.education.filter(
-                                (_, i) => i !== index
-                              );
-                              setFormData({ ...formData, education });
-                            }}
-                            className="text-sm text-red-600 hover:underline"
-                          >
-                            Remove
-                          </button>
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">Subjects & Marks</h4>
+                          <div className="space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => addSubjectEntry(eIdx)}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              + Add Subject
+                            </button>
+                            {(formData.education || []).length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeEducationEntry(eIdx)}
+                                className="text-sm text-red-600 hover:underline"
+                              >
+                                Remove Education
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      )}
+                        <div className="space-y-2 mt-2">
+                          {(edu.subjects || []).map(
+                            (sub: any, sIdx: number) => (
+                              <div
+                                key={sIdx}
+                                className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center"
+                              >
+                                <input
+                                  type="text"
+                                  placeholder="Subject name"
+                                  value={sub.name || ""}
+                                  onChange={(ev) =>
+                                    updateSubjectEntry(
+                                      eIdx,
+                                      sIdx,
+                                      "name",
+                                      ev.target.value
+                                    )
+                                  }
+                                  className="px-3 py-2 border rounded"
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="Marks"
+                                  value={sub.marks ?? ""}
+                                  onChange={(ev) =>
+                                    updateSubjectEntry(
+                                      eIdx,
+                                      sIdx,
+                                      "marks",
+                                      ev.target.value
+                                        ? Number(ev.target.value)
+                                        : undefined
+                                    )
+                                  }
+                                  className="px-3 py-2 border rounded"
+                                />
+                                <div className="md:col-span-2 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removeSubjectEntry(eIdx, sIdx)
+                                    }
+                                    className="text-sm text-red-600 hover:underline"
+                                  >
+                                    Remove Subject
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={addEducationEntry}
+                    className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                  >
+                    + Add Education
+                  </button>
+                </div>
+              </div>
+              {}
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Experience: Previous Workplaces
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addExperienceEntry}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    + Add Experience
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {(formData.experience || []).map((exp: any, idx: number) => (
+                    <div key={idx} className="border rounded-lg p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input
+                          value={exp.company || ""}
+                          onChange={(e) =>
+                            updateExperienceEntry(
+                              idx,
+                              "company",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Company"
+                          className="px-3 py-2 border rounded"
+                        />
+                        <input
+                          value={exp.role || ""}
+                          onChange={(e) =>
+                            updateExperienceEntry(idx, "role", e.target.value)
+                          }
+                          placeholder="Role/Position"
+                          className="px-3 py-2 border rounded"
+                        />
+                        <input
+                          value={exp.location || ""}
+                          onChange={(e) =>
+                            updateExperienceEntry(
+                              idx,
+                              "location",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Location"
+                          className="px-3 py-2 border rounded"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <input
+                          type="date"
+                          value={exp.startDate || ""}
+                          onChange={(e) =>
+                            updateExperienceEntry(
+                              idx,
+                              "startDate",
+                              e.target.value
+                            )
+                          }
+                          className="px-3 py-2 border rounded"
+                        />
+                        <input
+                          type="date"
+                          value={exp.endDate || ""}
+                          onChange={(e) =>
+                            updateExperienceEntry(
+                              idx,
+                              "endDate",
+                              e.target.value
+                            )
+                          }
+                          className="px-3 py-2 border rounded"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeExperienceEntry(idx)}
+                          className="text-sm text-red-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <textarea
+                        value={exp.description || ""}
+                        onChange={(e) =>
+                          updateExperienceEntry(
+                            idx,
+                            "description",
+                            e.target.value
+                          )
+                        }
+                        placeholder="Description / responsibilities"
+                        className="w-full mt-3 px-3 py-2 border rounded"
+                        rows={2}
+                      />
                     </div>
                   ))}
                 </div>
               </div>
-
               {}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
