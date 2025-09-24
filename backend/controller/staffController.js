@@ -136,9 +136,22 @@ const createStaff = asyncHandler(async (req, res, next) => {
         subjects = [{ name: ed.subjectName || 'Overall', marks: Number(ed.marks) }];
       }
 
+      // Determine institution and type (type is required by schema)
+      const institution = ed.institution || ed.school || ed.college || ed.institutionName || '';
+      // Infer type from ed.type or degree keywords, default to 'college'
+      let t = (ed.type || '').toString().toLowerCase();
+      if (!['school', 'college', 'university'].includes(t)) {
+        const degreeGuess = (ed.degree || ed.class || '').toString().toLowerCase();
+        if (/school|class|ssc|hs|10th|12th/i.test(degreeGuess)) t = 'school';
+        else if (/college|bachelor|bs|ba|bsc|btech|ba|diploma/i.test(degreeGuess)) t = 'college';
+        else if (/master|ms|ma|mtech|phd|university/i.test(degreeGuess)) t = 'university';
+        else t = 'college';
+      }
+
       return {
         degree: ed.degree || ed.class || ed.qualification || '',
-        institution: ed.institution || ed.school || ed.college || '',
+        institution: institution || (ed.degree ? String(ed.degree).substring(0, 100) : 'Unknown Institution'),
+        type: t,
         year: ed.year ? Number(ed.year) : (ed.passedYear ? Number(ed.passedYear) : undefined),
         subjects
       };
@@ -305,9 +318,20 @@ const updateStaff = asyncHandler(async (req, res) => {
         subjects = [{ name: ed.subjectName || 'Overall', marks: Number(ed.marks) }];
       }
 
+      const institution = ed.institution || ed.school || ed.college || ed.institutionName || '';
+      let t = (ed.type || '').toString().toLowerCase();
+      if (!['school', 'college', 'university'].includes(t)) {
+        const degreeGuess = (ed.degree || ed.class || '').toString().toLowerCase();
+        if (/school|class|ssc|hs|10th|12th/i.test(degreeGuess)) t = 'school';
+        else if (/college|bachelor|bs|ba|bsc|btech|ba|diploma/i.test(degreeGuess)) t = 'college';
+        else if (/master|ms|ma|mtech|phd|university/i.test(degreeGuess)) t = 'university';
+        else t = 'college';
+      }
+
       return {
         degree: ed.degree || ed.class || ed.qualification || '',
-        institution: ed.institution || ed.school || ed.college || '',
+        institution: institution || (ed.degree ? String(ed.degree).substring(0, 100) : 'Unknown Institution'),
+        type: t,
         year: ed.year ? Number(ed.year) : (ed.passedYear ? Number(ed.passedYear) : undefined),
         subjects
       };

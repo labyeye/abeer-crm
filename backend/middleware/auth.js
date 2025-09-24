@@ -5,26 +5,42 @@ const ErrorResponse = require("../utils/ErrorResponse");
 
 exports.protect = async (req, res, next) => {
   let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    token = req.headers.authorization.split(" ")[1];
-  }
-
-  if (!token) {
-    return next(new ErrorResponse("Not authorized to access this route", 401));
-  }
-
+  // Accept token from multiple common locations to support different clients
   try {
-    
+    if (req.headers.authorization) {
+      // Support case-insensitive 'Bearer' prefix and flexible spacing
+      const parts = req.headers.authorization.split(/\s+/);
+      if (parts.length === 2 && /^bearer$/i.test(parts[0])) {
+        token = parts[1];
+      }
+    }
+
+    // Fallbacks: x-access-token header, query param, or cookie (if cookie-parser is used)
+    if (!token && req.headers['x-access-token']) token = req.headers['x-access-token'];
+    if (!token && req.query && req.query.token) token = req.query.token;
+    if (!token && req.cookies && req.cookies.token) token = req.cookies.token;
+
+    if (!token) {
+      console.warn(`Auth protect: no token provided for ${req.method} ${req.originalUrl}`);
+      return next(new ErrorResponse("Not authorized to access this route", 401));
+    }
+
     const decoded = verifyToken(token);
+    if (!decoded || !decoded.id) {
+      console.warn('Auth protect: token decoded but missing id', { decoded });
+      return next(new ErrorResponse("Not authorized to access this route", 401));
+    }
 
     req.user = await User.findById(decoded.id);
 
+    if (!req.user) {
+      console.warn('Auth protect: user not found for token id', decoded.id);
+      return next(new ErrorResponse("Not authorized to access this route", 401));
+    }
+
     next();
   } catch (err) {
+    console.warn('Auth protect: token verification failed', err && err.message ? err.message : err);
     return next(new ErrorResponse("Not authorized to access this route", 401));
   }
 };

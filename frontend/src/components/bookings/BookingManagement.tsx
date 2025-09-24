@@ -490,9 +490,9 @@ const BookingManagement = () => {
   const filteredBookings = bookings.filter((booking) => {
     // If the current user is a branch admin/head, restrict bookings to their branch only
     const bookingBranchId = (booking as any).branch?._id || booking.bookingBranch?._id || booking.bookingBranch || "";
-    if (user?.role === 'branch_head' && user.branchId) {
-      if (bookingBranchId !== user.branchId) return false;
-    }
+    if (user?.role === 'chairman' && user.branchId) {
+        if (bookingBranchId !== user.branchId) return false;
+      }
     const matchesSearch =
       booking.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -741,18 +741,46 @@ const BookingManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       {user?.role === 'staff' ? (
-                        // Staff users can only update status
-                        <select
-                          value={booking.status}
-                          onChange={(e) => handleStatusUpdate(booking._id, e.target.value)}
-                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                        </select>
-                      ) : (
+                          // Staff users can only update status — show clear action buttons for allowed next states
+                          <div className="flex items-center space-x-2">
+                            {
+                              // Determine allowed next action based on current status
+                              (() => {
+                                const status = booking.status;
+                                // No actions for cancelled or completed bookings
+                                if (status === 'completed' || status === 'cancelled') {
+                                  return (
+                                    <button disabled className="px-3 py-1 bg-gray-200 text-gray-600 rounded">No actions</button>
+                                  );
+                                }
+
+                                // Map current status to the next logical action(s)
+                                const transitions: { [key: string]: { key: string; label: string }[] } = {
+                                  pending: [{ key: 'confirmed', label: 'Confirm' }],
+                                  confirmed: [{ key: 'in_progress', label: 'Mark In Progress' }],
+                                  in_progress: [{ key: 'completed', label: 'Complete' }],
+                                };
+
+                                const allowed = transitions[status] || [];
+                                // If no allowed transitions, show disabled
+                                if (allowed.length === 0) return <button disabled className="px-3 py-1 bg-gray-200 text-gray-600 rounded">No actions</button>;
+
+                                return allowed.map((t) => (
+                                  <button
+                                    key={t.key}
+                                    onClick={() => {
+                                      if (!window.confirm(`Are you sure you want to ${t.label.toLowerCase()} this booking?`)) return;
+                                      handleStatusUpdate(booking._id, t.key);
+                                    }}
+                                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                  >
+                                    {t.label}
+                                  </button>
+                                ));
+                              })()
+                            }
+                          </div>
+                        ) : (
                         // Admin/Manager users can edit and delete
                         <>
                           <button

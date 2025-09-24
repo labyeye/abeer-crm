@@ -34,10 +34,24 @@ const automation = require('./routes/automationRoutes');
 const integrations = require('./routes/integrationRoutes');
 const bookings = require('./routes/bookingRoutes');
 
+const cookieParser = require('cookie-parser');
 const app = express();
 
 
 app.use(express.json());
+app.use(cookieParser());
+
+// lightweight debug logger for staff creation requests to aid in diagnosing auth issues
+app.post('/api/staff', (req, res, next) => {
+  try {
+    console.log('DEBUG /api/staff request headers:', Object.keys(req.headers).reduce((acc, k) => { acc[k]=req.headers[k]; return acc; }, {}));
+    console.log('DEBUG /api/staff cookies:', req.cookies);
+    console.log('DEBUG /api/staff query token:', req.query && req.query.token);
+  } catch (e) {
+    console.warn('DEBUG logger for /api/staff failed', e && e.message ? e.message : e);
+  }
+  next();
+});
 
 
 const corsOptions = {

@@ -538,6 +538,14 @@ const StaffManagement = () => {
         education: normalizedEducation,
       };
 
+      // Ensure we have an auth token locally before calling protected API
+      const token = localStorage.getItem('token');
+      if (!token) {
+        addNotification({ type: 'error', title: 'Not authenticated', message: 'No auth token found. Please login again and retry.' });
+        setSubmitting(false);
+        return;
+      }
+
       if (selectedStaff) {
         await staffAPI.updateStaff(selectedStaff._id, payload);
         addNotification({ type: "success", title: "Success", message: "Staff member updated successfully" });
