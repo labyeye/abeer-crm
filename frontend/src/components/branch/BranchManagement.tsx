@@ -349,16 +349,7 @@ const BranchManagement = () => {
               <h3 className="text-gray-500 text-sm">Active Branches</h3>
               <p className="text-2xl font-semibold text-green-600">{stats.overview.activeBranches}</p>
             </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h3 className="text-gray-500 text-sm">Avg. Employee Count</h3>
-              <p className="text-2xl font-semibold">{stats.overview.avgEmployeeCount}</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h3 className="text-gray-500 text-sm">Total Revenue</h3>
-              <p className="text-2xl font-semibold text-primary">
-                ₹{stats.overview.totalRevenue.toLocaleString()}
-              </p>
-            </div>
+            
           </div>
         )}
 

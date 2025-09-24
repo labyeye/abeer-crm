@@ -74,6 +74,7 @@ interface StaffMember {
   };
   grandfatherName?: string;
   education?: Array<{
+    type?: string;
     degree?: string;
     institution?: string;
     year?: number;
@@ -143,6 +144,7 @@ interface StaffFormData {
     girlsNames: string[];
   };
   education: Array<{
+    type?: string;
     degree?: string;
     institution?: string;
     year?: number;
@@ -219,6 +221,7 @@ const StaffManagement = () => {
     },
     education: [
       {
+        type: "college",
         degree: "",
         institution: "",
         year: undefined,
@@ -391,6 +394,7 @@ const StaffManagement = () => {
       },
       education: [
         {
+          type: "college",
           degree: "",
           institution: "",
           year: undefined,
@@ -444,6 +448,10 @@ const StaffManagement = () => {
       education:
         staff.education && staff.education.length > 0
           ? staff.education.map((e: any) => ({
+              type:
+                (typeof e.type === "string" && ["school", "college", "university"].includes(e.type))
+                  ? e.type
+                  : e.type || e.degree || e.class || e.qualification || "college",
               degree: e.degree || e.class || e.qualification || "",
               institution: e.institution || e.school || e.college || "",
               year: e.year || e.passingYear || undefined,
@@ -469,6 +477,7 @@ const StaffManagement = () => {
             }))
           : [
               {
+                type: "college",
                 degree: "",
                 institution: "",
                 year: undefined,
@@ -496,20 +505,45 @@ const StaffManagement = () => {
     setSubmitting(true);
 
     try {
+      // Ensure education entries always include `type` (backend requires it)
+      const normalizedEducation = (formData.education || []).map((ed: any) => {
+        const subjects = Array.isArray(ed.subjects)
+          ? ed.subjects.map((s: any) => ({
+              name: s.name || "Overall",
+              marks:
+                s.marks !== undefined && s.marks !== "" ? Number(s.marks) : undefined,
+            }))
+          : [];
+
+        // ensure type matches backend enum: 'school' | 'college' | 'university'
+        const allowedTypes = ["school", "college", "university"];
+        let t = (ed.type || ed.degree || "").toString().toLowerCase();
+        if (!allowedTypes.includes(t)) {
+          // try infer from degree keywords
+          if (/school|class|ssc|hs|10th|12th/i.test(ed.degree || "")) t = "school";
+          else if (/college|bachelor|bs|ba|bsc|btech|ba/i.test(ed.degree || "")) t = "college";
+          else if (/university|master|ms|ma|mtech|phd/i.test(ed.degree || "")) t = "university";
+          else t = "college";
+        }
+
+        return {
+          ...ed,
+          type: t,
+          subjects,
+        };
+      });
+
+      const payload = {
+        ...formData,
+        education: normalizedEducation,
+      };
+
       if (selectedStaff) {
-        await staffAPI.updateStaff(selectedStaff._id, formData);
-        addNotification({
-          type: "success",
-          title: "Success",
-          message: "Staff member updated successfully",
-        });
+        await staffAPI.updateStaff(selectedStaff._id, payload);
+        addNotification({ type: "success", title: "Success", message: "Staff member updated successfully" });
       } else {
-        await staffAPI.createStaff(formData);
-        addNotification({
-          type: "success",
-          title: "Success",
-          message: "Staff member created successfully",
-        });
+        await staffAPI.createStaff(payload);
+        addNotification({ type: "success", title: "Success", message: "Staff member created successfully" });
       }
       fetchStaff();
       // notify other components (e.g., BranchManagement) to refresh branch stats/counts
@@ -582,6 +616,7 @@ const StaffManagement = () => {
       education: [
         ...(Array.isArray(prev.education) ? prev.education : []),
         {
+          type: "",
           degree: "",
           institution: "",
           year: undefined,
