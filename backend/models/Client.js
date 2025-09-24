@@ -32,11 +32,6 @@ const clientSchema = new mongoose.Schema({
     enum: ['individual', 'professional'],
     default: 'individual'
   },
-  userId: {
-    type: String,
-    required: true,
-    unique: true
-  },
   password: {
     type: String,
     required: true,
