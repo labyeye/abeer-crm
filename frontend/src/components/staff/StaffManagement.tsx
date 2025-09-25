@@ -49,6 +49,7 @@ interface StaffMember {
     email: string;
     phone: string;
   };
+  avatarUrl?: string;
   designation: string;
   department: string;
   staffType: "monthly" | "per_day" | "per_task";
@@ -498,6 +499,8 @@ const StaffManagement = () => {
           : [],
     });
     setShowEditModal(true);
+    // prefill preview if staff has an avatarUrl
+    setStaffPhoto((staff as any).avatarUrl || '');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -533,10 +536,15 @@ const StaffManagement = () => {
         };
       });
 
-      const payload = {
+      const payload: any = {
         ...formData,
         education: normalizedEducation,
       };
+
+      // include the preview image (data URL) if present so backend can persist it
+      if (staffPhoto) {
+        payload.avatarUrl = staffPhoto;
+      }
 
       // Ensure we have an auth token locally before calling protected API
       const token = localStorage.getItem('token');
@@ -564,6 +572,7 @@ const StaffManagement = () => {
       setShowEditModal(false);
       setSelectedStaff(null);
       resetForm();
+      setStaffPhoto('');
     } catch (error: any) {
       addNotification({
         type: "error",
@@ -836,15 +845,23 @@ const StaffManagement = () => {
           >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">
-                    {staff.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </span>
-                </div>
+                {staff.avatarUrl ? (
+                  <img
+                    src={staff.avatarUrl}
+                    alt={`${staff.name} avatar`}
+                    className="w-12 h-12 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {staff.name
+                        ?.split(" ")
+                        .map((n: string) => n[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </span>
+                  </div>
+                )}
                 <div>
                   <h3 className="font-semibold text-gray-900">{staff.name}</h3>
                   <p className="text-sm text-gray-600">{staff.employeeId}</p>

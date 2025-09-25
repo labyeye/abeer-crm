@@ -241,6 +241,11 @@ const createStaff = asyncHandler(async (req, res, next) => {
     experience
   };
 
+  // allow avatarUrl (base64 or remote url) to be set from the frontend
+  if (req.body.avatarUrl) {
+    staffData.avatarUrl = req.body.avatarUrl;
+  }
+
   const staff = await Staff.create(staffData);
 
   
@@ -304,6 +309,7 @@ const updateStaff = asyncHandler(async (req, res) => {
       description: exp.description || ''
     }));
   }
+  // avatarUrl (base64 data or hosted URL) may be provided in req.body and will be persisted by the findByIdAndUpdate below
   // normalize education payload if present
   if (req.body.education && Array.isArray(req.body.education)) {
     req.body.education = req.body.education.map(ed => {

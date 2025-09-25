@@ -12,6 +12,13 @@ interface Staff {
   branch?: {
     name: string;
   };
+  isActive?: boolean;
+  performance?: {
+    score?: number;
+    lateArrivals?: number;
+    completedTasks?: number;
+  };
+  avatarUrl?: string;
 }
 
 interface AttendanceRecord {
@@ -49,6 +56,8 @@ const AttendanceManagement = () => {
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceModalStaff, setAttendanceModalStaff] = useState<Staff | null>(null);
   const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
+  const [historyStartDate, setHistoryStartDate] = useState<string>('');
+  const [historyEndDate, setHistoryEndDate] = useState<string>('');
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
   const [staffSearchTerm, setStaffSearchTerm] = useState("");
@@ -157,7 +166,10 @@ const AttendanceManagement = () => {
     setAttendanceDetailsModalStaff(staff);
     setAttendanceDetailsLoading(true);
     try {
-      const res = await attendanceAPI.getAttendance({ staff: staff._id });
+      const params: any = { staff: staff._id };
+      if (historyStartDate) params.startDate = historyStartDate;
+      if (historyEndDate) params.endDate = historyEndDate;
+      const res = await attendanceAPI.getAttendance(params);
       setAttendanceDetailsHistory(res.data || []);
     } catch {
       setAttendanceDetailsHistory([]);
@@ -438,7 +450,7 @@ const AttendanceManagement = () => {
         <table className="min-w-full text-sm border">
           <thead>
             <tr className="bg-gray-100">
-              <th className="p-2">Name</th>
+              <th className="p-2">Staff</th>
               <th className="p-2">Employee ID</th>
               <th className="p-2">Designation</th>
               <th className="p-2">Branch</th>
@@ -448,18 +460,36 @@ const AttendanceManagement = () => {
           <tbody>
             {filteredStaffList.map((staff: Staff) => (
               <tr key={staff._id} className="border-b">
-                <td className="p-2 whitespace-nowrap">{staff.name}</td>
+                <td className="p-2 whitespace-nowrap">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                      {staff.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={staff.avatarUrl} alt={staff.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-semibold text-gray-700">{staff.name.split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium">{staff.name}</div>
+                      {staff.isActive === false ? (
+                        <div className="text-xs text-red-600">Inactive</div>
+                      ) : (
+                        <div className="text-xs text-green-600">Active</div>
+                      )}
+                    </div>
+                  </div>
+                </td>
                 <td className="p-2 whitespace-nowrap">{staff.employeeId}</td>
                 <td className="p-2 whitespace-nowrap">{staff.designation}</td>
-                <td className="p-2 whitespace-nowrap">
-                  {staff.branch?.name ?? "-"}
-                </td>
-                <td className="p-2 whitespace-nowrap">
+                <td className="p-2 whitespace-nowrap">{staff.branch?.name ?? "-"}</td>
+                <td className="p-2 whitespace-nowrap flex items-center gap-3">
+                  <div className="text-sm text-gray-600">Score: <span className="font-semibold text-gray-900">{staff.performance?.score ?? '-'}</span></div>
                   <button
                     className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700"
                     onClick={() => handleViewAttendanceDetails(staff)}
                   >
-                    View Attendance Details
+                    View
                   </button>
                 </td>
               </tr>
@@ -493,19 +523,25 @@ const AttendanceManagement = () => {
               <tbody>
                 {staffList.map((staff: Staff) => (
                   <tr key={staff._id} className="border-b">
-                    <td className="p-2 whitespace-nowrap">{staff.name}</td>
                     <td className="p-2 whitespace-nowrap">
-                      {staff.employeeId}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                          {staff.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={staff.avatarUrl} alt={staff.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-700">{staff.name.split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div>{staff.name}</div>
+                      </div>
                     </td>
-                    <td className="p-2 whitespace-nowrap">
-                      {staff.designation}
-                    </td>
-                    <td className="p-2 whitespace-nowrap">
-                      {staff.branch?.name ?? "-"}
-                    </td>
+                    <td className="p-2 whitespace-nowrap">{staff.employeeId}</td>
+                    <td className="p-2 whitespace-nowrap">{staff.designation}</td>
+                    <td className="p-2 whitespace-nowrap">{staff.branch?.name ?? "-"}</td>
                     <td className="p-2 whitespace-nowrap">
                       <button
-                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
                         onClick={() => handleCheckIn(staff._id)}
                         disabled={attendanceLoading}
                       >
@@ -547,19 +583,25 @@ const AttendanceManagement = () => {
               <tbody>
                 {staffList.map((staff: Staff) => (
                   <tr key={staff._id} className="border-b">
-                    <td className="p-2 whitespace-nowrap">{staff.name}</td>
                     <td className="p-2 whitespace-nowrap">
-                      {staff.employeeId}
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                          {staff.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={staff.avatarUrl} alt={staff.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-700">{staff.name.split(' ').map(s => s[0]).slice(0,2).join('').toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div>{staff.name}</div>
+                      </div>
                     </td>
-                    <td className="p-2 whitespace-nowrap">
-                      {staff.designation}
-                    </td>
-                    <td className="p-2 whitespace-nowrap">
-                      {staff.branch?.name ?? "-"}
-                    </td>
+                    <td className="p-2 whitespace-nowrap">{staff.employeeId}</td>
+                    <td className="p-2 whitespace-nowrap">{staff.designation}</td>
+                    <td className="p-2 whitespace-nowrap">{staff.branch?.name ?? "-"}</td>
                     <td className="p-2 whitespace-nowrap">
                       <button
-                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
                         onClick={() => handleCheckOut(staff._id)}
                         disabled={attendanceLoading}
                       >
@@ -589,6 +631,13 @@ const AttendanceManagement = () => {
               >
                 <X className="w-6 h-6" />
               </button>
+            </div>
+            <div className="flex gap-2 items-center mb-4">
+              <label className="text-sm text-gray-600">From</label>
+              <input type="date" className="border p-1 rounded" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} />
+              <label className="text-sm text-gray-600">To</label>
+              <input type="date" className="border p-1 rounded" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} />
+              <button className="px-3 py-1 bg-blue-600 text-white rounded" onClick={() => handleViewAttendanceDetails(attendanceModalStaff)}>Filter</button>
             </div>
             {attendanceLoading ? (
               <div className="w-8 h-8 animate-spin border-4 border-t-transparent rounded-full border-blue-600 mx-auto"></div>

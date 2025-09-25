@@ -178,8 +178,17 @@ const checkIn = asyncHandler(async (req, res) => {
 
   
   if (status === 'late') {
-    staff.performance.lateArrivals += 1;
-    staff.performance.score = Math.max(0, staff.performance.score - 5);
+    // ensure performance subdocument exists (defensive for older records)
+    if (!staff.performance) {
+      staff.performance = {
+        score: 100,
+        lateArrivals: 0,
+        completedTasks: 0
+      };
+    }
+
+    staff.performance.lateArrivals = (staff.performance.lateArrivals || 0) + 1;
+    staff.performance.score = Math.max(0, (staff.performance.score || 100) - 5);
     await staff.save();
   }
 

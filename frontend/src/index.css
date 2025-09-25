@@ -115,7 +115,7 @@
 
 /* Enhanced Icon Styling */
 .icon-brand, svg[class*="w-"] {
-  color: var(--primary-50);
+  color: var(--primary-400);
   transition: all 0.2s ease-in-out;
 }
 
@@ -802,7 +802,7 @@ svg[class*="w-"] {
 .tab.active {
   color: var(--primary-600);
   border-bottom-color: var(--primary-600);
-  background: var(--primary-50);
+  background: var(--primary-500);
 }
 
 /* Responsive Utilities */

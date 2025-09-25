@@ -39,7 +39,10 @@ const cookieParser = require('cookie-parser');
 const app = express();
 
 
-app.use(express.json());
+// Increase JSON/body parser size to allow base64 image payloads from the frontend
+app.use(express.json({ limit: '10mb' }));
+// Support URL-encoded bodies with the same size limit (forms, fallback)
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 
 // lightweight debug logger for staff creation requests to aid in diagnosing auth issues

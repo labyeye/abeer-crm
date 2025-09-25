@@ -165,9 +165,28 @@ const staffSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  avatarUrl: {
+    type: String,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now
+  }
+  ,
+  performance: {
+    score: {
+      type: Number,
+      default: 100
+    },
+    lateArrivals: {
+      type: Number,
+      default: 0
+    },
+    completedTasks: {
+      type: Number,
+      default: 0
+    }
   }
 });
 
