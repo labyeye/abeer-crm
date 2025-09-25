@@ -813,6 +813,25 @@ export const companyAPI = {
   },
 };
 
+export const serviceCategoryAPI = {
+  getCategories: async (params?: QueryParams) => {
+    const response = await api.get('/service-categories', { params });
+    return response.data;
+  },
+  createCategory: async (data: APIData) => {
+    const response = await api.post('/service-categories', data);
+    return response.data;
+  },
+  updateCategory: async (id: string, data: APIData) => {
+    const response = await api.put(`/service-categories/${id}`, data);
+    return response.data;
+  },
+  deleteCategory: async (id: string) => {
+    const response = await api.delete(`/service-categories/${id}`);
+    return response.data;
+  }
+};
+
 export const integrationAPI = {
   getIntegrations: async (params?: QueryParams) => {
     const response = await api.get('/integrations', { params });

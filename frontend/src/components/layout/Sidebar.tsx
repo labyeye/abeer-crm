@@ -8,13 +8,11 @@ import {
   Package, 
   Building2, 
   X,
-  Camera,
   Clock,
   FileText,
   CheckSquare,
   Truck,
-  TrendingUp,
-  Sparkles,
+  
   Star
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -126,11 +124,11 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       color: 'teal'
     },
     {
-      id: 'analytics',
-      name: 'Advanced Analytics',
-      icon: TrendingUp,
-      permission: 'analytics',
-      roles: ['chairman', 'company_admin', 'branch_head'],
+      id: 'categories',
+      name: 'Category Management',
+      icon: Star,
+      permission: 'categories',
+      roles: ['chairman', 'company_admin', 'branch_head', 'admin'],
       color: 'purple'
     },
   ];

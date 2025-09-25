@@ -20,6 +20,7 @@ import {
   staffAPI,
   inventoryAPI,
   branchAPI,
+  serviceCategoryAPI,
 } from "../../services/api";
 
 interface Booking {
@@ -110,6 +111,7 @@ const BookingManagement = () => {
   type PaginatedInventory = { docs: InventoryItem[]; [key: string]: any };
   const [inventory, setInventory] = useState<InventoryItem[] | PaginatedInventory>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -117,8 +119,26 @@ const BookingManagement = () => {
   const [formData, setFormData] = useState({
     clientId: "",
     // servicesSchedule allows multiple service entries (date/time/staff/equipment per entry)
-    servicesSchedule: [{ serviceName: '', date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }] as Array<{
-      serviceName: string;
+    servicesSchedule: [
+      {
+        serviceCategoryId: '',
+        serviceType: [] as string[],
+        serviceName: '',
+        date: '',
+        startTime: '',
+        endTime: '',
+        venueName: '',
+        venueAddress: '',
+        assignedStaff: [] as string[],
+        inventorySelection: [] as string[],
+        quantity: 1,
+        price: 0,
+        amount: 0,
+      },
+    ] as Array<{
+      serviceName?: string;
+      serviceCategoryId?: string;
+      serviceType?: string[];
       date: string;
       startTime: string;
       endTime: string;
@@ -129,8 +149,8 @@ const BookingManagement = () => {
       quantity?: number;
       price?: number;
       amount?: number;
-    }> ,
-  functionType: "",
+    }>,
+    functionType: "",
     venueName: "",
     venueAddress: "",
     serviceNeeded: "",
@@ -201,6 +221,16 @@ const BookingManagement = () => {
           ? branchesRes.data
           : branchesRes.data.data || []
       );
+      // load service categories for picker
+      try {
+        const catsRes: any = await serviceCategoryAPI.getCategories();
+        // serviceCategoryAPI returns response.data in api wrapper; accommodate both shapes
+        const resolvedCats = (catsRes && (catsRes.data || catsRes)) || [];
+        setCategories(Array.isArray(resolvedCats) ? resolvedCats : resolvedCats?.data || []);
+      } catch (err) {
+        console.warn('Could not load service categories', err);
+        setCategories([]);
+      }
     } catch (error: unknown) {
       addNotification({
         type: "error",
@@ -215,13 +245,28 @@ const BookingManagement = () => {
 
   useEffect(() => {
     fetchData();
+    const onCats = () => {
+      // re-fetch categories only to update dropdowns
+      (async () => {
+        try {
+          const catsRes: any = await serviceCategoryAPI.getCategories();
+          const resolvedCats = (catsRes && (catsRes.data || catsRes)) || [];
+          setCategories(Array.isArray(resolvedCats) ? resolvedCats : resolvedCats?.data || []);
+        } catch (e) {
+          console.warn('Could not refresh categories', e);
+        }
+      })();
+    };
+    window.addEventListener('serviceCategoriesUpdated', onCats as EventListener);
+    return () => { window.removeEventListener('serviceCategoriesUpdated', onCats as EventListener); };
   }, []);
 
   const resetForm = () => {
     setFormData({
       clientId: "",
       // start with one empty service schedule entry (include pricing fields)
-      servicesSchedule: [{ serviceName: '', date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }],
+  // enforce serviceCategoryId + serviceType only (no free-text serviceName)
+  servicesSchedule: [{ serviceCategoryId: '', serviceType: [] as string[], date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }],
   functionType: "",
       venueName: "",
       venueAddress: "",
@@ -294,7 +339,11 @@ const BookingManagement = () => {
 
     setFormData({
       clientId: booking.client._id,
-      servicesSchedule: scheduleEntries,
+      servicesSchedule: scheduleEntries.map((s) => ({
+        ...s,
+        serviceCategoryId: s.serviceCategoryId || s.serviceCategory || '',
+        serviceType: s.serviceType || s.type || '',
+      })),
       functionType: booking.functionDetails.type || '',
       venueName: booking.functionDetails.venue?.name || '',
       venueAddress: booking.functionDetails.venue?.address || '',
@@ -319,14 +368,16 @@ const BookingManagement = () => {
       // Generate booking number
       const bookingNumber = `BK-${Date.now()}`;
       
-  // Build schedule list and calculate pricing fields from servicesSchedule amounts
-  const scheduleList = formData.servicesSchedule && formData.servicesSchedule.length > 0 ? formData.servicesSchedule : [{ serviceName: formData.serviceNeeded || '', date: new Date().toISOString(), startTime: '', endTime: '', venueName: formData.venueName, venueAddress: formData.venueAddress, assignedStaff: formData.assignedStaff || [], inventorySelection: formData.inventorySelection || [], quantity: 1, price: 0, amount: 0 }];
+      // Build schedule list and calculate pricing fields from servicesSchedule amounts
+  const scheduleList = formData.servicesSchedule && formData.servicesSchedule.length > 0
+    ? formData.servicesSchedule
+    : [{ serviceCategoryId: '', serviceType: [] as string[], date: new Date().toISOString(), startTime: '', endTime: '', venueName: formData.venueName, venueAddress: formData.venueAddress, assignedStaff: formData.assignedStaff || [], inventorySelection: formData.inventorySelection || [], quantity: 1, price: 0, amount: 0 }];
   const subtotal = (scheduleList || []).reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
   const remainingAmount = subtotal - (formData.advanceAmount || 0);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
       const functionDetailsList = scheduleList.map((s: any) => ({
-        type: formData.functionType || s.serviceName || formData.serviceNeeded || '',
+        type: formData.functionType || (categories.find((c:any)=>c._id===s.serviceCategoryId)?.name) || s.serviceName || formData.serviceNeeded || '',
         date: s.date ? new Date(s.date).toISOString() : new Date().toISOString(),
         time: { start: s.startTime || '', end: s.endTime || '' },
         venue: { name: s.venueName || formData.venueName || '', address: s.venueAddress || formData.venueAddress || '' },
@@ -335,14 +386,27 @@ const BookingManagement = () => {
   const allAssignedStaff = Array.from(new Set([...(formData.assignedStaff || []), ...scheduleList.flatMap((s: any) => s.assignedStaff || [])]));
   const allInventory = Array.from(new Set([...(formData.inventorySelection || []), ...scheduleList.flatMap((s: any) => s.inventorySelection || [])]));
 
+      // Validate that every schedule entry has a category and at least one type
+      const invalidEntry = (scheduleList || []).find((s: any) => !s.serviceCategoryId || !(Array.isArray(s.serviceType) && s.serviceType.length > 0));
+      if (invalidEntry) {
+        addNotification({ type: 'error', title: 'Validation', message: 'Please select Service and at least one Type for every schedule entry.' });
+        setSubmitting(false);
+        return;
+      }
+
       // Build services array from schedule entries for backend compatibility
-      const servicesFromSchedule = scheduleList.map((s: any) => ({
-        service: s.serviceName || '',
-        quantity: s.quantity ?? 1,
-        rate: s.price ?? 0,
-        amount: s.amount ?? ((s.quantity ?? 1) * (s.price ?? 0)),
-        description: '',
-      }));
+      const servicesFromSchedule = scheduleList.map((s: any) => {
+        const cat = (categories || []).find((c: any) => c._id === s.serviceCategoryId);
+        return {
+          service: cat?.name || '',
+          serviceType: s.serviceType || [],
+          serviceCategory: s.serviceCategoryId || '',
+          quantity: s.quantity ?? 1,
+          rate: s.price ?? 0,
+          amount: s.amount ?? ((s.quantity ?? 1) * (s.price ?? 0)),
+          description: '',
+        };
+      });
 
       const bookingData = {
         bookingNumber,
@@ -350,7 +414,7 @@ const BookingManagement = () => {
         branch: formData.bookingBranch,
         functionDetails: functionDetailsList[0] || functionDetailsList,
         functionDetailsList,
-  serviceNeeded: formData.serviceNeeded || (scheduleList[0] && scheduleList[0].serviceName) || '',
+  serviceNeeded: formData.serviceNeeded || (scheduleList[0] && (categories.find((c:any)=>c._id===scheduleList[0].serviceCategoryId)?.name || (Array.isArray(scheduleList[0].serviceType) ? scheduleList[0].serviceType.join(', ') : (scheduleList[0].serviceName as string || '')))) || '',
         inventorySelection: allInventory,
         assignedStaff: allAssignedStaff,
         bookingBranch: formData.bookingBranch,
@@ -410,7 +474,7 @@ const BookingManagement = () => {
       ...prev,
       servicesSchedule: [
         ...(prev.servicesSchedule || []),
-        { serviceName: '', date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }
+        { serviceCategoryId: '', serviceType: [] as string[], date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }
       ]
     }));
   };
@@ -426,6 +490,23 @@ const BookingManagement = () => {
     setFormData((prev: any) => {
       const ss = [...(prev.servicesSchedule || [])];
       ss[index] = { ...ss[index], [field]: value };
+      // if selecting a service category, set serviceName and clear serviceType when category defines types
+      if (field === 'serviceCategoryId') {
+        const cat = (categories || []).find((c: any) => c._id === value);
+        if (cat) {
+          ss[index].serviceName = cat.name;
+          // if category has types, clear serviceType to force user selection
+          if (Array.isArray(cat.types) && cat.types.length > 0) {
+            ss[index].serviceType = Array.isArray(ss[index].serviceType) ? ss[index].serviceType : [];
+          } else {
+            // otherwise fallback to legacy cat.type if present (store as single-element array)
+            ss[index].serviceType = cat.type ? [cat.type] : (Array.isArray(ss[index].serviceType) ? ss[index].serviceType : []);
+          }
+        } else {
+          ss[index].serviceName = '';
+          ss[index].serviceType = [];
+        }
+      }
       // auto-calc amount when quantity or price changes
       if (field === 'quantity' || field === 'price') {
         const q = Number(ss[index].quantity ?? 0);
@@ -919,8 +1000,33 @@ const BookingManagement = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                          <label className="text-sm text-gray-600">Service Name</label>
-                          <input value={entry.serviceName} onChange={(e) => updateScheduleEntry(idx, 'serviceName', e.target.value)} className="w-full px-3 py-2 border rounded" />
+                          <label className="text-sm text-gray-600">Service</label>
+                          <div className="flex space-x-2">
+                            <select value={entry.serviceCategoryId || ""} onChange={(e) => updateScheduleEntry(idx, 'serviceCategoryId', e.target.value)} className="w-1/2 px-3 py-2 border rounded">
+                              <option value="">Select service</option>
+                              {(categories || []).map((c: any) => (
+                                <option key={c._id} value={c._id}>{c.name}</option>
+                              ))}
+                            </select>
+                            {entry.serviceCategoryId ? (
+                              (() => {
+                                const cat = (categories || []).find((c: any) => c._id === entry.serviceCategoryId);
+                                if (cat && Array.isArray(cat.types) && cat.types.length > 0) {
+                                  return (
+                                    <select value={Array.isArray(entry.serviceType) ? (entry.serviceType[0] || "") : (entry.serviceType || "")} onChange={(e) => updateScheduleEntry(idx, 'serviceType', e.target.value ? [e.target.value] : [])} className="w-1/2 px-3 py-2 border rounded">
+                                      <option value="">Select type</option>
+                                      {cat.types.map((t: string, i: number) => <option key={i} value={t}>{t}</option>)}
+                                    </select>
+                                  );
+                                }
+                                return (
+                                  <input type="text" value={Array.isArray(entry.serviceType) ? (entry.serviceType[0] || "") : (entry.serviceType || "")} onChange={(e) => updateScheduleEntry(idx, 'serviceType', e.target.value ? [e.target.value] : [])} placeholder="Type (optional)" className="w-1/2 px-3 py-2 border rounded" />
+                                );
+                              })()
+                            ) : (
+                              <div className="w-1/2 px-3 py-2 border rounded text-sm text-gray-500">Please select a Service</div>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <label className="text-sm text-gray-600">Date</label>

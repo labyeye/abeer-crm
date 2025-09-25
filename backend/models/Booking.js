@@ -89,6 +89,15 @@ const bookingSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    // optional normalized category and type fields (allow multiple types)
+    serviceType: {
+      type: [String],
+      default: []
+    },
+    serviceCategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ServiceCategory'
+    },
     description: String,
     quantity: {
       type: Number,

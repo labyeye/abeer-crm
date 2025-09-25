@@ -27,6 +27,7 @@ const dailyExpenses = require('./routes/dailyExpensesRoutes');
 const vendors = require('./routes/vendorRoutes');
 const analytics = require('./routes/analyticsRoutes');
 const expenses = require('./routes/expenseRoutes');
+const serviceCategories = require('./routes/serviceCategoryRoutes');
 
 const ai = require('./routes/aiRoutes');
 const mobile = require('./routes/mobileRoutes');
@@ -97,6 +98,7 @@ app.use('/api/daily-expenses', dailyExpenses);
 app.use('/api/vendors', vendors);
 app.use('/api/analytics', analytics);
 app.use('/api/expenses', expenses);
+app.use('/api/service-categories', serviceCategories);
 
 app.use('/api/ai', ai);
 app.use('/api/mobile', mobile);

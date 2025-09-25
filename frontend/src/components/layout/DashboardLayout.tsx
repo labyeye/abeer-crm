@@ -15,6 +15,7 @@ import ProfilePage from '../profile/ProfilePage';
 import TaskManagement from '../tasks/TaskManagement';
 import VendorManagement from '../vendors/VendorManagement';
 import AdvancedAnalytics from '../analytics/AdvancedAnalytics';
+import CategoryManagement from '../catalog/CategoryManagement';
 import { AIInsights } from '../ai/AIInsights';
 import { EnhancedAutomation } from '../automation/EnhancedAutomation';
 import { SystemIntegration } from '../integration/SystemIntegration';
@@ -50,6 +51,8 @@ const DashboardLayout = () => {
         return <VendorManagement />;
       case 'analytics':
         return <AdvancedAnalytics />;
+      case 'categories':
+        return <CategoryManagement />;
       case 'ai-insights':
         return <AIInsights />;
       case 'automation':

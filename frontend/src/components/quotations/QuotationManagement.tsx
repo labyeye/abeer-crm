@@ -22,7 +22,7 @@ import {
   IndianRupee,
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
-import { quotationAPI, branchAPI, clientAPI } from "../../services/api";
+import { quotationAPI, branchAPI, clientAPI, serviceCategoryAPI } from "../../services/api";
 import QuotationPDFTemplate from "./QuotationPDFTemplate";
 import { generateQuotationPDF } from "../../utils/pdfGenerator";
 
@@ -56,6 +56,7 @@ const QuotationManagement = () => {
   const [quotations, setQuotations] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [selectedQuotationForPDF, setSelectedQuotationForPDF] =
@@ -418,10 +419,24 @@ const QuotationManagement = () => {
   const handleCreateSubmit = async () => {
     try {
       
+      // build normalized services from both explicit service lines and schedule entries
       const scheduleEntries = Array.isArray(createData.servicesSchedule)
         ? createData.servicesSchedule
         : [];
-      const normalizedServices = scheduleEntries
+      const lineItems = Array.isArray(createData.services) ? createData.services : [];
+
+      const normalizedFromLines = lineItems
+        .filter((l: any) => l && (l.name || l.serviceType))
+        .map((l: any) => ({
+          service: l.name || l.serviceType || "",
+          serviceType: l.serviceType || "",
+          description: l.description || "",
+          quantity: Number(l.quantity ?? 1),
+          rate: Number(l.price ?? l.rate ?? 0),
+          amount: Number(l.amount ?? (Number(l.quantity ?? 1) * Number(l.price ?? l.rate ?? 0))),
+        }));
+
+      const normalizedFromSchedule = scheduleEntries
         .filter((s: any) => s && (s.serviceGiven || s.serviceType))
         .map((s: any) => ({
           service: s.serviceGiven || s.serviceType || "",
@@ -431,6 +446,9 @@ const QuotationManagement = () => {
           rate: Number(s.price ?? s.rate ?? 0),
           amount: Number(s.amount ?? (Number(s.quantity ?? 1) * Number(s.price ?? s.rate ?? 0))),
         }));
+
+      // merge both lists; prefer explicit line items first
+      const normalizedServices = [...normalizedFromLines, ...normalizedFromSchedule];
 
       const subtotal = normalizedServices.reduce(
         (sum: number, s: any) => sum + Number(s.amount || 0),
@@ -522,19 +540,21 @@ const QuotationManagement = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [bRes, cRes, qRes] = await Promise.all([
+        const [bRes, cRes, qRes, catRes] = await Promise.all([
           branchAPI.getBranches(),
           clientAPI.getClients(),
           quotationAPI.getQuotations(),
+          serviceCategoryAPI.getCategories(),
         ]);
         setBranches((bRes && bRes.data) || bRes || []);
         setClients((cRes && cRes.data) || cRes || []);
         setQuotations((qRes && qRes.data) || qRes || []);
+        setCategories((catRes && catRes.data) || catRes || []);
       } catch (err) {
         addNotification({
           type: "error",
           title: "Error",
-          message: "Failed to load branches/clients",
+          message: "Failed to load branches/clients/categories",
         });
       }
     };
@@ -554,7 +574,27 @@ const QuotationManagement = () => {
         const venueField = field.split(".")[1];
         entry.venue = { ...(entry.venue || {}), [venueField]: value };
       } else {
-        entry[field] = value;
+        // special-case when selecting a service category by id
+        if (field === 'serviceCategory') {
+          const cat = (categories || []).find((c: any) => c._id === value);
+          if (cat) {
+            entry.serviceGiven = cat.name;
+            // if category defines multiple types, don't auto-fill serviceType; let user choose
+            if (Array.isArray(cat.types) && cat.types.length > 0) {
+              entry.serviceType = entry.serviceType || "";
+            } else {
+              // legacy single-type field or no types defined -> set fallback
+              entry.serviceType = cat.type || entry.serviceType || "";
+            }
+            entry.serviceCategoryId = cat._id;
+          } else {
+            entry.serviceGiven = '';
+            entry.serviceType = '';
+            entry.serviceCategoryId = '';
+          }
+        } else {
+          entry[field] = value;
+        }
       }
       schedule[index] = entry;
       return { ...prev, servicesSchedule: schedule };
@@ -579,6 +619,54 @@ const QuotationManagement = () => {
         ...prev,
         servicesSchedule: schedule.length ? schedule : [emptyScheduleEntry()],
       };
+    });
+  };
+
+  // services (simple line items) handlers - provide service category + type pickers
+  const updateServiceLine = (index: number, field: string, value: any) => {
+    setCreateData((prev: any) => {
+      const services = Array.isArray(prev.services) ? [...prev.services] : [];
+      const line = { ...(services[index] || {}) };
+      // special-case when selecting a service category by id
+      if (field === 'serviceCategory') {
+        const cat = (categories || []).find((c: any) => c._id === value);
+        if (cat) {
+          line.name = cat.name;
+          // if category has types array, don't auto-fill serviceType - let user pick
+          if (Array.isArray(cat.types) && cat.types.length > 0) {
+            line.serviceType = line.serviceType || "";
+          } else {
+            line.serviceType = cat.type || line.serviceType || "";
+          }
+          line.serviceCategoryId = cat._id;
+        } else {
+          line.name = '';
+          line.serviceType = '';
+          line.serviceCategoryId = '';
+        }
+      } else {
+        line[field] = value;
+      }
+      services[index] = line;
+      return { ...prev, services };
+    });
+  };
+
+  const addServiceLine = () => {
+    setCreateData((prev: any) => ({
+      ...prev,
+      services: [
+        ...(prev.services || []),
+        { name: "", serviceType: "", quantity: 1, price: 0, amount: 0 },
+      ],
+    }));
+  };
+
+  const removeServiceLine = (index: number) => {
+    setCreateData((prev: any) => {
+      const services = [...(prev.services || [])];
+      services.splice(index, 1);
+      return { ...prev, services: services.length ? services : [{ name: "", serviceType: "", quantity: 1, price: 0, amount: 0 }] };
     });
   };
 
@@ -757,27 +845,58 @@ const QuotationManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Service Given
                             </label>
-                            <input
-                              type="text"
-                              value={entry.serviceGiven || ""}
+                            <select
+                              value={entry.serviceCategoryId || ""}
                               onChange={(e) =>
-                                updateScheduleEntry(idx, "serviceGiven", e.target.value)
+                                updateScheduleEntry(idx, "serviceCategory", e.target.value)
                               }
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            />
+                            >
+                              <option value="">Select service</option>
+                              {categories.map((c: any) => (
+                                <option key={c._id} value={c._id}>{c.name}</option>
+                              ))}
+                            </select>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                               Type
                             </label>
-                            <input
-                              type="text"
-                              value={entry.serviceType || ""}
-                              onChange={(e) =>
-                                updateScheduleEntry(idx, "serviceType", e.target.value)
-                              }
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            />
+                            {entry.serviceCategoryId ? (
+                              (() => {
+                                const cat = (categories || []).find((c: any) => c._id === entry.serviceCategoryId);
+                                if (cat && Array.isArray(cat.types) && cat.types.length > 0) {
+                                  return (
+                                    <select
+                                      value={entry.serviceType || ""}
+                                      onChange={(e) => updateScheduleEntry(idx, "serviceType", e.target.value)}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    >
+                                      <option value="">Select type</option>
+                                      {cat.types.map((t: string, i: number) => (
+                                        <option key={i} value={t}>{t}</option>
+                                      ))}
+                                    </select>
+                                  );
+                                }
+                                // fallback to text input
+                                return (
+                                  <input
+                                    type="text"
+                                    value={entry.serviceType || ""}
+                                    onChange={(e) => updateScheduleEntry(idx, "serviceType", e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                  />
+                                );
+                              })()
+                            ) : (
+                              <input
+                                type="text"
+                                value={entry.serviceType || ""}
+                                onChange={(e) => updateScheduleEntry(idx, "serviceType", e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                              />
+                            )}
                           </div>
                           <div className="grid grid-cols-3 gap-2">
                             <div>
@@ -929,7 +1048,95 @@ const QuotationManagement = () => {
               </div>
 
                 {}
+              
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Services & Pricing</h3>
+                <div className="space-y-4">
+                  {(createData.services || []).map((line: any, idx: number) => (
+                    <div key={idx} className="p-3 border rounded-lg bg-white">
+                      <div className="flex justify-between items-center mb-2">
+                        <div className="font-medium">Item #{idx + 1}</div>
+                        <div className="flex items-center space-x-2">
+                          <button type="button" onClick={() => removeServiceLine(idx)} className="text-red-600">Remove</button>
+                        </div>
+                      </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Service</label>
+                          <select
+                            value={line.serviceCategoryId || ""}
+                            onChange={(e) => updateServiceLine(idx, 'serviceCategory', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          >
+                            <option value="">Select service</option>
+                            {categories.map((c: any) => (
+                              <option key={c._id} value={c._id}>{c.name} {c.type ? ` - ${c.type}` : ''}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                          {line.serviceCategoryId ? (
+                            (() => {
+                              const cat = (categories || []).find((c: any) => c._id === line.serviceCategoryId);
+                              if (cat && Array.isArray(cat.types) && cat.types.length > 0) {
+                                return (
+                                  <select
+                                    value={line.serviceType || ""}
+                                    onChange={(e) => updateServiceLine(idx, 'serviceType', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                  >
+                                    <option value="">Select type</option>
+                                    {cat.types.map((t: string, i: number) => (
+                                      <option key={i} value={t}>{t}</option>
+                                    ))}
+                                  </select>
+                                );
+                              }
+                              return (
+                                <input type="text" value={line.serviceType || ""} onChange={(e) => updateServiceLine(idx, 'serviceType', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                              );
+                            })()
+                          ) : (
+                            <input type="text" value={line.serviceType || ""} onChange={(e) => updateServiceLine(idx, 'serviceType', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Qty</label>
+                            <input type="number" min={0} value={line.quantity ?? 0} onChange={(e) => {
+                              const val = Number(e.target.value || 0);
+                              updateServiceLine(idx, 'quantity', val);
+                              const price = Number(line.price || 0);
+                              updateServiceLine(idx, 'amount', +(val * price));
+                            }} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
+                            <input type="number" min={0} value={line.price ?? 0} onChange={(e) => {
+                              const val = Number(e.target.value || 0);
+                              updateServiceLine(idx, 'price', val);
+                              const qty = Number(line.quantity || 0);
+                              updateServiceLine(idx, 'amount', +(qty * val));
+                            }} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                            <input type="number" min={0} value={line.amount ?? 0} onChange={(e) => updateServiceLine(idx, 'amount', Number(e.target.value || 0))} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div>
+                    <button type="button" onClick={addServiceLine} className="px-3 py-1 bg-gray-100 rounded">Add Service Line</button>
+                  </div>
+                </div>
+              </div>
                 <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Video Output
