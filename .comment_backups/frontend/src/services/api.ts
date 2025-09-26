@@ -31,7 +31,7 @@ interface QueryParams {
 
 // Create axios instance
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://abeer-crm-44fd.vercel.app/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3500/api',
   headers: {
     'Content-Type': 'application/json',
   },

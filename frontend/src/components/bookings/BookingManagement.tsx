@@ -229,8 +229,10 @@ const BookingManagement = () => {
         const statsRes: any = await inventoryAPI.getInventoryStats();
         const statsData = statsRes.data || statsRes;
         const catBreakdown = statsData?.data?.categoryBreakdown || statsData?.categoryBreakdown || [];
-        const cats = Array.isArray(catBreakdown) ? catBreakdown.map((c: any) => c._id).filter(Boolean) : [];
-        setInventoryCategories(cats);
+  const cats = Array.isArray(catBreakdown) ? catBreakdown.map((c: any) => c._id).filter(Boolean) : [];
+  // sort categories alphabetically (case-insensitive)
+  cats.sort((a: string, b: string) => String(a).toLowerCase().localeCompare(String(b).toLowerCase()));
+  setInventoryCategories(cats);
       } catch (err) {
         console.warn('Could not fetch inventory categories', err);
         setInventoryCategories([]);
