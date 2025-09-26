@@ -84,6 +84,11 @@ const InventoryManagement = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState<number>(1);
+  const [limit, setLimit] = useState<number>(10);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalItemsCount, setTotalItemsCount] = useState<number>(0);
+  const [inventoryOverview, setInventoryOverview] = useState<any>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -143,13 +148,30 @@ const InventoryManagement = () => {
         if (filterBranch && filterBranch !== 'all') params.branch = filterBranch;
       }
 
+      const reqParams = { ...(Object.keys(params).length ? params : {}), page, limit };
       const [inventoryRes, branchesRes] = await Promise.all([
-        inventoryAPI.getInventory(Object.keys(params).length ? params : undefined),
+        inventoryAPI.getInventory(reqParams),
         branchAPI.getBranches()
       ]);
-      
-      setInventory(inventoryRes.data.docs || inventoryRes.data.data || []);
-      setBranches(branchesRes.data.data || branchesRes.data || []);
+
+      const invData = inventoryRes.data || inventoryRes;
+      const docs = invData.docs || invData.data || invData.items || invData || [];
+      setInventory(Array.isArray(docs) ? docs : []);
+      // pagination metadata from backend paginate
+      setTotalPages(invData.totalPages || invData.pages || 1);
+      setTotalItemsCount(invData.totalDocs || invData.totalItems || invData.total || docs.length);
+
+      setBranches(branchesRes.data?.data || branchesRes.data || []);
+
+      // Fetch overall inventory stats (total quantity, total items) to show accurate numbers
+      try {
+        const statsRes = await inventoryAPI.getInventoryStats();
+        const statsData = statsRes.data || statsRes;
+        setInventoryOverview(statsData.overview || statsData);
+      } catch (err) {
+        console.warn('Failed to fetch inventory stats', err);
+        setInventoryOverview(null);
+      }
     } catch (error: unknown) {
       addNotification({
         type: 'error',
@@ -165,7 +187,13 @@ const InventoryManagement = () => {
     if (hasAccess) {
       fetchData();
     }
-  }, [hasAccess]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAccess, page, limit, filterBranch, filterCategory, filterStatus, searchTerm]);
+
+  // reset page when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [filterBranch, filterCategory, filterStatus, searchTerm, limit]);
 
   const resetForm = () => {
     setFormData({
@@ -446,8 +474,9 @@ const InventoryManagement = () => {
               <Package className="w-6 h-6 text-white" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Items</p>
-              <p className="text-2xl font-bold text-gray-900">{inventory.length}</p>
+              <p className="text-sm font-medium text-gray-600">Total Pieces</p>
+              <p className="text-2xl font-bold text-gray-900">{inventoryOverview ? (inventoryOverview.totalQuantity || inventoryOverview.totalQty || 0) : inventory.reduce((s, it) => s + (Number(it.quantity) || 0), 0)}</p>
+              <div className="text-xs text-gray-500">Displayed items: {inventory.length} • Total records: {totalItemsCount}</div>
             </div>
           </div>
         </div>
@@ -460,7 +489,7 @@ const InventoryManagement = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">In Stock</p>
               <p className="text-2xl font-bold text-gray-900">
-                {inventory.filter(item => item.quantity > item.minQuantity).length}
+                {inventoryOverview ? (inventoryOverview.totalItems - (inventoryOverview.lowStockItems || 0) - (inventoryOverview.outOfStockItems || 0)) : inventory.filter(item => item.quantity > item.minQuantity).length}
               </p>
             </div>
           </div>
@@ -474,7 +503,7 @@ const InventoryManagement = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Low Stock</p>
               <p className="text-2xl font-bold text-gray-900">
-                {inventory.filter(item => item.quantity > 0 && item.quantity <= item.minQuantity).length}
+                {inventoryOverview ? (inventoryOverview.lowStockItems || 0) : inventory.filter(item => item.quantity > 0 && item.quantity <= item.minQuantity).length}
               </p>
             </div>
           </div>
@@ -488,10 +517,31 @@ const InventoryManagement = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Out of Stock</p>
               <p className="text-2xl font-bold text-gray-900">
-                {inventory.filter(item => item.quantity === 0).length}
+                {inventoryOverview ? (inventoryOverview.outOfStockItems || 0) : inventory.filter(item => item.quantity === 0).length}
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-gray-600">Page {page} of {totalPages}</div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="px-3 py-1 bg-gray-100 rounded disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages || 1, p + 1))}
+            disabled={page >= (totalPages || 1)}
+            className="px-3 py-1 bg-gray-100 rounded disabled:opacity-50"
+          >
+            Next
+          </button>
         </div>
       </div>
 
@@ -554,7 +604,7 @@ const InventoryManagement = () => {
       {/* Inventory List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-max w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

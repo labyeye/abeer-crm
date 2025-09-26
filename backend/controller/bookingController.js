@@ -98,6 +98,28 @@ const createBooking = asyncHandler(async (req, res) => {
     { path: 'inventorySelection', select: 'name category quantity' }
   ]);
   
+  // If the booking includes equipment assignments, decrement inventory quantities and mark status
+  try {
+    if (Array.isArray(booking.equipmentAssignment) && booking.equipmentAssignment.length) {
+      for (const assign of booking.equipmentAssignment) {
+        try {
+          const inv = await Inventory.findById(assign.equipment);
+          if (!inv) continue;
+          const assignQty = Number(assign.quantity) || 1;
+          inv.quantity = Math.max(0, Number(inv.quantity || 0) - assignQty);
+          // set status to Booked if some units have been allocated, else Out of Stock when zero
+          if (inv.quantity === 0) inv.status = 'Out of Stock';
+          else inv.status = 'Booked';
+          await inv.save();
+        } catch (err) {
+          console.warn('Failed to adjust inventory for assignment during booking create', err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed processing equipmentAssignment on booking create', err);
+  }
+
   
   try {
     // Use branch as the source for company-like info (Booking doesn't have a `company` field)
@@ -177,6 +199,28 @@ const updateBooking = asyncHandler(async (req, res) => {
       console.error('Error updating branch stats after booking update:', err);
     }
   }
+
+  // If booking was cancelled in this update, restore any allocated equipment back to inventory
+  try {
+    if (req.body.status === 'cancelled' && oldStatus !== 'cancelled') {
+      if (Array.isArray(booking.equipmentAssignment) && booking.equipmentAssignment.length) {
+        for (const assign of booking.equipmentAssignment) {
+          try {
+            const inv = await Inventory.findById(assign.equipment);
+            if (!inv) continue;
+            const qty = Number(assign.quantity) || 1;
+            inv.quantity = Number(inv.quantity || 0) + qty;
+            if (inv.quantity > 0) inv.status = 'Active';
+            await inv.save();
+          } catch (err) {
+            console.warn('Failed to restore inventory for assignment during booking cancellation', err);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed processing equipmentAssignment on booking update (cancellation)', err);
+  }
   res.status(200).json({ success: true, data: booking });
 });
 
@@ -188,6 +232,27 @@ const deleteBooking = asyncHandler(async (req, res) => {
   if (!booking || booking.isDeleted) {
     return res.status(404).json({ success: false, message: 'Booking not found' });
   }
+  // Before marking deleted, restore any inventory quantities that were allocated to this booking
+  try {
+    if (Array.isArray(booking.equipmentAssignment) && booking.equipmentAssignment.length) {
+      for (const assign of booking.equipmentAssignment) {
+        try {
+          const inv = await Inventory.findById(assign.equipment);
+          if (!inv) continue;
+          const qty = Number(assign.quantity) || 1;
+          inv.quantity = Number(inv.quantity || 0) + qty;
+          // If after restoration we have some stock, mark as Active
+          if (inv.quantity > 0) inv.status = 'Active';
+          await inv.save();
+        } catch (err) {
+          console.warn('Failed to restore inventory for assignment during booking delete', err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Failed processing equipmentAssignment on booking delete', err);
+  }
+
   booking.isDeleted = true;
   await booking.save();
   res.status(200).json({ success: true, data: {} });
@@ -212,8 +277,24 @@ const assignInventory = asyncHandler(async (req, res) => {
   const { equipmentId, quantity } = req.body;
   const booking = await Booking.findById(req.params.id);
   if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+  // push assignment to booking
   booking.equipmentAssignment.push({ equipment: equipmentId, quantity });
   await booking.save();
+
+  // decrement inventory stock for the assigned equipment
+  try {
+    const inv = await Inventory.findById(equipmentId);
+    if (inv) {
+      const assignQty = Number(quantity) || 1;
+      inv.quantity = Math.max(0, Number(inv.quantity || 0) - assignQty);
+      if (inv.quantity === 0) inv.status = 'Out of Stock';
+      else inv.status = 'Booked';
+      await inv.save();
+    }
+  } catch (err) {
+    console.warn('Failed to adjust inventory during assignInventory', err);
+  }
+
   res.status(200).json({ success: true, data: booking });
 });
 

@@ -112,6 +112,9 @@ const BookingManagement = () => {
   const [inventory, setInventory] = useState<InventoryItem[] | PaginatedInventory>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
+  const [inventoryCategoryFilters, setInventoryCategoryFilters] = useState<{ [key: number]: string }>({});
+  const [cachedInventoryByCategory, setCachedInventoryByCategory] = useState<{ [category: string]: InventoryItem[] }>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -221,6 +224,17 @@ const BookingManagement = () => {
           ? branchesRes.data
           : branchesRes.data.data || []
       );
+      // fetch inventory category breakdown to use as equipment category filters
+      try {
+        const statsRes: any = await inventoryAPI.getInventoryStats();
+        const statsData = statsRes.data || statsRes;
+        const catBreakdown = statsData?.data?.categoryBreakdown || statsData?.categoryBreakdown || [];
+        const cats = Array.isArray(catBreakdown) ? catBreakdown.map((c: any) => c._id).filter(Boolean) : [];
+        setInventoryCategories(cats);
+      } catch (err) {
+        console.warn('Could not fetch inventory categories', err);
+        setInventoryCategories([]);
+      }
       // load service categories for picker
       try {
         const catsRes: any = await serviceCategoryAPI.getCategories();
@@ -1082,12 +1096,44 @@ const BookingManagement = () => {
 
                       <div className="mt-3">
                         <label className="text-sm font-medium text-gray-700">Select Equipment</label>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button type="button" onClick={() => {
+                            // Clear filter and show all
+                            setInventoryCategoryFilters(prev => ({ ...prev, [idx]: '' }));
+                          }} className={`px-2 py-1 text-xs rounded ${!inventoryCategoryFilters[idx] ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>All</button>
+                          {(Array.isArray(inventoryCategories) ? inventoryCategories : []).map((c: any) => (
+                            <button key={c} type="button" onClick={async () => {
+                              // when selecting a category, fetch inventory for that category (cached)
+                              try {
+                                setInventoryCategoryFilters(prev => ({ ...prev, [idx]: c }));
+                                if (!cachedInventoryByCategory[c]) {
+                                  const params: any = { category: c };
+                                  // respect selected branch when fetching
+                                  if (formData.bookingBranch) params.branch = formData.bookingBranch;
+                                  else if (user && user.branchId) params.branch = user.branchId;
+                                  const res: any = await inventoryAPI.getInventory(params);
+                                  const invData = res.data || res;
+                                  const docs = invData.docs || invData.data || invData.items || invData || [];
+                                  const list = Array.isArray(docs) ? docs : [];
+                                  setCachedInventoryByCategory(prev => ({ ...prev, [c]: list }));
+                                }
+                              } catch (err) {
+                                console.warn('Failed to fetch inventory for category', c, err);
+                              }
+                            }} className={`px-2 py-1 text-xs rounded ${inventoryCategoryFilters[idx] === c ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+
                         <div className="grid grid-cols-2 gap-2 mt-2">
                           {(() => {
                             let inventoryList: any[] = [];
                             if (inventory && typeof inventory === 'object' && 'docs' in (inventory as any) && Array.isArray((inventory as any).docs)) inventoryList = (inventory as any).docs;
                             else if (Array.isArray(inventory)) inventoryList = inventory;
-                            return inventoryList.map((it) => (
+                            const selectedCategory = inventoryCategoryFilters[idx];
+                            const filtered = selectedCategory ? (cachedInventoryByCategory[selectedCategory] || []).concat().filter(Boolean) : inventoryList;
+                            return filtered.map((it) => (
                               <label key={it._id} className="inline-flex items-center space-x-2">
                                 <input type="checkbox" checked={(entry.inventorySelection || []).includes(it._id)} onChange={(e) => {
                                   const checked = e.target.checked;
@@ -1095,7 +1141,7 @@ const BookingManagement = () => {
                                   if (checked) list.add(it._id); else list.delete(it._id);
                                   updateScheduleEntry(idx, 'inventorySelection', Array.from(list));
                                 }} />
-                                <span className="text-sm">{it.name}</span>
+                                <span className="text-sm">{it.name} <span className="text-xs text-gray-400 ml-2">({it.category})</span></span>
                               </label>
                             ));
                           })()}
