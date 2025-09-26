@@ -136,8 +136,15 @@ const InventoryManagement = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const params: any = {};
+      if (user && user.role !== 'chairman') {
+        if (user.branchId) params.branch = user.branchId;
+      } else {
+        if (filterBranch && filterBranch !== 'all') params.branch = filterBranch;
+      }
+
       const [inventoryRes, branchesRes] = await Promise.all([
-        inventoryAPI.getInventory(),
+        inventoryAPI.getInventory(Object.keys(params).length ? params : undefined),
         branchAPI.getBranches()
       ]);
       
@@ -203,6 +210,10 @@ const InventoryManagement = () => {
 
   const handleCreateItem = () => {
     resetForm();
+    // Pre-fill branch for non-chairman users
+    if (user && user.role !== 'chairman') {
+      setFormData((fd) => ({ ...fd, branch: user.branchId || '' }));
+    }
     setShowCreateModal(true);
   };
 
@@ -294,14 +305,14 @@ const InventoryManagement = () => {
       };
 
       if (selectedItem) {
-        await inventoryAPI.updateInventoryItem(selectedItem._id, itemData);
+        await inventoryAPI.updateInventoryItem(selectedItem._id, itemData as any);
         addNotification({
           type: 'success',
           title: 'Success',
           message: 'Inventory item updated successfully'
         });
       } else {
-        await inventoryAPI.createInventoryItem(itemData);
+        await inventoryAPI.createInventoryItem(itemData as any);
         addNotification({
           type: 'success',
           title: 'Success',
@@ -416,6 +427,17 @@ const InventoryManagement = () => {
         </button>
       </div>
 
+      {/* Viewing badge: shows which branch is being viewed */}
+      {(() => {
+        const viewingBranchId = user && user.role !== 'chairman' ? user.branchId : (filterBranch && filterBranch !== 'all' ? filterBranch : null);
+        const viewingBranch = viewingBranchId ? branches.find(b => b._id === viewingBranchId) : null;
+        return viewingBranch ? (
+          <div className="text-sm text-gray-600">
+            Viewing: <span className="font-medium text-gray-900">{viewingBranch.name} ({viewingBranch.code || ''})</span>
+          </div>
+        ) : null;
+      })()}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -523,7 +545,7 @@ const InventoryManagement = () => {
           <option value="all">All Branches</option>
           {branches.map((branch) => (
             <option key={branch._id} value={branch._id}>
-              {branch.name} ({branch.code})
+              {branch.name} ({branch.code || ''})
             </option>
           ))}
         </select>
@@ -583,7 +605,7 @@ const InventoryManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {item.branch?.name || 'No Branch'}
+                          {item.branch ? `${item.branch.name} (${item.branch.code || ''})` : 'No Branch'}
                         </div>
                         <div className="text-sm text-gray-500">
                           <MapPin className="w-3 h-3 inline mr-1" />
@@ -696,6 +718,20 @@ const InventoryManagement = () => {
                 <X className="w-6 h-6" />
               </button>
             </div>
+
+            {/* Show assigned branch when editing an existing item */}
+            {selectedItem && (
+              <div className="px-6 pt-4 pb-2 text-sm text-gray-700">
+                Assigned Branch:{' '}
+                <span className="font-medium text-gray-900">
+                  {selectedItem.branch?.name
+                    ? `${selectedItem.branch.name} (${selectedItem.branch.code || ''})`
+                    : (branches.find(b => b._id === formData.branch)?.name
+                        ? `${branches.find(b => b._id === formData.branch)?.name} (${branches.find(b => b._id === formData.branch)?.code || ''})`
+                        : 'Unassigned')}
+                </span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               {/* Basic Information */}
@@ -830,19 +866,29 @@ const InventoryManagement = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                    <select
-                      required
-                      value={formData.branch}
-                      onChange={e => setFormData({ ...formData, branch: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select Branch</option>
-                      {branches.map(branch => (
-                        <option key={branch._id} value={branch._id}>
-                          {branch.name} ({branch.code})
-                        </option>
-                      ))}
-                    </select>
+                    {user && user.role === 'chairman' ? (
+                      <select
+                        required
+                        value={formData.branch}
+                        onChange={e => setFormData({ ...formData, branch: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Select Branch</option>
+                        {branches.map(branch => (
+                          <option key={branch._id} value={branch._id}>
+                            {branch.name} ({branch.code || ''})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        readOnly
+                        value={(branches.find(b => b._id === formData.branch)?.name ? `${branches.find(b => b._id === formData.branch)?.name} (${branches.find(b => b._id === formData.branch)?.code || ''})` : '')}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50"
+                        placeholder="Your branch"
+                      />
+                    )}
                   </div>
                 </div>
               </div>

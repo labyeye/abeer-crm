@@ -59,6 +59,7 @@ const ClientManagement = () => {
   const { user } = useAuth();
   const isChairman = user?.role === 'chairman';
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [clients, setClients] = useState<Client[]>([]);
@@ -96,7 +97,15 @@ const ClientManagement = () => {
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await clientAPI.getClients();
+      const params: any = {};
+      if (isChairman) {
+        // chairman can filter by branch; empty means all
+        if (selectedBranchFilter) params.branch = selectedBranchFilter;
+      } else {
+        // be explicit for branch users: include their branch id
+        if (user?.branchId) params.branch = user.branchId;
+      }
+      const response = await clientAPI.getClients(Object.keys(params).length ? params : undefined);
       
       const clientData = response.data?.data || response.data || response;
       if (Array.isArray(clientData)) {
@@ -116,7 +125,7 @@ const ClientManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [addNotification]);
+  }, [addNotification, selectedBranchFilter, isChairman]);
 
   useEffect(() => {
     fetchClients();
@@ -372,6 +381,19 @@ const ClientManagement = () => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
+        {isChairman && (
+          <select
+            value={selectedBranchFilter}
+            onChange={(e) => setSelectedBranchFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Branches</option>
+            {branches.map(b => (
+              <option key={b._id} value={b._id}>{b.companyName}</option>
+            ))}
+          </select>
+        )}
+
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}

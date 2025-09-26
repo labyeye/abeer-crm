@@ -21,10 +21,22 @@ exports.getInventory = asyncHandler(async (req, res, next) => {
     category,
     status,
     lowStock,
+    branch
   } = req.query;
 
   
   let query = {};
+
+  // normalize user's branch id
+  const userBranch = req.user && (req.user.branchId || req.user.branch) ? String(req.user.branchId || req.user.branch) : null;
+
+  // If user is not chairman, restrict inventory to their branch
+  if (req.user.role !== 'chairman') {
+    if (userBranch) query.branch = userBranch;
+  } else {
+    // chairman may pass a branch query param to filter
+    if (branch) query.branch = branch;
+  }
 
   if (search) {
     query.$text = { $search: search };
@@ -112,7 +124,15 @@ exports.createInventoryItem = asyncHandler(async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Branch not found for user' });
     }
     req.body.branch = req.user.branch;
-  } else if (!req.body.branch && req.user.role !== 'chairman') {
+  } else if (req.user.role === 'chairman') {
+    // chairman may pass branch id or branch code
+    if (req.body.branch && req.body.branch.length && !require('mongoose').Types.ObjectId.isValid(req.body.branch)) {
+      const Branch = require('../models/Branch');
+      const branchDoc = await Branch.findOne({ code: req.body.branch });
+      if (!branchDoc) return res.status(400).json({ success: false, message: 'Branch not found for provided code' });
+      req.body.branch = branchDoc._id;
+    }
+  } else if (!req.body.branch) {
     // For unexpected roles, require explicit branch or fail
     return res.status(400).json({ success: false, message: 'Branch is required' });
   }
@@ -146,6 +166,9 @@ exports.updateInventoryItem = asyncHandler(async (req, res, next) => {
       message: "Inventory item not found",
     });
   }
+
+  // Prevent non-chairman from changing branch
+  if (req.user.role !== 'chairman' && req.body.branch) delete req.body.branch;
 
   inventory = await Inventory.findByIdAndUpdate(req.params.id, req.body, {
     new: true,

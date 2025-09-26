@@ -12,8 +12,16 @@ const getAllClients = asyncHandler(async (req, res) => {
   const { branch, status, category, search } = req.query;
   
   let query = { isDeleted: false };
-  
-  if (branch) query.branch = branch;
+  // normalize user's branch id (support both branchId and branch fields)
+  const userBranch = req.user && (req.user.branchId || req.user.branch) ? String(req.user.branchId || req.user.branch) : null;
+  // If the user is not chairman, restrict to their branch
+  if (req.user.role !== 'chairman') {
+    if (userBranch) {
+      query.branch = userBranch;
+    }
+  } else {
+    if (branch) query.branch = branch;
+  }
   if (status) query.status = status;
   if (category) query.category = category;
   
@@ -46,6 +54,13 @@ const getClient = asyncHandler(async (req, res) => {
   
   if (!client || client.isDeleted) {
     return next(new ErrorResponse('Client not found', 404));
+  }
+  // Restrict access for non-chairman users to their branch only
+  const userBranchForCheck = req.user && (req.user.branchId || req.user.branch) ? String(req.user.branchId || req.user.branch) : null;
+  if (req.user.role !== 'chairman' && userBranchForCheck) {
+    if (!client.branch || client.branch._id.toString() !== userBranchForCheck) {
+      return next(new ErrorResponse('Not authorized to view this client', 403));
+    }
   }
   
   res.status(200).json({
@@ -85,6 +100,22 @@ const createClient = asyncHandler(async (req, res) => {
     return next(new ErrorResponse('Client with this phone number already exists', 400));
   }
   
+  let branchToUse = req.body.branch;
+  // If requester is chairman, allow specifying branch id or branch code
+  if (req.user.role === 'chairman') {
+    if (branchToUse && branchToUse && branchToUse.length && !require('mongoose').Types.ObjectId.isValid(branchToUse)) {
+      // allow using branch code
+      const Branch = require('../models/Branch');
+      const branchDoc = await Branch.findOne({ code: branchToUse });
+      if (!branchDoc) return next(new ErrorResponse('Branch not found for provided code', 400));
+      branchToUse = branchDoc._id;
+    }
+  } else {
+    // non-chairman: force branch to user's branch
+    branchToUse = req.user.branchId || req.user.branch;
+    if (!branchToUse) return next(new ErrorResponse('Branch is required for creating client', 400));
+  }
+
   const clientData = {
     name,
     phone,
@@ -99,7 +130,7 @@ const createClient = asyncHandler(async (req, res) => {
     panNumber,
     userId,
     password,
-    branch: req.body.branch || req.user.branchId
+    branch: branchToUse
   };
   
   const client = await Client.create(clientData);
@@ -136,7 +167,14 @@ const updateClient = asyncHandler(async (req, res) => {
   
   const updatedClient = await Client.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    // Do not allow non-chairman to change branch
+    (() => {
+      const payload = Object.assign({}, req.body);
+      if (req.user.role !== 'chairman') {
+        delete payload.branch;
+      }
+      return payload;
+    })(),
     { new: true, runValidators: true }
   );
   
@@ -172,6 +210,16 @@ const getClientBookings = asyncHandler(async (req, res) => {
   const { status, startDate, endDate } = req.query;
   
   let query = { client: req.params.id, isDeleted: false };
+
+  // Ensure client belongs to the requester's branch (unless chairman)
+  const userBranchForBookingCheck = req.user && (req.user.branchId || req.user.branch) ? String(req.user.branchId || req.user.branch) : null;
+  if (req.user.role !== 'chairman' && userBranchForBookingCheck) {
+    const clientDoc = await Client.findById(req.params.id).select('branch');
+    if (!clientDoc || clientDoc.isDeleted) return next(new ErrorResponse('Client not found', 404));
+    if (!clientDoc.branch || clientDoc.branch.toString() !== userBranchForBookingCheck) {
+      return next(new ErrorResponse('Not authorized to view bookings for this client', 403));
+    }
+  }
   
   if (status) query.status = status;
   
@@ -201,6 +249,16 @@ const getClientQuotations = asyncHandler(async (req, res) => {
   const { status } = req.query;
   
   let query = { client: req.params.id, isDeleted: false };
+
+  // Ensure client belongs to the requester's branch (unless chairman)
+  const userBranchForQuotationCheck = req.user && (req.user.branchId || req.user.branch) ? String(req.user.branchId || req.user.branch) : null;
+  if (req.user.role !== 'chairman' && userBranchForQuotationCheck) {
+    const clientDoc = await Client.findById(req.params.id).select('branch');
+    if (!clientDoc || clientDoc.isDeleted) return next(new ErrorResponse('Client not found', 404));
+    if (!clientDoc.branch || clientDoc.branch.toString() !== userBranchForQuotationCheck) {
+      return next(new ErrorResponse('Not authorized to view quotations for this client', 403));
+    }
+  }
   
   if (status) query.status = status;
   
@@ -223,6 +281,16 @@ const getClientInvoices = asyncHandler(async (req, res) => {
   const { status } = req.query;
   
   let query = { client: req.params.id, isDeleted: false };
+
+  // Ensure client belongs to the requester's branch (unless chairman)
+  const userBranchForInvoiceCheck = req.user && (req.user.branchId || req.user.branch) ? String(req.user.branchId || req.user.branch) : null;
+  if (req.user.role !== 'chairman' && userBranchForInvoiceCheck) {
+    const clientDoc = await Client.findById(req.params.id).select('branch');
+    if (!clientDoc || clientDoc.isDeleted) return next(new ErrorResponse('Client not found', 404));
+    if (!clientDoc.branch || clientDoc.branch.toString() !== userBranchForInvoiceCheck) {
+      return next(new ErrorResponse('Not authorized to view invoices for this client', 403));
+    }
+  }
   
   if (status) query.status = status;
   

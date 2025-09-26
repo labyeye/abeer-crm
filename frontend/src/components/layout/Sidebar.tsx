@@ -88,7 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       name: 'Attendance',
       icon: Clock,
       permission: 'attendance',
-      roles: ['chairman', 'company_admin', 'branch_head', 'staff'],
+      roles: ['chairman', 'admin', 'staff'],
       color: 'pink'
     },
     {

@@ -260,6 +260,36 @@ const getBookingsForStaff = asyncHandler(async (req, res) => {
 });
 
 
+// Get bookings for the currently authenticated staff user
+const getMyBookings = asyncHandler(async (req, res) => {
+  // only staff role should use this endpoint, but allow admins/chairman to call as well if needed
+  const userId = req.user._id;
+  const Staff = require('../models/Staff');
+  const staff = await Staff.findOne({ user: userId });
+  if (!staff) return res.status(404).json({ success: false, message: 'Staff record not found for current user' });
+
+  // Reuse the same query logic as getBookingsForStaff
+  const bookings = await Booking.find({
+    $or: [
+      { assignedStaff: staff._id },
+      { 'staffAssignment.staff': staff._id }
+    ],
+    isDeleted: false
+  })
+    .populate('client', 'name phone email')
+    .populate('branch', 'name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber')
+    .populate('assignedStaff', 'name designation employeeId')
+    .populate('inventorySelection', 'name category quantity')
+    .populate('staffAssignment.staff', 'user designation department')
+    .populate('equipmentAssignment.equipment', 'name sku category')
+    .populate('quotation')
+    .populate('invoice')
+    .sort({ 'functionDetails.date': -1 });
+
+  res.status(200).json({ success: true, count: bookings.length, data: bookings });
+});
+
+
 
 
 const getBookingsForInventory = asyncHandler(async (req, res) => {
@@ -279,5 +309,6 @@ module.exports = {
   assignStaff,
   assignInventory,
   getBookingsForStaff,
+  getMyBookings,
   getBookingsForInventory
 }; 

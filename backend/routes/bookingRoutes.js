@@ -78,6 +78,9 @@ router.put('/:id/status', protect, authorize('staff', 'chairman', 'admin'), asyn
 
 router.get('/staff/:staffId', protect, authorize('staff', 'admin', 'chairman'), require('../controller/bookingController').getBookingsForStaff);
 
+// 'me' route for staff to fetch their own assigned bookings
+router.get('/me', protect, authorize('staff'), require('../controller/bookingController').getMyBookings);
+
 
 router.get('/debug/staff/:staffId', protect, async (req, res) => {
   try {

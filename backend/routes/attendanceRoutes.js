@@ -27,10 +27,10 @@ router.route('/my-attendance')
   .get(authorize('staff'), getMyAttendance);
 
 router.route('/checkin')
-  .post(authorize('staff', 'chairman', 'admin', 'manager'), checkIn);
+  .post(authorize('chairman', 'admin', 'manager'), checkIn);
 
 router.route('/checkout')
-  .post(authorize('staff', 'chairman', 'admin', 'manager'), checkOut);
+  .post(authorize('chairman', 'admin', 'manager'), checkOut);
 
 router.route('/manual')
   .post(authorize('chairman', 'admin', 'manager'), markAttendanceManually);
