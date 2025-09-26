@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Client = require('../models/Client');
+const bcrypt = require('bcryptjs');
 const { generateToken } = require('../config/jwt');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -48,42 +50,64 @@ exports.login = asyncHandler(async (req, res, next) => {
   console.log('🔐 Login attempt for email:', email);
 
   
-  const user = await User.findOne({ email }).select('+password');
-  if (!user) {
-    console.log('❌ User not found for email:', email);
+  // Try to find in User collection first
+  let user = await User.findOne({ email }).select('+password');
+  if (user) {
+    console.log('✅ User found:', user.name, 'Role:', user.role);
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      console.log('❌ Password mismatch for user:', user.name);
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    user.lastLogin = Date.now();
+    await user.save();
+
+    const token = generateToken(user._id, user.role);
+    console.log('🎫 Token generated for user:', user.name, 'Role:', user.role);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        branchId: user.branch
+      }
+    });
+  }
+
+  // Fallback: try Client login (clients have their own password field)
+  const client = await Client.findOne({ email }).select('+password');
+  if (!client) {
+    console.log('❌ No user or client found for email:', email);
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 
-  console.log('✅ User found:', user.name, 'Role:', user.role);
-
-  
-  const isMatch = await user.comparePassword(password);
-  if (!isMatch) {
-    console.log('❌ Password mismatch for user:', user.name);
+  const matchClient = await bcrypt.compare(password, client.password);
+  if (!matchClient) {
+    console.log('❌ Password mismatch for client:', client.name);
     return res.status(401).json({ success: false, message: 'Invalid credentials' });
   }
 
-  console.log('✅ Password match successful');
+  // generate a token for client users with role 'client'
+  const clientToken = generateToken(client._id, 'client');
+  client.lastLogin = Date.now();
+  await client.save();
 
-  
-  user.lastLogin = Date.now();
-  await user.save();
-
-  
-  const token = generateToken(user._id, user.role);
-
-  console.log('🎫 Token generated for user:', user.name, 'Role:', user.role);
-
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
-    token,
+    token: clientToken,
     user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      branchId: user.branch
+      id: client._id,
+      name: client.name,
+      email: client.email,
+      role: 'client',
+      phone: client.phone,
+      branchId: client.branch
     }
   });
 });

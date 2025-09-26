@@ -344,9 +344,17 @@ const updateStaff = asyncHandler(async (req, res) => {
     });
   }
   
+  // Remove empty string fields to avoid casting failures
+  const safePayload = {};
+  Object.keys(req.body || {}).forEach(k => {
+    const v = req.body[k];
+    if (v === '' || v === undefined) return;
+    safePayload[k] = v;
+  });
+
   const updatedStaff = await Staff.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    safePayload,
     { new: true, runValidators: true }
   );
   

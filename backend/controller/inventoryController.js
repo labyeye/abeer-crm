@@ -167,13 +167,27 @@ exports.updateInventoryItem = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Prevent non-chairman from changing branch
-  if (req.user.role !== 'chairman' && req.body.branch) delete req.body.branch;
-
-  inventory = await Inventory.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
+  // Build sanitized payload
+  const payload = {};
+  Object.keys(req.body || {}).forEach((k) => {
+    const v = req.body[k];
+    if (v === '' || v === undefined) return; // skip empty values which often cause cast errors
+    payload[k] = v;
   });
+
+  // Prevent non-chairman from changing branch
+  if (req.user.role !== 'chairman' && payload.branch) delete payload.branch;
+
+  // Coerce numeric fields if present
+  if (payload.quantity !== undefined) payload.quantity = Number(payload.quantity);
+  if (payload.minQuantity !== undefined) payload.minQuantity = Number(payload.minQuantity);
+  if (payload.maxQuantity !== undefined) payload.maxQuantity = Number(payload.maxQuantity);
+  if (payload.purchasePrice !== undefined) payload.purchasePrice = Number(payload.purchasePrice);
+  if (payload.sellingPrice !== undefined) payload.sellingPrice = Number(payload.sellingPrice);
+
+  // Apply to document and save (runs schema validators and pre-save hooks)
+  Object.assign(inventory, payload);
+  inventory = await inventory.save();
 
   res.status(200).json({
     success: true,
@@ -224,7 +238,10 @@ exports.updateQuantity = asyncHandler(async (req, res, next) => {
     });
   }
 
-  const { quantity, operation, reason } = req.body;
+  let { quantity, operation, reason } = req.body;
+
+  // coerce quantity to number
+  quantity = Number(quantity);
 
   if (!quantity || !operation) {
     return res.status(400).json({
@@ -242,7 +259,7 @@ exports.updateQuantity = asyncHandler(async (req, res, next) => {
     });
   }
 
-  let newQuantity = inventory.quantity;
+  let newQuantity = Number(inventory.quantity || 0);
 
   switch (operation) {
     case "add":

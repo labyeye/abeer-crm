@@ -8,6 +8,9 @@ const ErrorResponse = require('../utils/ErrorResponse');
 
 
 
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+
 const getAllClients = asyncHandler(async (req, res) => {
   const { branch, status, category, search } = req.query;
   
@@ -129,7 +132,8 @@ const createClient = asyncHandler(async (req, res) => {
     aadharNumber,
     panNumber,
     userId,
-    password,
+    // we'll store hashed password for clients
+    password: password ? await bcrypt.hash(String(password), 12) : undefined,
     branch: branchToUse
   };
   
@@ -146,41 +150,54 @@ const createClient = asyncHandler(async (req, res) => {
 
 const updateClient = asyncHandler(async (req, res) => {
   const client = await Client.findById(req.params.id);
-  
+
   if (!client || client.isDeleted) {
     return next(new ErrorResponse('Client not found', 404));
   }
-  
-  
+
+  // Validate unique phone if changing
   if (req.body.phone && req.body.phone !== client.phone) {
     const existingClient = await Client.findOne({ 
       phone: req.body.phone, 
-      company: req.user.companyId,
       _id: { $ne: req.params.id },
       isDeleted: false 
     });
-    
     if (existingClient) {
       return next(new ErrorResponse('Client with this phone number already exists', 400));
     }
   }
-  
-  const updatedClient = await Client.findByIdAndUpdate(
-    req.params.id,
-    // Do not allow non-chairman to change branch
-    (() => {
-      const payload = Object.assign({}, req.body);
-      if (req.user.role !== 'chairman') {
-        delete payload.branch;
-      }
-      return payload;
-    })(),
-    { new: true, runValidators: true }
-  );
-  
+
+  // Build sanitized payload: remove empty strings and undefined
+  const payload = {};
+  Object.keys(req.body || {}).forEach((k) => {
+    const v = req.body[k];
+    if (v === '' || v === undefined) return; // skip empty values
+    payload[k] = v;
+  });
+
+  // Prevent non-chairman from changing branch
+  if (req.user.role !== 'chairman' && payload.branch) delete payload.branch;
+
+  // If chairman provided branch as code, resolve it
+  if (payload.branch && !mongoose.Types.ObjectId.isValid(String(payload.branch))) {
+    const Branch = require('../models/Branch');
+    const branchDoc = await Branch.findOne({ code: payload.branch });
+    if (!branchDoc) return next(new ErrorResponse('Branch not found for provided code', 400));
+    payload.branch = branchDoc._id;
+  }
+
+  // If password is being updated, hash it before saving
+  if (payload.password) {
+    payload.password = await bcrypt.hash(String(payload.password), 12);
+  }
+
+  // Apply updates on the document and save (runs validators)
+  Object.assign(client, payload);
+  const saved = await client.save();
+
   res.status(200).json({
     success: true,
-    data: updatedClient
+    data: saved
   });
 });
 
