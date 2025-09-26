@@ -4,7 +4,7 @@ import {
   expenseAPI,
   bookingAPI,
   dailyExpensesAPI,
-  companyAPI,
+  inventoryAPI,
 } from "../../services/api";
 import {
   DollarSign,
@@ -42,6 +42,7 @@ const FinanceManagement = () => {
   const [dailyByBranchState, setDailyByBranchState] = useState<
     Record<string, number>
   >({});
+  const [inventoryByBranch, setInventoryByBranch] = useState<Record<string, number>>({});
 
   const financialStats = {
     totalRevenue: totals.revenue || 0,
@@ -101,7 +102,7 @@ const FinanceManagement = () => {
           if (!branchId) return;
           if (branchCache[branchId]) return;
           try {
-            const res = await companyAPI.getCompany(branchId);
+            const res = await branchAPI.getBranch(branchId);
             const b = res.data || res;
             setBranchCache((prev) => ({ ...prev, [branchId]: b }));
             setBranches((prev) =>
@@ -250,14 +251,35 @@ const FinanceManagement = () => {
         );
         setMergedTransactions(txs);
 
+        // Fetch inventory once and compute totals per-branch and overall inventory value
+        let inventoryValue = 0;
+        const invByBranch: Record<string, number> = {};
+        try {
+          const invRes = await inventoryAPI.getInventory();
+          let invData = invRes?.data || invRes || [];
+          if (invData?.docs) invData = invData.docs;
+          if (!Array.isArray(invData)) invData = [];
+          (invData || []).forEach((it: any) => {
+            const price = Number(it.purchasePrice ?? it.price ?? it.sellingPrice ?? 0) || 0;
+            const qty = Number(it.quantity ?? 1) || 0;
+            const val = price * qty;
+            inventoryValue += val;
+            const bid = it.branch?._id || it.branch || "unassigned";
+            invByBranch[bid] = (invByBranch[bid] || 0) + val;
+          });
+        } catch (err) {
+          console.warn("Failed to fetch inventory for finance calculation", err);
+        }
+        setInventoryByBranch(invByBranch);
+
         const computedTotalExpenses = (expData || []).reduce(
           (s: number, ex: any) => s + (ex.amount || 0),
           0
         );
         setTotals({
           revenue: totalRevenue,
-          expenses: computedTotalExpenses,
-          net: totalRevenue - computedTotalExpenses,
+          expenses: computedTotalExpenses + inventoryValue,
+          net: totalRevenue - (computedTotalExpenses + inventoryValue),
         });
       } catch (err) {
         console.error(err);
@@ -701,7 +723,8 @@ const FinanceManagement = () => {
                         ? expObj.totalExpenses || expObj.expenses || 0
                         : 0;
                       const dailyVal = dailyByBranchState[key] || 0;
-                      const totalExpForBranch = expVal + dailyVal;
+                      const inventoryValForBranch = inventoryByBranch[key] || 0;
+                      const totalExpForBranch = expVal + dailyVal + inventoryValForBranch;
                       return (
                         <div key={key} className="flex justify-between">
                           <div>
@@ -715,7 +738,7 @@ const FinanceManagement = () => {
                               rb.totalRevenue ||
                               rb.revenue ||
                               0
-                            ).toLocaleString()}{" "}
+                            ).toLocaleString()} {" "}
                             • Expenses: ₹{totalExpForBranch.toLocaleString()}
                           </div>
                         </div>

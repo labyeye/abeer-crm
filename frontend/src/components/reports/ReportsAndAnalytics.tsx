@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   BarChart3, 
   Plus, 
@@ -15,12 +15,154 @@ import {
   MapPin
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  clientAPI,
+  branchAPI,
+  staffAPI,
+  bookingAPI,
+  inventoryAPI,
+} from '../../services/api';
 
 const ReportsAndAnalytics = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [filterPeriod, setFilterPeriod] = useState('month');
   const [filterBranch, setFilterBranch] = useState('all');
   const { addNotification } = useNotification();
+
+  // Entity report state
+  const [entityType, setEntityType] = useState<'client' | 'branch' | 'staff'>('client');
+  const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [selectedEntityId, setSelectedEntityId] = useState('');
+  const [entityDetails, setEntityDetails] = useState<any | null>(null);
+  const [clientBookings, setClientBookings] = useState<any[] | null>(null);
+  const [clientInvoices, setClientInvoices] = useState<any[] | null>(null);
+  const [branchStaff, setBranchStaff] = useState<any[] | null>(null);
+  const [branchInventory, setBranchInventory] = useState<any[] | null>(null);
+  const [branchBookings, setBranchBookings] = useState<any[] | null>(null);
+  const [staffBookings, setStaffBookings] = useState<any[] | null>(null);
+  const [staffAttendance, setStaffAttendance] = useState<any[] | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const { user } = useAuth();
+
+  // derived client/branch/staff summaries
+  const clientTotalSpent = clientInvoices?.reduce((sum, inv) => sum + (Number(inv.paid || inv.total || 0)), 0) ?? 0;
+  const clientBookingsCount = clientBookings?.length ?? 0;
+
+  const mergedClientHistory = (() => {
+    if (!clientBookings && !clientInvoices) return [];
+    const bookings = (clientBookings || []).map((b: any) => ({
+      type: 'booking',
+      id: b._id,
+      date: b.date || b.createdAt,
+      title: b.serviceName || b.title || `Booking ${b._id}`,
+      amount: b.amount || 0,
+      status: b.status,
+      raw: b
+    }));
+
+    const invoices = (clientInvoices || []).map((inv: any) => ({
+      type: 'invoice',
+      id: inv._id,
+      date: inv.paidAt || inv.createdAt || inv.date,
+      title: `Invoice ${inv._id}`,
+      amount: inv.total || inv.paid || 0,
+      status: inv.status || 'invoice',
+      raw: inv
+    }));
+
+    return [...bookings, ...invoices].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  })();
+
+  useEffect(() => {
+    // load options when entity type changes
+    const loadOptions = async () => {
+      try {
+        if (entityType === 'client') {
+          const res = await clientAPI.getClients();
+          const list = getArrayFromResponse(res);
+          setOptions(list.map((c: any) => ({ value: c._id, label: `${c.name || c.email} (${c.phone || ''})` })));
+        } else if (entityType === 'branch') {
+          const res = await branchAPI.getBranches();
+          const list = getArrayFromResponse(res);
+          setOptions(list.map((b: any) => ({ value: b._id, label: `${b.name || b.code}` })));
+        } else if (entityType === 'staff') {
+          const res = await staffAPI.getStaff();
+          const list = getArrayFromResponse(res);
+          setOptions(list.map((s: any) => ({ value: s._id, label: `${s.name} — ${s.designation || ''}` })));
+        }
+      } catch (err: any) {
+        addNotification({ type: 'error', title: 'Load failed', message: err.message || 'Could not load options' });
+      }
+    };
+
+    loadOptions();
+  }, [entityType]);
+
+  const loadEntityDetails = async () => {
+    if (!selectedEntityId) return;
+    setLoadingDetails(true);
+    setEntityDetails(null);
+    setClientBookings(null);
+    setClientInvoices(null);
+    setBranchStaff(null);
+    setBranchInventory(null);
+    setBranchBookings(null);
+    setStaffBookings(null);
+    setStaffAttendance(null);
+
+    try {
+      if (entityType === 'client') {
+        const detailsRes = await clientAPI.getClient(selectedEntityId);
+        const details = getSingleFromResponse(detailsRes);
+        setEntityDetails(details);
+        const bookingsRes = await clientAPI.getClientBookings(selectedEntityId);
+        setClientBookings(getArrayFromResponse(bookingsRes));
+        const invoicesRes = await clientAPI.getClientInvoices(selectedEntityId);
+        setClientInvoices(getArrayFromResponse(invoicesRes));
+      } else if (entityType === 'branch') {
+        const detailsRes = await branchAPI.getBranch(selectedEntityId);
+        const details = getSingleFromResponse(detailsRes);
+        setEntityDetails(details);
+        const staffRes = await staffAPI.getStaff({ branch: selectedEntityId });
+        setBranchStaff(getArrayFromResponse(staffRes));
+        const inventoryRes = await inventoryAPI.getInventory({ branch: selectedEntityId });
+        setBranchInventory(getArrayFromResponse(inventoryRes));
+        const bookingsRes = await bookingAPI.getBookings({ branch: selectedEntityId });
+        setBranchBookings(getArrayFromResponse(bookingsRes));
+      } else if (entityType === 'staff') {
+        const detailsRes = await staffAPI.getStaffMember(selectedEntityId);
+        const details = getSingleFromResponse(detailsRes);
+        setEntityDetails(details);
+        const bookingsRes = await bookingAPI.getBookingsForStaff(selectedEntityId);
+        setStaffBookings(getArrayFromResponse(bookingsRes));
+        const attendanceRes = await staffAPI.getStaffAttendance(selectedEntityId);
+        setStaffAttendance(getArrayFromResponse(attendanceRes));
+      }
+    } catch (err: any) {
+      addNotification({ type: 'error', title: 'Failed', message: err.message || 'Could not load details' });
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  // helpers to normalize API responses
+  function getArrayFromResponse(res: any) {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.items)) return res.items;
+    if (Array.isArray(res.docs)) return res.docs;
+    // if response is an object with nested arrays, pick the first array
+    const val = Object.values(res).find((v: any) => Array.isArray(v));
+    return Array.isArray(val) ? val : [];
+  }
+
+  function getSingleFromResponse(res: any) {
+    if (!res) return null;
+    if (res.data && typeof res.data === 'object' && !Array.isArray(res.data)) return res.data;
+    return res;
+  }
 
   const overviewStats = {
     totalRevenue: 485750,
@@ -352,6 +494,7 @@ const ReportsAndAnalytics = () => {
               { id: 'services', name: 'Service Analytics', icon: Camera },
               { id: 'staff', name: 'Staff Performance', icon: Users },
               { id: 'clients', name: 'Client Analytics', icon: Target },
+              { id: 'entity', name: 'Entity Report', icon: Target },
               { id: 'financial', name: 'Financial Breakdown', icon: PieChart }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -750,6 +893,189 @@ const ReportsAndAnalytics = () => {
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'entity' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Entity Report</h3>
+
+                {/* Only chairman can pick entities to view full history */}
+                {user?.role === 'chairman' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="text-sm text-gray-600">Entity Type</label>
+                      <select
+                        className="w-full px-3 py-2 border rounded-lg"
+                        onChange={async (e) => {
+                          setSelectedEntityId('');
+                          setEntityType(e.target.value as 'client' | 'branch' | 'staff');
+                        }}
+                        value={entityType}
+                      >
+                        <option value="client">Client</option>
+                        <option value="branch">Branch</option>
+                        <option value="staff">Staff</option>
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="text-sm text-gray-600">Select {entityType}</label>
+                      <div className="flex space-x-2">
+                        <select
+                          className="w-full px-3 py-2 border rounded-lg"
+                          value={selectedEntityId}
+                          onChange={(e) => setSelectedEntityId(e.target.value)}
+                        >
+                          <option value="">-- Select --</option>
+                          {options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          className="btn-primary px-4"
+                          onClick={async () => await loadEntityDetails()}
+                          disabled={!selectedEntityId}
+                        >
+                          Load
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 mb-4">Only chairman can view full entity history.</div>
+                )}
+
+                {loadingDetails && <div className="text-sm text-gray-500">Loading details...</div>}
+
+                {entityDetails && entityType === 'client' && (
+                  <div className="space-y-4">
+                    {/* Profile header - avatar, name, quick stats */}
+                    <div className="flex items-center space-x-6 bg-gradient-to-r from-white to-gray-50 p-4 rounded-lg border">
+                      <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-2xl font-bold text-gray-700">
+                        {entityDetails.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-semibold">{entityDetails.name}</h3>
+                        <div className="text-sm text-gray-600">{entityDetails.email} • {entityDetails.phone}</div>
+                        <div className="mt-2 flex space-x-4 text-sm">
+                          <div><span className="font-bold">{clientBookingsCount}</span> bookings</div>
+                          <div><span className="font-bold">₹{clientTotalSpent?.toLocaleString()}</span> spent</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Merged chronological history */}
+                    <div className="bg-white rounded-lg p-4 border">
+                      <h4 className="font-semibold mb-3">Activity</h4>
+                      {mergedClientHistory.length ? (
+                        <ul className="space-y-2">
+                          {mergedClientHistory.map((item: any) => (
+                            <li key={item.type + '-' + item.id} className="p-3 border rounded-md">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium">{item.title}</div>
+                                  <div className="text-xs text-gray-500">{item.type.toUpperCase()} • {new Date(item.date || item.raw?.createdAt).toLocaleString()}</div>
+                                </div>
+                                <div className="text-sm text-gray-700">
+                                  {item.amount ? `₹${item.amount}` : ''}
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-600 mt-2">Status: {item.status}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-sm text-gray-500">No activity to show for this client.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {entityDetails && entityType === 'branch' && (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <h4 className="font-semibold">Branch Details</h4>
+                      <div className="text-sm text-gray-700">Name: {entityDetails.name}</div>
+                      <div className="text-sm text-gray-700">Code: {entityDetails.code}</div>
+                      <div className="text-sm text-gray-700">Phone: {entityDetails.phone}</div>
+                      <div className="text-sm text-gray-700">Email: {entityDetails.email}</div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white rounded-lg p-4 border">
+                        <h5 className="font-medium mb-2">Staff ({branchStaff?.length || 0})</h5>
+                        <ul className="text-sm text-gray-700 space-y-1">
+                          {branchStaff?.map((s: any) => (
+                            <li key={s._id}>{s.name} — {s.designation}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="bg-white rounded-lg p-4 border">
+                        <h5 className="font-medium mb-2">Inventory ({branchInventory?.length || 0})</h5>
+                        <ul className="text-sm text-gray-700 space-y-1">
+                          {branchInventory?.map((it: any) => (
+                            <li key={it._id}>{it.name} — Qty: {it.quantity}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="bg-white rounded-lg p-4 border">
+                        <h5 className="font-medium mb-2">Bookings ({branchBookings?.length || 0})</h5>
+                        <ul className="text-sm text-gray-700 space-y-1">
+                          {branchBookings?.map((b: any) => (
+                            <li key={b._id}>{b.client?.name || b.client} — {b.status}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {entityDetails && entityType === 'staff' && (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <h4 className="font-semibold">Staff Details</h4>
+                      <div className="text-sm text-gray-700">Name: {entityDetails.name}</div>
+                      <div className="text-sm text-gray-700">Email: {entityDetails.email}</div>
+                      <div className="text-sm text-gray-700">Designation: {entityDetails.designation}</div>
+                      <div className="text-sm text-gray-700">Branch: {entityDetails.branch?.name || entityDetails.branch}</div>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border">
+                      <h5 className="font-medium mb-2">Bookings</h5>
+                      {staffBookings?.length ? (
+                        <ul className="space-y-2">
+                          {staffBookings.map((b: any) => (
+                            <li key={b._id} className="p-2 border rounded-md">
+                              <div className="font-medium">{b.serviceName || b.title || `Booking ${b._id}`}</div>
+                              <div className="text-sm text-gray-600">Status: {b.status}</div>
+                              <div className="text-sm text-gray-600">Date: {new Date(b.date || b.createdAt).toLocaleString()}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-sm text-gray-500">No bookings found for this staff member.</div>
+                      )}
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border">
+                      <h5 className="font-medium mb-2">Attendance</h5>
+                      {staffAttendance?.length ? (
+                        <ul className="text-sm text-gray-700 space-y-1">
+                          {staffAttendance.map((a: any) => (
+                            <li key={a._id}>{new Date(a.date).toLocaleDateString()} — {a.status || a.type || 'Present'}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="text-sm text-gray-500">No attendance records found.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

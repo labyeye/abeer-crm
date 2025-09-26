@@ -35,8 +35,13 @@ exports.getInventory = asyncHandler(async (req, res, next) => {
     if (userBranch) query.branch = userBranch;
   } else {
     // chairman may pass a branch query param to filter
-    if (branch) query.branch = branch;
+    if (branch) {
+      console.log('Chairman filtering by branch:', branch);
+      query.branch = branch;
+    }
   }
+  
+  console.log('Final inventory query:', JSON.stringify(query));
 
   if (search) {
     query.$text = { $search: search };
@@ -61,6 +66,7 @@ exports.getInventory = asyncHandler(async (req, res, next) => {
     populate: [
       { path: "createdBy", select: "name email" },
       { path: "company", select: "name" },
+      { path: "branch", select: "name code" },
     ],
   };
 

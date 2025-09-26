@@ -131,6 +131,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       roles: ['chairman', 'company_admin', 'branch_head', 'admin'],
       color: 'purple'
     },
+    {
+      id: 'reports',
+      name: 'Reports',
+      icon: FileText,
+      permission: 'reports',
+      roles: ['chairman', 'admin', 'company_admin', 'branch_head'],
+      color: 'primary'
+    },
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
