@@ -64,11 +64,11 @@ interface Booking {
   };
   services: string[];
   pricing: {
-  subtotal?: number;
-  gstAmount?: number;
-  totalAmount: number;
-  advanceAmount: number;
-  remainingAmount?: number;
+    subtotal?: number;
+    gstAmount?: number;
+    totalAmount: number;
+    advanceAmount: number;
+    remainingAmount?: number;
   };
   status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
   createdAt: string;
@@ -109,12 +109,18 @@ const BookingManagement = () => {
   const [staff, setStaff] = useState<Staff[]>([]);
   // Inventory can be an array or a paginated object with docs
   type PaginatedInventory = { docs: InventoryItem[]; [key: string]: any };
-  const [inventory, setInventory] = useState<InventoryItem[] | PaginatedInventory>([]);
+  const [inventory, setInventory] = useState<
+    InventoryItem[] | PaginatedInventory
+  >([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
-  const [inventoryCategoryFilters, setInventoryCategoryFilters] = useState<{ [key: number]: string }>({});
-  const [cachedInventoryByCategory, setCachedInventoryByCategory] = useState<{ [category: string]: InventoryItem[] }>({});
+  const [inventoryCategoryFilters, setInventoryCategoryFilters] = useState<{
+    [key: number]: string;
+  }>({});
+  const [cachedInventoryByCategory, setCachedInventoryByCategory] = useState<{
+    [category: string]: InventoryItem[];
+  }>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -124,14 +130,14 @@ const BookingManagement = () => {
     // servicesSchedule allows multiple service entries (date/time/staff/equipment per entry)
     servicesSchedule: [
       {
-        serviceCategoryId: '',
+        serviceCategoryId: "",
         serviceType: [] as string[],
-        serviceName: '',
-        date: '',
-        startTime: '',
-        endTime: '',
-        venueName: '',
-        venueAddress: '',
+        serviceName: "",
+        date: "",
+        startTime: "",
+        endTime: "",
+        venueName: "",
+        venueAddress: "",
         assignedStaff: [] as string[],
         inventorySelection: [] as string[],
         quantity: 1,
@@ -163,7 +169,7 @@ const BookingManagement = () => {
     services: [] as any[],
     totalAmount: 0,
     advanceAmount: 0,
-    status: 'pending',
+    status: "pending",
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -175,11 +181,11 @@ const BookingManagement = () => {
     try {
       setLoading(true);
       let bookingsRes;
-      if (user?.role === 'staff') {
-        console.log('🔍 Fetching bookings for staff user:', user);
-        console.log('📱 Staff user ID:', user.id);
+      if (user?.role === "staff") {
+        console.log("🔍 Fetching bookings for staff user:", user);
+        console.log("📱 Staff user ID:", user.id);
         bookingsRes = await bookingAPI.getBookingsForStaff(user.id);
-        console.log('📊 Staff bookings response:', bookingsRes);
+        console.log("📊 Staff bookings response:", bookingsRes);
       } else {
         bookingsRes = await bookingAPI.getBookings();
       }
@@ -188,14 +194,17 @@ const BookingManagement = () => {
         staffAPI.getStaff(),
         branchAPI.getBranches(),
       ]);
-      
+
       // Try to fetch inventory separately (might fail for staff users)
       let inventoryRes: any = { data: { data: [] } };
       try {
         inventoryRes = await inventoryAPI.getInventory();
-        console.log('✅ Inventory fetched successfully');
+        console.log("✅ Inventory fetched successfully");
       } catch (error) {
-        console.log('⚠️ Could not fetch inventory (might be permission issue):', error);
+        console.log(
+          "⚠️ Could not fetch inventory (might be permission issue):",
+          error
+        );
         // Set empty inventory for staff users or when permission denied
         inventoryRes = { data: { data: [] } };
       }
@@ -228,13 +237,20 @@ const BookingManagement = () => {
       try {
         const statsRes: any = await inventoryAPI.getInventoryStats();
         const statsData = statsRes.data || statsRes;
-        const catBreakdown = statsData?.data?.categoryBreakdown || statsData?.categoryBreakdown || [];
-  const cats = Array.isArray(catBreakdown) ? catBreakdown.map((c: any) => c._id).filter(Boolean) : [];
-  // sort categories alphabetically (case-insensitive)
-  cats.sort((a: string, b: string) => String(a).toLowerCase().localeCompare(String(b).toLowerCase()));
-  setInventoryCategories(cats);
+        const catBreakdown =
+          statsData?.data?.categoryBreakdown ||
+          statsData?.categoryBreakdown ||
+          [];
+        const cats = Array.isArray(catBreakdown)
+          ? catBreakdown.map((c: any) => c._id).filter(Boolean)
+          : [];
+        // sort categories alphabetically (case-insensitive)
+        cats.sort((a: string, b: string) =>
+          String(a).toLowerCase().localeCompare(String(b).toLowerCase())
+        );
+        setInventoryCategories(cats);
       } catch (err) {
-        console.warn('Could not fetch inventory categories', err);
+        console.warn("Could not fetch inventory categories", err);
         setInventoryCategories([]);
       }
       // load service categories for picker
@@ -242,9 +258,11 @@ const BookingManagement = () => {
         const catsRes: any = await serviceCategoryAPI.getCategories();
         // serviceCategoryAPI returns response.data in api wrapper; accommodate both shapes
         const resolvedCats = (catsRes && (catsRes.data || catsRes)) || [];
-        setCategories(Array.isArray(resolvedCats) ? resolvedCats : resolvedCats?.data || []);
+        setCategories(
+          Array.isArray(resolvedCats) ? resolvedCats : resolvedCats?.data || []
+        );
       } catch (err) {
-        console.warn('Could not load service categories', err);
+        console.warn("Could not load service categories", err);
         setCategories([]);
       }
     } catch (error: unknown) {
@@ -267,23 +285,50 @@ const BookingManagement = () => {
         try {
           const catsRes: any = await serviceCategoryAPI.getCategories();
           const resolvedCats = (catsRes && (catsRes.data || catsRes)) || [];
-          setCategories(Array.isArray(resolvedCats) ? resolvedCats : resolvedCats?.data || []);
+          setCategories(
+            Array.isArray(resolvedCats)
+              ? resolvedCats
+              : resolvedCats?.data || []
+          );
         } catch (e) {
-          console.warn('Could not refresh categories', e);
+          console.warn("Could not refresh categories", e);
         }
       })();
     };
-    window.addEventListener('serviceCategoriesUpdated', onCats as EventListener);
-    return () => { window.removeEventListener('serviceCategoriesUpdated', onCats as EventListener); };
+    window.addEventListener(
+      "serviceCategoriesUpdated",
+      onCats as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "serviceCategoriesUpdated",
+        onCats as EventListener
+      );
+    };
   }, []);
 
   const resetForm = () => {
     setFormData({
       clientId: "",
       // start with one empty service schedule entry (include pricing fields)
-  // enforce serviceCategoryId + serviceType only (no free-text serviceName)
-  servicesSchedule: [{ serviceCategoryId: '', serviceType: [] as string[], date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }],
-  functionType: "",
+      // enforce serviceCategoryId + serviceType only (no free-text serviceName)
+      servicesSchedule: [
+        {
+          serviceCategoryId: "",
+          serviceType: [] as string[],
+          date: "",
+          startTime: "",
+          endTime: "",
+          venueName: "",
+          venueAddress: "",
+          assignedStaff: [],
+          inventorySelection: [],
+          quantity: 1,
+          price: 0,
+          amount: 0,
+        },
+      ],
+      functionType: "",
       venueName: "",
       venueAddress: "",
       serviceNeeded: "",
@@ -293,7 +338,7 @@ const BookingManagement = () => {
       services: [],
       totalAmount: 0,
       advanceAmount: 0,
-      status: 'pending',
+      status: "pending",
       notes: "",
     });
   };
@@ -305,7 +350,8 @@ const BookingManagement = () => {
     // Prefer explicit remainingAmount when provided
     if (p.remainingAmount != null) return p.remainingAmount;
     // If we have numeric totalAmount, compute remaining from advance (arithmetic never yields null/undefined)
-    if (typeof p.totalAmount === 'number') return p.totalAmount - (p.advanceAmount || 0);
+    if (typeof p.totalAmount === "number")
+      return p.totalAmount - (p.advanceAmount || 0);
     // Fallback to legacy balanceAmount if present
     if (p.balanceAmount != null) return p.balanceAmount;
     return 0;
@@ -316,7 +362,7 @@ const BookingManagement = () => {
     setShowAddModal(true);
   };
 
-  const handleEditBooking = (booking: Booking) => {
+  const handleEditBooking = async (booking: Booking) => {
     setSelectedBooking(booking);
     // Build servicesSchedule from existing booking details. If booking has only single functionDetails,
     // convert it into a single-element schedule. Include assigned staff and inventory selection per entry.
@@ -325,52 +371,113 @@ const BookingManagement = () => {
     if (Array.isArray(booking.services) && booking.services.length > 0) {
       // Map each service item to a schedule entry where possible
       scheduleEntries = booking.services.map((svc: any) => ({
-        serviceName: svc.service || svc.serviceName || booking.serviceNeeded || booking.functionDetails.type || '',
-        date: booking.functionDetails?.date ? booking.functionDetails.date.split('T')[0] : '',
-        startTime: booking.functionDetails?.time?.start || '',
-        endTime: booking.functionDetails?.time?.end || '',
-        venueName: booking.functionDetails?.venue?.name || '',
-        venueAddress: booking.functionDetails?.venue?.address || '',
+        serviceName:
+          svc.service ||
+          svc.serviceName ||
+          booking.serviceNeeded ||
+          booking.functionDetails.type ||
+          "",
+        date: booking.functionDetails?.date
+          ? booking.functionDetails.date.split("T")[0]
+          : "",
+        startTime: booking.functionDetails?.time?.start || "",
+        endTime: booking.functionDetails?.time?.end || "",
+        venueName: booking.functionDetails?.venue?.name || "",
+        venueAddress: booking.functionDetails?.venue?.address || "",
         assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
         inventorySelection: booking.inventorySelection?.map((i) => i._id) || [],
         quantity: svc.quantity ?? svc.qty ?? 1,
         price: svc.rate ?? svc.price ?? 0,
-        amount: svc.amount ?? svc.total ?? ((svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0)),
+        amount:
+          svc.amount ??
+          svc.total ??
+          (svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0),
       }));
     } else {
-      scheduleEntries = [{
-        serviceName: booking.serviceNeeded || booking.functionDetails.type || '',
-        date: booking.functionDetails.date ? booking.functionDetails.date.split('T')[0] : '',
-        startTime: booking.functionDetails.time?.start || '',
-        endTime: booking.functionDetails.time?.end || '',
-        venueName: booking.functionDetails.venue?.name || '',
-        venueAddress: booking.functionDetails.venue?.address || '',
-        assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
-        inventorySelection: booking.inventorySelection?.map((i) => i._id) || [],
-        quantity: 1,
-        price: 0,
-        amount: 0,
-      }];
+      scheduleEntries = [
+        {
+          serviceName:
+            booking.serviceNeeded || booking.functionDetails.type || "",
+          date: booking.functionDetails.date
+            ? booking.functionDetails.date.split("T")[0]
+            : "",
+          startTime: booking.functionDetails.time?.start || "",
+          endTime: booking.functionDetails.time?.end || "",
+          venueName: booking.functionDetails.venue?.name || "",
+          venueAddress: booking.functionDetails.venue?.address || "",
+          assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
+          inventorySelection:
+            booking.inventorySelection?.map((i) => i._id) || [],
+          quantity: 1,
+          price: 0,
+          amount: 0,
+        },
+      ];
+    }
+
+    // Prepopulate inventory category filters and cache so equipment and categories show up in edit
+    try {
+      const initialFilters: { [key: number]: string } = {};
+      const initialCache: { [key: string]: any[] } = {};
+      const branchId = (booking as any).branch?._id || booking.bookingBranch?._id || (user && user.branchId) || undefined;
+      // booking.inventorySelection may contain objects; build a map
+      const invObjects = Array.isArray(booking.inventorySelection) ? booking.inventorySelection : [];
+      for (let i = 0; i < scheduleEntries.length; i++) {
+        const entry = scheduleEntries[i];
+        const ids = entry.inventorySelection || [];
+        if (ids && ids.length) {
+          // find category of first matched inventory object
+          let foundCat: string | null = null;
+          for (const id of ids) {
+            const found = invObjects.find((it: any) => String(it._id || it) === String(id));
+            if (found && (((found as any).category) || ((found as any).type))) {
+              foundCat = (found as any).category || (found as any).type || null;
+              break;
+            }
+          }
+          if (foundCat) {
+            initialFilters[i] = foundCat;
+            if (!cachedInventoryByCategory[foundCat]) {
+              try {
+                const params: any = { category: foundCat };
+                if (branchId) params.branch = branchId;
+                const res: any = await inventoryAPI.getInventory(params);
+                const invData = res.data || res;
+                const docs = invData.docs || invData.data || invData.items || invData || [];
+                initialCache[foundCat] = Array.isArray(docs) ? docs : [];
+              } catch (err) {
+                console.warn('Failed to prefetch inventory for category', foundCat, err);
+              }
+            }
+          }
+        }
+      }
+      if (Object.keys(initialFilters).length) setInventoryCategoryFilters(prev => ({ ...prev, ...initialFilters }));
+      if (Object.keys(initialCache).length) setCachedInventoryByCategory(prev => ({ ...prev, ...initialCache }));
+    } catch (err) {
+      console.warn('Error preparing edit prefill for inventory categories', err);
     }
 
     setFormData({
       clientId: booking.client._id,
       servicesSchedule: scheduleEntries.map((s) => ({
         ...s,
-        serviceCategoryId: s.serviceCategoryId || s.serviceCategory || '',
-        serviceType: s.serviceType || s.type || '',
+        serviceCategoryId: s.serviceCategoryId || s.serviceCategory || "",
+        serviceType: s.serviceType || s.type || "",
       })),
-      functionType: booking.functionDetails.type || '',
-      venueName: booking.functionDetails.venue?.name || '',
-      venueAddress: booking.functionDetails.venue?.address || '',
-      serviceNeeded: booking.serviceNeeded || '',
-      inventorySelection: booking.inventorySelection?.map((item) => item._id) || [],
+      functionType: booking.functionDetails.type || "",
+      venueName: booking.functionDetails.venue?.name || "",
+      venueAddress: booking.functionDetails.venue?.address || "",
+      serviceNeeded: booking.serviceNeeded || "",
+      inventorySelection:
+        booking.inventorySelection?.map((item) => item._id) || [],
       assignedStaff: booking.assignedStaff?.map((staff) => staff._id) || [],
-  bookingBranch: (booking as any).branch?._id || booking.bookingBranch?._id || "",
+      bookingBranch:
+        (booking as any).branch?._id || booking.bookingBranch?._id || "",
       services: booking.services || [],
       totalAmount: booking.pricing.totalAmount,
       advanceAmount: booking.pricing.advanceAmount,
-      status: booking.status || 'pending',
+      status: booking.status || "pending",
       notes: "",
     });
     setShowEditModal(true);
@@ -383,58 +490,139 @@ const BookingManagement = () => {
     try {
       // Generate booking number
       const bookingNumber = `BK-${Date.now()}`;
-      
+
       // Build schedule list and calculate pricing fields from servicesSchedule amounts
-  const scheduleList = formData.servicesSchedule && formData.servicesSchedule.length > 0
-    ? formData.servicesSchedule
-    : [{ serviceCategoryId: '', serviceType: [] as string[], date: new Date().toISOString(), startTime: '', endTime: '', venueName: formData.venueName, venueAddress: formData.venueAddress, assignedStaff: formData.assignedStaff || [], inventorySelection: formData.inventorySelection || [], quantity: 1, price: 0, amount: 0 }];
-  const subtotal = (scheduleList || []).reduce((sum: number, s: any) => sum + (Number(s.amount) || 0), 0);
-  const remainingAmount = subtotal - (formData.advanceAmount || 0);
+      const scheduleList =
+        formData.servicesSchedule && formData.servicesSchedule.length > 0
+          ? formData.servicesSchedule
+          : [
+              {
+                serviceCategoryId: "",
+                serviceType: [] as string[],
+                date: new Date().toISOString(),
+                startTime: "",
+                endTime: "",
+                venueName: formData.venueName,
+                venueAddress: formData.venueAddress,
+                assignedStaff: formData.assignedStaff || [],
+                inventorySelection: formData.inventorySelection || [],
+                quantity: 1,
+                price: 0,
+                amount: 0,
+              },
+            ];
+      const subtotal = (scheduleList || []).reduce(
+        (sum: number, s: any) => sum + (Number(s.amount) || 0),
+        0
+      );
+      const remainingAmount = subtotal - (formData.advanceAmount || 0);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
       const functionDetailsList = scheduleList.map((s: any) => ({
-        type: formData.functionType || (categories.find((c:any)=>c._id===s.serviceCategoryId)?.name) || s.serviceName || formData.serviceNeeded || '',
-        date: s.date ? new Date(s.date).toISOString() : new Date().toISOString(),
-        time: { start: s.startTime || '', end: s.endTime || '' },
-        venue: { name: s.venueName || formData.venueName || '', address: s.venueAddress || formData.venueAddress || '' },
+        type:
+          formData.functionType ||
+          categories.find((c: any) => c._id === s.serviceCategoryId)?.name ||
+          s.serviceName ||
+          formData.serviceNeeded ||
+          "",
+        date: s.date
+          ? new Date(s.date).toISOString()
+          : new Date().toISOString(),
+        // include precise startDate/endDate ISO fields when start/end times are provided
+        startDate:
+          s.date && s.startTime
+            ? new Date(`${s.date}T${s.startTime}`).toISOString()
+            : undefined,
+        endDate:
+          s.date && s.endTime
+            ? new Date(`${s.date}T${s.endTime}`).toISOString()
+            : undefined,
+        time: { start: s.startTime || "", end: s.endTime || "" },
+        venue: {
+          name: s.venueName || formData.venueName || "",
+          address: s.venueAddress || formData.venueAddress || "",
+        },
       }));
       // union assigned staff and inventory across schedule entries and global selections
-  const allAssignedStaff = Array.from(new Set([...(formData.assignedStaff || []), ...scheduleList.flatMap((s: any) => s.assignedStaff || [])]));
-  const allInventory = Array.from(new Set([...(formData.inventorySelection || []), ...scheduleList.flatMap((s: any) => s.inventorySelection || [])]));
+      const allAssignedStaff = Array.from(
+        new Set([
+          ...(formData.assignedStaff || []),
+          ...scheduleList.flatMap((s: any) => s.assignedStaff || []),
+        ])
+      );
+      const allInventory = Array.from(
+        new Set([
+          ...(formData.inventorySelection || []),
+          ...scheduleList.flatMap((s: any) => s.inventorySelection || []),
+        ])
+      );
 
       // Validate that every schedule entry has a category and at least one type
-      const invalidEntry = (scheduleList || []).find((s: any) => !s.serviceCategoryId || !(Array.isArray(s.serviceType) && s.serviceType.length > 0));
+      const invalidEntry = (scheduleList || []).find(
+        (s: any) =>
+          !s.serviceCategoryId ||
+          !(Array.isArray(s.serviceType) && s.serviceType.length > 0)
+      );
       if (invalidEntry) {
-        addNotification({ type: 'error', title: 'Validation', message: 'Please select Service and at least one Type for every schedule entry.' });
+        addNotification({
+          type: "error",
+          title: "Validation",
+          message:
+            "Please select Service and at least one Type for every schedule entry.",
+        });
         setSubmitting(false);
         return;
       }
 
       // Build services array from schedule entries for backend compatibility
       const servicesFromSchedule = scheduleList.map((s: any) => {
-        const cat = (categories || []).find((c: any) => c._id === s.serviceCategoryId);
+        const cat = (categories || []).find(
+          (c: any) => c._id === s.serviceCategoryId
+        );
         return {
-          service: cat?.name || '',
+          service: cat?.name || "",
           serviceType: s.serviceType || [],
-          serviceCategory: s.serviceCategoryId || '',
+          serviceCategory: s.serviceCategoryId || "",
           quantity: s.quantity ?? 1,
           rate: s.price ?? 0,
-          amount: s.amount ?? ((s.quantity ?? 1) * (s.price ?? 0)),
-          description: '',
+          amount: s.amount ?? (s.quantity ?? 1) * (s.price ?? 0),
+          description: "",
         };
       });
+
+      // If there's only one schedule entry, include its startDate/endDate in top-level functionDetails for compatibility
+      const primaryFunction =
+        functionDetailsList.length === 1 ? functionDetailsList[0] : null;
 
       const bookingData = {
         bookingNumber,
         client: formData.clientId,
         branch: formData.bookingBranch,
-        functionDetails: functionDetailsList[0] || functionDetailsList,
+        functionDetails: primaryFunction
+          ? {
+              ...primaryFunction,
+              // ensure date, time, startDate, endDate exist on top-level functionDetails
+              date: primaryFunction.date,
+              time: primaryFunction.time,
+              startDate: primaryFunction.startDate,
+              endDate: primaryFunction.endDate,
+            }
+          : functionDetailsList[0] || functionDetailsList,
         functionDetailsList,
-  serviceNeeded: formData.serviceNeeded || (scheduleList[0] && (categories.find((c:any)=>c._id===scheduleList[0].serviceCategoryId)?.name || (Array.isArray(scheduleList[0].serviceType) ? scheduleList[0].serviceType.join(', ') : (scheduleList[0].serviceName as string || '')))) || '',
+        serviceNeeded:
+          formData.serviceNeeded ||
+          (scheduleList[0] &&
+            (categories.find(
+              (c: any) => c._id === scheduleList[0].serviceCategoryId
+            )?.name ||
+              (Array.isArray(scheduleList[0].serviceType)
+                ? scheduleList[0].serviceType.join(", ")
+                : (scheduleList[0].serviceName as string) || ""))) ||
+          "",
         inventorySelection: allInventory,
         assignedStaff: allAssignedStaff,
         bookingBranch: formData.bookingBranch,
-  status: formData.status,
+        status: formData.status,
         services: servicesFromSchedule,
         pricing: {
           subtotal,
@@ -462,9 +650,9 @@ const BookingManagement = () => {
 
       // Notify other parts of the app (e.g., CompanyManagement) that branches may have updated
       try {
-        window.dispatchEvent(new CustomEvent('branchesUpdated'));
+        window.dispatchEvent(new CustomEvent("branchesUpdated"));
       } catch (e) {
-        console.warn('Could not dispatch branchesUpdated event', e);
+        console.warn("Could not dispatch branchesUpdated event", e);
       }
 
       fetchData();
@@ -490,15 +678,30 @@ const BookingManagement = () => {
       ...prev,
       servicesSchedule: [
         ...(prev.servicesSchedule || []),
-        { serviceCategoryId: '', serviceType: [] as string[], date: '', startTime: '', endTime: '', venueName: '', venueAddress: '', assignedStaff: [], inventorySelection: [], quantity: 1, price: 0, amount: 0 }
-      ]
+        {
+          serviceCategoryId: "",
+          serviceType: [] as string[],
+          date: "",
+          startTime: "",
+          endTime: "",
+          venueName: "",
+          venueAddress: "",
+          assignedStaff: [],
+          inventorySelection: [],
+          quantity: 1,
+          price: 0,
+          amount: 0,
+        },
+      ],
     }));
   };
 
   const removeScheduleEntry = (index: number) => {
     setFormData((prev: any) => ({
       ...prev,
-      servicesSchedule: (prev.servicesSchedule || []).filter((_: any, i: number) => i !== index)
+      servicesSchedule: (prev.servicesSchedule || []).filter(
+        (_: any, i: number) => i !== index
+      ),
     }));
   };
 
@@ -507,24 +710,30 @@ const BookingManagement = () => {
       const ss = [...(prev.servicesSchedule || [])];
       ss[index] = { ...ss[index], [field]: value };
       // if selecting a service category, set serviceName and clear serviceType when category defines types
-      if (field === 'serviceCategoryId') {
+      if (field === "serviceCategoryId") {
         const cat = (categories || []).find((c: any) => c._id === value);
         if (cat) {
           ss[index].serviceName = cat.name;
           // if category has types, clear serviceType to force user selection
           if (Array.isArray(cat.types) && cat.types.length > 0) {
-            ss[index].serviceType = Array.isArray(ss[index].serviceType) ? ss[index].serviceType : [];
+            ss[index].serviceType = Array.isArray(ss[index].serviceType)
+              ? ss[index].serviceType
+              : [];
           } else {
             // otherwise fallback to legacy cat.type if present (store as single-element array)
-            ss[index].serviceType = cat.type ? [cat.type] : (Array.isArray(ss[index].serviceType) ? ss[index].serviceType : []);
+            ss[index].serviceType = cat.type
+              ? [cat.type]
+              : Array.isArray(ss[index].serviceType)
+              ? ss[index].serviceType
+              : [];
           }
         } else {
-          ss[index].serviceName = '';
+          ss[index].serviceName = "";
           ss[index].serviceType = [];
         }
       }
       // auto-calc amount when quantity or price changes
-      if (field === 'quantity' || field === 'price') {
+      if (field === "quantity" || field === "price") {
         const q = Number(ss[index].quantity ?? 0);
         const p = Number(ss[index].price ?? 0);
         ss[index].amount = q * p;
@@ -561,7 +770,10 @@ const BookingManagement = () => {
   const handleStatusUpdate = async (bookingId: string, newStatus: string) => {
     try {
       // Use the new status update endpoint for staff users
-      const res: any = await bookingAPI.updateBookingStatus(bookingId, newStatus);
+      const res: any = await bookingAPI.updateBookingStatus(
+        bookingId,
+        newStatus
+      );
       const updatedBooking = res?.data;
       addNotification({
         type: "success",
@@ -570,7 +782,11 @@ const BookingManagement = () => {
       });
       if (updatedBooking) {
         // Replace booking in local state so UI updates immediately without waiting for full fetch
-        setBookings((prev) => (prev || []).map((b) => (b._id === updatedBooking._id ? updatedBooking : b)));
+        setBookings((prev) =>
+          (prev || []).map((b) =>
+            b._id === updatedBooking._id ? updatedBooking : b
+          )
+        );
       } else {
         fetchData(); // Fallback
       }
@@ -579,17 +795,23 @@ const BookingManagement = () => {
         type: "error",
         title: "Error",
         message:
-          error instanceof Error ? error.message : "Failed to update booking status",
+          error instanceof Error
+            ? error.message
+            : "Failed to update booking status",
       });
     }
   };
 
   const filteredBookings = bookings.filter((booking) => {
     // If the current user is a branch admin/head, restrict bookings to their branch only
-    const bookingBranchId = (booking as any).branch?._id || booking.bookingBranch?._id || booking.bookingBranch || "";
-    if (user?.role === 'chairman' && user.branchId) {
-        if (bookingBranchId !== user.branchId) return false;
-      }
+    const bookingBranchId =
+      (booking as any).branch?._id ||
+      booking.bookingBranch?._id ||
+      booking.bookingBranch ||
+      "";
+    if (user?.role === "chairman" && user.branchId) {
+      if (bookingBranchId !== user.branchId) return false;
+    }
     const matchesSearch =
       booking.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -628,7 +850,7 @@ const BookingManagement = () => {
             Manage client bookings and events
           </p>
         </div>
-        {user?.role !== 'staff' && (
+        {user?.role !== "staff" && (
           <button
             onClick={handleAddBooking}
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -736,11 +958,11 @@ const BookingManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Client
                 </th>
-                  {user?.role === 'chairman' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Branch
-                    </th>
-                  )}
+                {user?.role === "chairman" && (
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Branch
+                  </th>
+                )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Event Details
                 </th>
@@ -778,14 +1000,18 @@ const BookingManagement = () => {
                       </div>
                     </div>
                   </td>
-                  {user?.role === 'chairman' && (
+                  {user?.role === "chairman" && (
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {(booking as any).branch?.name || booking.bookingBranch?.name || '—'}
+                          {(booking as any).branch?.name ||
+                            booking.bookingBranch?.name ||
+                            "—"}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {(booking as any).branch?._id || booking.bookingBranch?._id || ''}
+                          {(booking as any).branch?._id ||
+                            booking.bookingBranch?._id ||
+                            ""}
                         </div>
                       </div>
                     </td>
@@ -837,47 +1063,79 @@ const BookingManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
-                      {user?.role === 'staff' ? (
-                          // Staff users can only update status — show clear action buttons for allowed next states
-                          <div className="flex items-center space-x-2">
-                            {
-                              // Determine allowed next action based on current status
-                              (() => {
-                                const status = booking.status;
-                                // No actions for cancelled or completed bookings
-                                if (status === 'completed' || status === 'cancelled') {
-                                  return (
-                                    <button disabled className="px-3 py-1 bg-gray-200 text-gray-600 rounded">No actions</button>
-                                  );
-                                }
-
-                                // Map current status to the next logical action(s)
-                                const transitions: { [key: string]: { key: string; label: string }[] } = {
-                                  pending: [{ key: 'confirmed', label: 'Confirm' }],
-                                  confirmed: [{ key: 'in_progress', label: 'Mark In Progress' }],
-                                  in_progress: [{ key: 'completed', label: 'Complete' }],
-                                };
-
-                                const allowed = transitions[status] || [];
-                                // If no allowed transitions, show disabled
-                                if (allowed.length === 0) return <button disabled className="px-3 py-1 bg-gray-200 text-gray-600 rounded">No actions</button>;
-
-                                return allowed.map((t) => (
+                      {user?.role === "staff" ? (
+                        // Staff users can only update status — show clear action buttons for allowed next states
+                        <div className="flex items-center space-x-2">
+                          {
+                            // Determine allowed next action based on current status
+                            (() => {
+                              const status = booking.status;
+                              // No actions for cancelled or completed bookings
+                              if (
+                                status === "completed" ||
+                                status === "cancelled"
+                              ) {
+                                return (
                                   <button
-                                    key={t.key}
-                                    onClick={() => {
-                                      if (!window.confirm(`Are you sure you want to ${t.label.toLowerCase()} this booking?`)) return;
-                                      handleStatusUpdate(booking._id, t.key);
-                                    }}
-                                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    disabled
+                                    className="px-3 py-1 bg-gray-200 text-gray-600 rounded"
                                   >
-                                    {t.label}
+                                    No actions
                                   </button>
-                                ));
-                              })()
-                            }
-                          </div>
-                        ) : (
+                                );
+                              }
+
+                              // Map current status to the next logical action(s)
+                              const transitions: {
+                                [key: string]: { key: string; label: string }[];
+                              } = {
+                                pending: [
+                                  { key: "confirmed", label: "Confirm" },
+                                ],
+                                confirmed: [
+                                  {
+                                    key: "in_progress",
+                                    label: "Mark In Progress",
+                                  },
+                                ],
+                                in_progress: [
+                                  { key: "completed", label: "Complete" },
+                                ],
+                              };
+
+                              const allowed = transitions[status] || [];
+                              // If no allowed transitions, show disabled
+                              if (allowed.length === 0)
+                                return (
+                                  <button
+                                    disabled
+                                    className="px-3 py-1 bg-gray-200 text-gray-600 rounded"
+                                  >
+                                    No actions
+                                  </button>
+                                );
+
+                              return allowed.map((t) => (
+                                <button
+                                  key={t.key}
+                                  onClick={() => {
+                                    if (
+                                      !window.confirm(
+                                        `Are you sure you want to ${t.label.toLowerCase()} this booking?`
+                                      )
+                                    )
+                                      return;
+                                    handleStatusUpdate(booking._id, t.key);
+                                  }}
+                                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  {t.label}
+                                </button>
+                              ));
+                            })()
+                          }
+                        </div>
+                      ) : (
                         // Admin/Manager users can edit and delete
                         <>
                           <button
@@ -1000,157 +1258,561 @@ const BookingManagement = () => {
               {/* Function Details - multiple schedule entries */}
               <div>
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Function Details</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Function Details
+                  </h3>
                   <div>
-                    <button type="button" onClick={addScheduleEntry} className="px-3 py-1 bg-blue-600 text-white rounded mr-2">Add Service</button>
+                    <button
+                      type="button"
+                      onClick={addScheduleEntry}
+                      className="px-3 py-1 bg-blue-600 text-white rounded mr-2"
+                    >
+                      Add Service
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-4">
-                  {(formData.servicesSchedule || []).map((entry: any, idx: number) => (
-                    <div key={idx} className="p-4 border rounded-lg bg-gray-50">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="font-medium">Service #{idx + 1}</div>
-                        <div>
-                          <button type="button" onClick={() => removeScheduleEntry(idx)} className="text-red-600">Remove</button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="text-sm text-gray-600">Service</label>
-                          <div className="flex space-x-2">
-                            <select value={entry.serviceCategoryId || ""} onChange={(e) => updateScheduleEntry(idx, 'serviceCategoryId', e.target.value)} className="w-1/2 px-3 py-2 border rounded">
-                              <option value="">Select service</option>
-                              {(categories || []).map((c: any) => (
-                                <option key={c._id} value={c._id}>{c.name}</option>
-                              ))}
-                            </select>
-                            {entry.serviceCategoryId ? (
-                              (() => {
-                                const cat = (categories || []).find((c: any) => c._id === entry.serviceCategoryId);
-                                if (cat && Array.isArray(cat.types) && cat.types.length > 0) {
-                                  return (
-                                    <select value={Array.isArray(entry.serviceType) ? (entry.serviceType[0] || "") : (entry.serviceType || "")} onChange={(e) => updateScheduleEntry(idx, 'serviceType', e.target.value ? [e.target.value] : [])} className="w-1/2 px-3 py-2 border rounded">
-                                      <option value="">Select type</option>
-                                      {cat.types.map((t: string, i: number) => <option key={i} value={t}>{t}</option>)}
-                                    </select>
-                                  );
-                                }
-                                return (
-                                  <input type="text" value={Array.isArray(entry.serviceType) ? (entry.serviceType[0] || "") : (entry.serviceType || "")} onChange={(e) => updateScheduleEntry(idx, 'serviceType', e.target.value ? [e.target.value] : [])} placeholder="Type (optional)" className="w-1/2 px-3 py-2 border rounded" />
-                                );
-                              })()
-                            ) : (
-                              <div className="w-1/2 px-3 py-2 border rounded text-sm text-gray-500">Please select a Service</div>
-                            )}
+                  {(formData.servicesSchedule || []).map(
+                    (entry: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-4 border rounded-lg bg-gray-50"
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="font-medium">Service #{idx + 1}</div>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => removeScheduleEntry(idx)}
+                              className="text-red-600"
+                            >
+                              Remove
+                            </button>
                           </div>
                         </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Date</label>
-                          <input type="date" value={entry.date} onChange={(e) => updateScheduleEntry(idx, 'date', e.target.value)} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Start Time</label>
-                          <input type="time" value={entry.startTime} onChange={(e) => updateScheduleEntry(idx, 'startTime', e.target.value)} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">End Time</label>
-                          <input type="time" value={entry.endTime} onChange={(e) => updateScheduleEntry(idx, 'endTime', e.target.value)} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Venue Name</label>
-                          <input value={entry.venueName} onChange={(e) => updateScheduleEntry(idx, 'venueName', e.target.value)} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Venue Address</label>
-                          <input value={entry.venueAddress} onChange={(e) => updateScheduleEntry(idx, 'venueAddress', e.target.value)} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Qty</label>
-                          <input type="number" min={0} value={entry.quantity ?? 0} onChange={(e) => updateScheduleEntry(idx, 'quantity', Number(e.target.value))} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Price</label>
-                          <input type="number" min={0} value={entry.price ?? 0} onChange={(e) => updateScheduleEntry(idx, 'price', Number(e.target.value))} className="w-full px-3 py-2 border rounded" />
-                        </div>
-                        <div>
-                          <label className="text-sm text-gray-600">Amount</label>
-                          <input type="number" min={0} value={entry.amount ?? 0} onChange={(e) => updateScheduleEntry(idx, 'amount', Number(e.target.value))} className="w-full px-3 py-2 border rounded" />
-                          <p className="text-xs text-gray-500 mt-1">kis cheez ka kitna lagega</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3">
-                        <label className="text-sm font-medium text-gray-700">Assign Staff</label>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {staff.map((s) => (
-                            <label key={s._id} className="inline-flex items-center space-x-2">
-                              <input type="checkbox" checked={(entry.assignedStaff || []).includes(s._id)} onChange={(e) => {
-                                const checked = e.target.checked;
-                                const list = new Set(entry.assignedStaff || []);
-                                if (checked) list.add(s._id); else list.delete(s._id);
-                                updateScheduleEntry(idx, 'assignedStaff', Array.from(list));
-                              }} />
-                              <span className="text-sm">{s.name} ({s.designation})</span>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Service
                             </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="mt-3">
-                        <label className="text-sm font-medium text-gray-700">Select Equipment</label>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button type="button" onClick={() => {
-                            // Clear filter and show all
-                            setInventoryCategoryFilters(prev => ({ ...prev, [idx]: '' }));
-                          }} className={`px-2 py-1 text-xs rounded ${!inventoryCategoryFilters[idx] ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>All</button>
-                          {(Array.isArray(inventoryCategories) ? inventoryCategories : []).map((c: any) => (
-                            <button key={c} type="button" onClick={async () => {
-                              // when selecting a category, fetch inventory for that category (cached)
-                              try {
-                                setInventoryCategoryFilters(prev => ({ ...prev, [idx]: c }));
-                                if (!cachedInventoryByCategory[c]) {
-                                  const params: any = { category: c };
-                                  // respect selected branch when fetching
-                                  if (formData.bookingBranch) params.branch = formData.bookingBranch;
-                                  else if (user && user.branchId) params.branch = user.branchId;
-                                  const res: any = await inventoryAPI.getInventory(params);
-                                  const invData = res.data || res;
-                                  const docs = invData.docs || invData.data || invData.items || invData || [];
-                                  const list = Array.isArray(docs) ? docs : [];
-                                  setCachedInventoryByCategory(prev => ({ ...prev, [c]: list }));
+                            <div className="flex space-x-2">
+                              <select
+                                value={entry.serviceCategoryId || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "serviceCategoryId",
+                                    e.target.value
+                                  )
                                 }
-                              } catch (err) {
-                                console.warn('Failed to fetch inventory for category', c, err);
+                                className="w-1/2 px-3 py-2 border rounded"
+                              >
+                                <option value="">Select service</option>
+                                {(categories || []).map((c: any) => (
+                                  <option key={c._id} value={c._id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                              {entry.serviceCategoryId ? (
+                                (() => {
+                                  const cat = (categories || []).find(
+                                    (c: any) =>
+                                      c._id === entry.serviceCategoryId
+                                  );
+                                  if (
+                                    cat &&
+                                    Array.isArray(cat.types) &&
+                                    cat.types.length > 0
+                                  ) {
+                                    return (
+                                      <select
+                                        value={
+                                          Array.isArray(entry.serviceType)
+                                            ? entry.serviceType[0] || ""
+                                            : entry.serviceType || ""
+                                        }
+                                        onChange={(e) =>
+                                          updateScheduleEntry(
+                                            idx,
+                                            "serviceType",
+                                            e.target.value
+                                              ? [e.target.value]
+                                              : []
+                                          )
+                                        }
+                                        className="w-1/2 px-3 py-2 border rounded"
+                                      >
+                                        <option value="">Select type</option>
+                                        {cat.types.map(
+                                          (t: string, i: number) => (
+                                            <option key={i} value={t}>
+                                              {t}
+                                            </option>
+                                          )
+                                        )}
+                                      </select>
+                                    );
+                                  }
+                                  return (
+                                    <input
+                                      type="text"
+                                      value={
+                                        Array.isArray(entry.serviceType)
+                                          ? entry.serviceType[0] || ""
+                                          : entry.serviceType || ""
+                                      }
+                                      onChange={(e) =>
+                                        updateScheduleEntry(
+                                          idx,
+                                          "serviceType",
+                                          e.target.value ? [e.target.value] : []
+                                        )
+                                      }
+                                      placeholder="Type (optional)"
+                                      className="w-1/2 px-3 py-2 border rounded"
+                                    />
+                                  );
+                                })()
+                              ) : (
+                                <div className="w-1/2 px-3 py-2 border rounded text-sm text-gray-500">
+                                  Please select a Service
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Date
+                            </label>
+                            <input
+                              type="date"
+                              value={entry.date}
+                              onChange={(e) =>
+                                updateScheduleEntry(idx, "date", e.target.value)
                               }
-                            }} className={`px-2 py-1 text-xs rounded ${inventoryCategoryFilters[idx] === c ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                              {c}
-                            </button>
-                          ))}
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Start Time
+                            </label>
+                            <input
+                              type="time"
+                              value={entry.startTime}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "startTime",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              End Time
+                            </label>
+                            <input
+                              type="time"
+                              value={entry.endTime}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "endTime",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Venue Name
+                            </label>
+                            <input
+                              value={entry.venueName}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "venueName",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Venue Address
+                            </label>
+                            <input
+                              value={entry.venueAddress}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "venueAddress",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">Qty</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={entry.quantity ?? 0}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "quantity",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Price
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={entry.price ?? 0}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "price",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">
+                              Amount
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={entry.amount ?? 0}
+                              onChange={(e) =>
+                                updateScheduleEntry(
+                                  idx,
+                                  "amount",
+                                  Number(e.target.value)
+                                )
+                              }
+                              className="w-full px-3 py-2 border rounded"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              kis cheez ka kitna lagega
+                            </p>
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                          {(() => {
-                            let inventoryList: any[] = [];
-                            if (inventory && typeof inventory === 'object' && 'docs' in (inventory as any) && Array.isArray((inventory as any).docs)) inventoryList = (inventory as any).docs;
-                            else if (Array.isArray(inventory)) inventoryList = inventory;
-                            const selectedCategory = inventoryCategoryFilters[idx];
-                            const filtered = selectedCategory ? (cachedInventoryByCategory[selectedCategory] || []).concat().filter(Boolean) : inventoryList;
-                            return filtered.map((it) => (
-                              <label key={it._id} className="inline-flex items-center space-x-2">
-                                <input type="checkbox" checked={(entry.inventorySelection || []).includes(it._id)} onChange={(e) => {
-                                  const checked = e.target.checked;
-                                  const list = new Set(entry.inventorySelection || []);
-                                  if (checked) list.add(it._id); else list.delete(it._id);
-                                  updateScheduleEntry(idx, 'inventorySelection', Array.from(list));
-                                }} />
-                                <span className="text-sm">{it.name} <span className="text-xs text-gray-400 ml-2">({it.category})</span></span>
-                              </label>
-                            ));
-                          })()}
+                        <div className="mt-3">
+                          <label className="text-sm font-medium text-gray-700">
+                            Assign Staff
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            {(() => {
+                              // compute conflicts: find other entries with same date and overlapping time
+                              const conflicts = new Set<string>();
+                              const curStart =
+                                entry.date && entry.startTime
+                                  ? new Date(`${entry.date}T${entry.startTime}`)
+                                  : null;
+                              const curEnd =
+                                entry.date && entry.endTime
+                                  ? new Date(`${entry.date}T${entry.endTime}`)
+                                  : null;
+                              (formData.servicesSchedule || []).forEach(
+                                (other: any, j: number) => {
+                                  if (j === idx) return;
+                                  if (!other.date) return;
+                                  if (other.date !== entry.date) return; // only consider same-date entries
+                                  const oStart =
+                                    other.date && other.startTime
+                                      ? new Date(
+                                          `${other.date}T${other.startTime}`
+                                        )
+                                      : null;
+                                  const oEnd =
+                                    other.date && other.endTime
+                                      ? new Date(
+                                          `${other.date}T${other.endTime}`
+                                        )
+                                      : null;
+                                  // if times overlap or no precise times given, treat as conflict
+                                  const overlap = (() => {
+                                    if (
+                                      !curStart ||
+                                      !curEnd ||
+                                      !oStart ||
+                                      !oEnd
+                                    )
+                                      return true;
+                                    return curStart <= oEnd && oStart <= curEnd;
+                                  })();
+                                  if (
+                                    overlap &&
+                                    Array.isArray(other.assignedStaff)
+                                  ) {
+                                    other.assignedStaff.forEach((id: string) =>
+                                      conflicts.add(id)
+                                    );
+                                  }
+                                }
+                              );
+                              return staff.map((s) => {
+                                const disabled = conflicts.has(s._id);
+                                return (
+                                  <label
+                                    key={s._id}
+                                    className="inline-flex items-center space-x-2"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      disabled={disabled}
+                                      checked={(
+                                        entry.assignedStaff || []
+                                      ).includes(s._id)}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const list = new Set(
+                                          entry.assignedStaff || []
+                                        );
+                                        if (checked) list.add(s._id);
+                                        else list.delete(s._id);
+                                        updateScheduleEntry(
+                                          idx,
+                                          "assignedStaff",
+                                          Array.from(list)
+                                        );
+                                      }}
+                                    />
+                                    <span
+                                      className={`text-sm ${
+                                        disabled
+                                          ? "text-gray-400 line-through"
+                                          : ""
+                                      }`}
+                                    >
+                                      {s.name} ({s.designation})
+                                    </span>
+                                  </label>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+
+                        <div className="mt-3">
+                          <label className="text-sm font-medium text-gray-700">
+                            Select Equipment
+                          </label>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Clear filter and show all
+                                setInventoryCategoryFilters((prev) => ({
+                                  ...prev,
+                                  [idx]: "",
+                                }));
+                              }}
+                              className={`px-2 py-1 text-xs rounded ${
+                                !inventoryCategoryFilters[idx]
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              All
+                            </button>
+                            {(Array.isArray(inventoryCategories)
+                              ? inventoryCategories
+                              : []
+                            ).map((c: any) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={async () => {
+                                  // when selecting a category, fetch inventory for that category (cached)
+                                  try {
+                                    setInventoryCategoryFilters((prev) => ({
+                                      ...prev,
+                                      [idx]: c,
+                                    }));
+                                    if (!cachedInventoryByCategory[c]) {
+                                      const params: any = { category: c };
+                                      // respect selected branch when fetching
+                                      if (formData.bookingBranch)
+                                        params.branch = formData.bookingBranch;
+                                      else if (user && user.branchId)
+                                        params.branch = user.branchId;
+                                      const res: any =
+                                        await inventoryAPI.getInventory(params);
+                                      const invData = res.data || res;
+                                      const docs =
+                                        invData.docs ||
+                                        invData.data ||
+                                        invData.items ||
+                                        invData ||
+                                        [];
+                                      const list = Array.isArray(docs)
+                                        ? docs
+                                        : [];
+                                      setCachedInventoryByCategory((prev) => ({
+                                        ...prev,
+                                        [c]: list,
+                                      }));
+                                    }
+                                  } catch (err) {
+                                    console.warn(
+                                      "Failed to fetch inventory for category",
+                                      c,
+                                      err
+                                    );
+                                  }
+                                }}
+                                className={`px-2 py-1 text-xs rounded ${
+                                  inventoryCategoryFilters[idx] === c
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            {(() => {
+                              let inventoryList: any[] = [];
+                              if (
+                                inventory &&
+                                typeof inventory === "object" &&
+                                "docs" in (inventory as any) &&
+                                Array.isArray((inventory as any).docs)
+                              )
+                                inventoryList = (inventory as any).docs;
+                              else if (Array.isArray(inventory))
+                                inventoryList = inventory;
+                              const selectedCategory =
+                                inventoryCategoryFilters[idx];
+                              const filtered = selectedCategory
+                                ? (
+                                    cachedInventoryByCategory[
+                                      selectedCategory
+                                    ] || []
+                                  )
+                                    .concat()
+                                    .filter(Boolean)
+                                : inventoryList;
+                              // compute equipment conflicts similar to staff
+                              const equipConflicts = new Set<string>();
+                              const curStartE =
+                                entry.date && entry.startTime
+                                  ? new Date(`${entry.date}T${entry.startTime}`)
+                                  : null;
+                              const curEndE =
+                                entry.date && entry.endTime
+                                  ? new Date(`${entry.date}T${entry.endTime}`)
+                                  : null;
+                              (formData.servicesSchedule || []).forEach(
+                                (other: any, j: number) => {
+                                  if (j === idx) return;
+                                  if (!other.date) return;
+                                  if (other.date !== entry.date) return;
+                                  const oStart =
+                                    other.date && other.startTime
+                                      ? new Date(
+                                          `${other.date}T${other.startTime}`
+                                        )
+                                      : null;
+                                  const oEnd =
+                                    other.date && other.endTime
+                                      ? new Date(
+                                          `${other.date}T${other.endTime}`
+                                        )
+                                      : null;
+                                  const overlap = (() => {
+                                    if (
+                                      !curStartE ||
+                                      !curEndE ||
+                                      !oStart ||
+                                      !oEnd
+                                    )
+                                      return true;
+                                    return (
+                                      curStartE <= oEnd && oStart <= curEndE
+                                    );
+                                  })();
+                                  if (
+                                    overlap &&
+                                    Array.isArray(other.inventorySelection)
+                                  ) {
+                                    other.inventorySelection.forEach(
+                                      (id: string) => equipConflicts.add(id)
+                                    );
+                                  }
+                                }
+                              );
+                              return filtered.map((it) => {
+                                const disabled = equipConflicts.has(it._id);
+                                return (
+                                  <label
+                                    key={it._id}
+                                    className="inline-flex items-center space-x-2"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      disabled={disabled}
+                                      checked={(
+                                        entry.inventorySelection || []
+                                      ).includes(it._id)}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const list = new Set(
+                                          entry.inventorySelection || []
+                                        );
+                                        if (checked) list.add(it._id);
+                                        else list.delete(it._id);
+                                        updateScheduleEntry(
+                                          idx,
+                                          "inventorySelection",
+                                          Array.from(list)
+                                        );
+                                      }}
+                                    />
+                                    <span
+                                      className={`text-sm ${
+                                        disabled
+                                          ? "text-gray-400 line-through"
+                                          : ""
+                                      }`}
+                                    >
+                                      {it.name}{" "}
+                                      <span className="text-xs text-gray-400 ml-2">
+                                        ({it.category})
+                                      </span>
+                                    </span>
+                                  </label>
+                                );
+                              });
+                            })()}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
                 </div>
               </div>
               <div>
@@ -1165,7 +1827,10 @@ const BookingManagement = () => {
                     <input
                       type="number"
                       readOnly
-                      value={(formData.servicesSchedule || []).reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0)}
+                      value={(formData.servicesSchedule || []).reduce(
+                        (s: number, it: any) => s + (Number(it.amount) || 0),
+                        0
+                      )}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
                     />
                   </div>
@@ -1191,7 +1856,10 @@ const BookingManagement = () => {
                   <p className="text-sm text-gray-600">
                     Balance Amount: ₹
                     {(
-                      ((formData.servicesSchedule || []).reduce((s: number, it: any) => s + (Number(it.amount) || 0), 0)) - formData.advanceAmount
+                      (formData.servicesSchedule || []).reduce(
+                        (s: number, it: any) => s + (Number(it.amount) || 0),
+                        0
+                      ) - formData.advanceAmount
                     ).toLocaleString()}
                   </p>
                 </div>
@@ -1199,8 +1867,16 @@ const BookingManagement = () => {
 
               {/* Status selection (admin/managers) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) =>
+                    setFormData({ ...formData, status: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
                   <option value="in_progress">In Progress</option>
@@ -1241,7 +1917,8 @@ const BookingManagement = () => {
                       {formData.inventorySelection.length > 0
                         ? (Array.isArray(inventory)
                             ? inventory
-                            : 'docs' in inventory && Array.isArray((inventory as any).docs)
+                            : "docs" in inventory &&
+                              Array.isArray((inventory as any).docs)
                             ? (inventory as any).docs
                             : []
                           )
@@ -1263,23 +1940,48 @@ const BookingManagement = () => {
                     type="button"
                     onClick={async () => {
                       if (!selectedBooking) return;
-                      if (!window.confirm('Mark this booking as paid? This will set remaining amount to 0 and mark payment as completed.')) return;
+                      if (
+                        !window.confirm(
+                          "Mark this booking as paid? This will set remaining amount to 0 and mark payment as completed."
+                        )
+                      )
+                        return;
                       try {
                         setSubmitting(true);
-                        const currentTotal = selectedBooking.pricing?.totalAmount ?? formData.totalAmount;
-                        const currentAdvance = selectedBooking.pricing?.advanceAmount ?? formData.advanceAmount ?? 0;
+                        const currentTotal =
+                          selectedBooking.pricing?.totalAmount ??
+                          formData.totalAmount;
+                        const currentAdvance =
+                          selectedBooking.pricing?.advanceAmount ??
+                          formData.advanceAmount ??
+                          0;
                         const updatedPricing = {
-                          subtotal: selectedBooking.pricing?.subtotal ?? currentTotal,
+                          subtotal:
+                            selectedBooking.pricing?.subtotal ?? currentTotal,
                           totalAmount: currentTotal,
                           advanceAmount: Math.max(currentAdvance, currentTotal),
                           remainingAmount: 0,
                         };
                         // Only update payment fields here; status remains separate
-                        const res: any = await bookingAPI.updateBooking(selectedBooking._id, { paymentStatus: 'completed', pricing: updatedPricing });
+                        const res: any = await bookingAPI.updateBooking(
+                          selectedBooking._id,
+                          {
+                            paymentStatus: "completed",
+                            pricing: updatedPricing,
+                          }
+                        );
                         const updated = res?.data;
-                        addNotification({ type: 'success', title: 'Payment', message: 'Marked booking as paid' });
+                        addNotification({
+                          type: "success",
+                          title: "Payment",
+                          message: "Marked booking as paid",
+                        });
                         if (updated) {
-                          setBookings((prev) => (prev || []).map((b) => (b._id === updated._id ? updated : b)));
+                          setBookings((prev) =>
+                            (prev || []).map((b) =>
+                              b._id === updated._id ? updated : b
+                            )
+                          );
                         } else {
                           await fetchData();
                         }
@@ -1287,7 +1989,14 @@ const BookingManagement = () => {
                         setSelectedBooking(null);
                         resetForm();
                       } catch (error: unknown) {
-                        addNotification({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'Failed to mark as paid' });
+                        addNotification({
+                          type: "error",
+                          title: "Error",
+                          message:
+                            error instanceof Error
+                              ? error.message
+                              : "Failed to mark as paid",
+                        });
                       } finally {
                         setSubmitting(false);
                       }
@@ -1298,19 +2007,35 @@ const BookingManagement = () => {
                   </button>
                 )}
 
-                {selectedBooking && selectedBooking.status !== 'completed' && (
+                {selectedBooking && selectedBooking.status !== "completed" && (
                   <button
                     type="button"
                     onClick={async () => {
                       if (!selectedBooking) return;
-                      if (!window.confirm('Mark this booking as complete? This will set booking status to completed.')) return;
+                      if (
+                        !window.confirm(
+                          "Mark this booking as complete? This will set booking status to completed."
+                        )
+                      )
+                        return;
                       try {
                         setSubmitting(true);
-                        const res: any = await bookingAPI.updateBooking(selectedBooking._id, { status: 'completed' });
+                        const res: any = await bookingAPI.updateBooking(
+                          selectedBooking._id,
+                          { status: "completed" }
+                        );
                         const updated = res?.data;
-                        addNotification({ type: 'success', title: 'Status', message: 'Marked booking as completed' });
+                        addNotification({
+                          type: "success",
+                          title: "Status",
+                          message: "Marked booking as completed",
+                        });
                         if (updated) {
-                          setBookings((prev) => (prev || []).map((b) => (b._id === updated._id ? updated : b)));
+                          setBookings((prev) =>
+                            (prev || []).map((b) =>
+                              b._id === updated._id ? updated : b
+                            )
+                          );
                         } else {
                           await fetchData();
                         }
@@ -1318,7 +2043,14 @@ const BookingManagement = () => {
                         setSelectedBooking(null);
                         resetForm();
                       } catch (error: unknown) {
-                        addNotification({ type: 'error', title: 'Error', message: error instanceof Error ? error.message : 'Failed to mark as completed' });
+                        addNotification({
+                          type: "error",
+                          title: "Error",
+                          message:
+                            error instanceof Error
+                              ? error.message
+                              : "Failed to mark as completed",
+                        });
                       } finally {
                         setSubmitting(false);
                       }
