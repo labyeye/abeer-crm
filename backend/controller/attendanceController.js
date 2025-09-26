@@ -10,8 +10,23 @@ const getAllAttendance = asyncHandler(async (req, res) => {
   const { branch, staff, client, date, status, startDate, endDate } = req.query;
 
   let query = { isDeleted: false };
-  if (branch) query.branch = branch;
-  if (staff) query.staff = staff;
+  // Scope queries based on authenticated user
+  if (req.user.role === 'admin') {
+    // branch admins only see their own branch
+    if (req.user.branch) query.branch = req.user.branch;
+  } else if (req.user.role === 'staff') {
+    // staff can only see their own attendance
+    const myStaff = await Staff.findOne({ user: req.user._id });
+    if (!myStaff) {
+      return res.status(404).json({ success: false, message: 'Staff record not found' });
+    }
+    query.staff = myStaff._id;
+  } else {
+    // chairman or other roles can pass filters
+    if (branch) query.branch = branch;
+    if (staff) query.staff = staff;
+  }
+
   if (client) query.client = client;
   if (status) query.status = status;
 
@@ -110,6 +125,7 @@ const getAttendanceById = asyncHandler(async (req, res) => {
   }
 
   
+  // Branch admins can only view attendance for their branch
   if (req.user.role === 'staff') {
     const staff = await Staff.findOne({ user: req.user._id });
     if (!staff || attendance.staff.toString() !== staff._id.toString()) {
@@ -117,6 +133,12 @@ const getAttendanceById = asyncHandler(async (req, res) => {
         success: false,
         message: 'Not authorized to view this attendance record'
       });
+    }
+  }
+
+  if (req.user.role === 'admin') {
+    if (!req.user.branch || attendance.branch.toString() !== req.user.branch.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this attendance record' });
     }
   }
 
@@ -136,6 +158,13 @@ const checkIn = asyncHandler(async (req, res) => {
   const staff = await Staff.findById(staffId);
   if (!staff || staff.isDeleted) {
     return next(new ErrorResponse('Staff not found', 404));
+  }
+
+  // If the requester is a branch admin, ensure the staff belongs to their branch
+  if (req.user.role === 'admin') {
+    if (!req.user.branch || staff.branch.toString() !== req.user.branch.toString()) {
+      return next(new ErrorResponse('Not authorized to perform check-in for this staff', 403));
+    }
   }
 
   const today = new Date();
@@ -264,6 +293,12 @@ const markAttendanceManually = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Staff not found', 404));
   }
 
+  if (req.user.role === 'admin') {
+    if (!req.user.branch || staff.branch.toString() !== req.user.branch.toString()) {
+      return next(new ErrorResponse('Not authorized to mark attendance for this staff', 403));
+    }
+  }
+
   const attendanceDate = new Date(date);
   attendanceDate.setHours(0, 0, 0, 0);
 
@@ -325,6 +360,12 @@ const updateAttendance = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Attendance record not found', 404));
   }
 
+  if (req.user.role === 'admin') {
+    if (!req.user.branch || attendance.branch.toString() !== req.user.branch.toString()) {
+      return next(new ErrorResponse('Not authorized to update this attendance record', 403));
+    }
+  }
+
   const updatedAttendance = await Attendance.findByIdAndUpdate(
     req.params.id,
     req.body,
@@ -347,6 +388,12 @@ const deleteAttendance = asyncHandler(async (req, res) => {
     return next(new ErrorResponse('Attendance record not found', 404));
   }
 
+  if (req.user.role === 'admin') {
+    if (!req.user.branch || attendance.branch.toString() !== req.user.branch.toString()) {
+      return next(new ErrorResponse('Not authorized to delete this attendance record', 403));
+    }
+  }
+
   attendance.isDeleted = true;
   await attendance.save();
 
@@ -363,7 +410,11 @@ const getAttendanceSummary = asyncHandler(async (req, res) => {
   const { branch, startDate, endDate } = req.query;
 
   let query = { isDeleted: false };
-  if (branch) query.branch = branch;
+  if (req.user.role === 'admin') {
+    if (req.user.branch) query.branch = req.user.branch;
+  } else if (branch) {
+    query.branch = branch;
+  }
 
   if (startDate && endDate) {
     query.date = {

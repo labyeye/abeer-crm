@@ -132,7 +132,6 @@ exports.createBranch = asyncHandler(async (req, res) => {
     gstNumber: req.body.gstNumber,
     panNumber: req.body.panNumber,
     userId: req.body.userId,
-    password: req.body.password,
 
     
     employeeCount: 0,
@@ -141,30 +140,37 @@ exports.createBranch = asyncHandler(async (req, res) => {
   };
 
   
-  const branch = await Branch.create(branchData);
-
-  
+  // Create the admin user first so Mongoose can hash the password via pre-save.
   const User = require("../models/User");
-  const bcrypt = require("bcryptjs");
-
-  
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(req.body.password, salt);
-
-  
   const user = await User.create({
     name: req.body.name,
     email: req.body.email,
-    password: hashedPassword,
+    password: req.body.password,
     phone: req.body.phone,
-    role: "admin", 
-    branch: branch._id,
+    role: "admin",
     isActive: true,
   });
 
-  
-  branch.admin = user._id;
-  await branch.save();
+  // Fetch the created user including the hashed password (select '+password').
+  const userWithPassword = await User.findById(user._id).select('+password');
+
+  // Build branch data including hashed password and admin reference
+  const branchDataFinal = {
+    ...branchData,
+    admin: user._id,
+  };
+  if (userWithPassword && userWithPassword.password) {
+    branchDataFinal.password = userWithPassword.password;
+  }
+
+  // Create the branch with hashed password present (satisfies schema validation)
+  const branchFinal = await Branch.create(branchDataFinal);
+
+  // Link user -> branch
+  await User.findByIdAndUpdate(user._id, { branch: branchFinal._id });
+
+  // use branchFinal as the created branch for response
+  branch = branchFinal;
 
   res.status(201).json({
     success: true,
@@ -247,6 +253,14 @@ exports.updateBranch = asyncHandler(async (req, res) => {
     }
 
     await User.findByIdAndUpdate(branch.admin, userUpdateData);
+
+    // If password changed, sync hashed password into branch.password as well
+    if (req.body.password) {
+      const updatedUser = await User.findById(branch.admin).select('+password');
+      if (updatedUser && updatedUser.password) {
+        await Branch.findByIdAndUpdate(branch._id, { password: updatedUser.password });
+      }
+    }
   }
 
   res.status(200).json({
@@ -295,7 +309,6 @@ exports.deleteBranch = asyncHandler(async (req, res) => {
 
 
 exports.getBranchStats = asyncHandler(async (req, res) => {
-  
   if (!["chairman", "admin"].includes(req.user.role)) {
     return res.status(403).json({
       success: false,
@@ -304,6 +317,27 @@ exports.getBranchStats = asyncHandler(async (req, res) => {
     });
   }
 
+  // If user is a branch admin, return stats only for their branch
+  if (String(req.user.role).toLowerCase() === 'admin') {
+    let branchId = req.user.branch;
+    if (!branchId) {
+      const BranchModel = require('../models/Branch');
+      const userBranch = await BranchModel.findOne({ admin: req.user._id });
+      if (userBranch) branchId = userBranch._id;
+    }
+
+    if (!branchId) {
+      return res.status(404).json({ success: false, message: 'Branch not found for admin user' });
+    }
+
+    // Compute revenue breakdown for this branch
+    const breakdown = await computeBranchRevenueBreakdown(branchId);
+    const branch = await Branch.findById(branchId).select('name code companyName employeeCount status');
+
+    return res.status(200).json({ success: true, data: { branch: branch || null, breakdown } });
+  }
+
+  // Chairman: return global overview and industry breakdown
   const stats = await Branch.aggregate([
     {
       $group: {
@@ -315,8 +349,8 @@ exports.getBranchStats = asyncHandler(async (req, res) => {
         inactiveBranches: {
           $sum: { $cond: [{ $eq: ["$status", "inactive"] }, 1, 0] },
         },
-  // revenue may be an object { total, invoices, ... } or legacy number
-  totalRevenue: { $sum: { $ifNull: ["$revenue.total", "$revenue"] } },
+        // revenue may be an object { total, invoices, ... } or legacy number
+        totalRevenue: { $sum: { $ifNull: ["$revenue.total", "$revenue"] } },
         avgEmployeeCount: { $avg: "$employeeCount" },
       },
     },

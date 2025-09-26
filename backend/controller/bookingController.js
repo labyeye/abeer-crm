@@ -34,6 +34,23 @@ const getBookings = asyncHandler(async (req, res) => {
       { 'functionDetails.venue.name': { $regex: search, $options: 'i' } }
     ];
   }
+
+  // If the current user is a branch admin, restrict results to their branch only
+  if (req.user && String(req.user.role).toLowerCase() === 'admin') {
+    // Prefer branch stored on user object (set during user creation/update)
+    if (req.user.branch) {
+      query.branch = req.user.branch;
+    } else {
+      // Fallback: find the branch where this user is admin
+      try {
+        const BranchModel = require('../models/Branch');
+        const userBranch = await BranchModel.findOne({ admin: req.user._id });
+        if (userBranch) query.branch = userBranch._id;
+      } catch (err) {
+        console.warn('Could not auto-resolve admin branch for user', req.user._id, err && err.message);
+      }
+    }
+  }
   const bookings = await Booking.find(query)
     .populate('branch', 'name code')
     .populate('client', 'name phone email')

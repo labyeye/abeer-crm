@@ -106,6 +106,17 @@ exports.createInventoryItem = asyncHandler(async (req, res, next) => {
   
   req.body.createdBy = req.user.id;
 
+  // If requester is admin/manager (branch-scoped), ensure the inventory is tied to their branch
+  if (req.user.role === 'admin' || req.user.role === 'manager') {
+    if (!req.user.branch) {
+      return res.status(400).json({ success: false, message: 'Branch not found for user' });
+    }
+    req.body.branch = req.user.branch;
+  } else if (!req.body.branch && req.user.role !== 'chairman') {
+    // For unexpected roles, require explicit branch or fail
+    return res.status(400).json({ success: false, message: 'Branch is required' });
+  }
+
   const inventory = await Inventory.create(req.body);
 
   res.status(201).json({
