@@ -126,6 +126,7 @@ const BookingManagement = () => {
   >([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [professionalClients, setProfessionalClients] = useState<Client[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
   const [inventoryCategoryFilters, setInventoryCategoryFilters] = useState<{
     [key: number]: string;
@@ -135,6 +136,10 @@ const BookingManagement = () => {
   }>({});
   const [staffDropdownStates, setStaffDropdownStates] = useState<{[key: number]: boolean}>({});
   const [equipDropdownStates, setEquipDropdownStates] = useState<{[key: number]: boolean}>({});
+  const [staffOutsourceStates, setStaffOutsourceStates] = useState<{[key: number]: boolean}>({});
+  const [equipOutsourceStates, setEquipOutsourceStates] = useState<{[key: number]: boolean}>({});
+  const [outsourceStaff, setOutsourceStaff] = useState<{[key: number]: string[]}>({});
+  const [outsourceEquipment, setOutsourceEquipment] = useState<{[key: number]: any[]}>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -227,10 +232,15 @@ const BookingManagement = () => {
           ? bookingsRes.data
           : bookingsRes.data.data || []
       );
-      setClients(
-        Array.isArray(clientsRes.data)
-          ? clientsRes.data
-          : clientsRes.data.data || []
+      const allClients = Array.isArray(clientsRes.data)
+        ? clientsRes.data
+        : clientsRes.data.data || [];
+      setClients(allClients);
+      // Filter professional clients for outsource staff
+      setProfessionalClients(
+        allClients.filter((client: any) => 
+          client.category && client.category.toLowerCase() === 'professional'
+        )
       );
       setStaff(
         Array.isArray(staffRes.data) ? staffRes.data : staffRes.data.data || []
@@ -324,13 +334,12 @@ const BookingManagement = () => {
   const resetForm = () => {
     setFormData({
       clientId: "",
-      // start with one empty service schedule entry (include pricing fields)
-      // enforce serviceCategoryId + serviceType only (no free-text serviceName)
+      // start with one service schedule entry with default date set to today
       servicesSchedule: [
         {
           serviceCategoryId: "",
           serviceType: [] as string[],
-          date: "",
+          date: new Date().toISOString().split('T')[0], // Default to today's date
           startTime: "",
           endTime: "",
           venueName: "",
@@ -543,30 +552,36 @@ const BookingManagement = () => {
       const remainingAmount = subtotal - (formData.advanceAmount || 0);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
-      const functionDetailsList = scheduleList.map((s: any) => ({
+      const functionDetailsList = scheduleList.map((s: any, idx: number) => ({
         type:
           formData.functionType ||
           categories.find((c: any) => c._id === s.serviceCategoryId)?.name ||
           s.serviceName ||
           formData.serviceNeeded ||
-          "",
+          "General Service",
         date: s.date
           ? new Date(s.date).toISOString()
           : new Date().toISOString(),
-        // include precise startDate/endDate ISO fields when start/end times are provided
+        // include precise startDate/endDate ISO fields only when both date and times are provided
         startDate:
           s.date && s.startTime
             ? new Date(`${s.date}T${s.startTime}`).toISOString()
-            : undefined,
+            : null,
         endDate:
           s.date && s.endTime
             ? new Date(`${s.date}T${s.endTime}`).toISOString()
-            : undefined,
-        time: { start: s.startTime || "", end: s.endTime || "" },
+            : null,
+        time: { 
+          start: s.startTime || "", 
+          end: s.endTime || "" 
+        },
         venue: {
           name: s.venueName || formData.venueName || "",
           address: s.venueAddress || formData.venueAddress || "",
         },
+        // Add outsource data (optional)
+        outsourceStaff: outsourceStaff[idx] || [],
+        outsourceEquipment: outsourceEquipment[idx] || [],
       }));
       // union assigned staff and inventory across schedule entries and global selections
       const allAssignedStaff = Array.from(
@@ -582,18 +597,17 @@ const BookingManagement = () => {
         ])
       );
 
-      // Validate that every schedule entry has a category and at least one type
+      // Optional validation - only validate if service category is provided
       const invalidEntry = (scheduleList || []).find(
         (s: any) =>
-          !s.serviceCategoryId ||
-          !(Array.isArray(s.serviceType) && s.serviceType.length > 0)
+          s.serviceCategoryId && !(Array.isArray(s.serviceType) && s.serviceType.length > 0)
       );
       if (invalidEntry) {
         addNotification({
           type: "error",
           title: "Validation",
           message:
-            "Please select Service and at least one Type for every schedule entry.",
+            "If you select a Service, please also select at least one Type.",
         });
         setSubmitting(false);
         return;
@@ -605,8 +619,8 @@ const BookingManagement = () => {
           (c: any) => c._id === s.serviceCategoryId
         );
         return {
-          service: cat?.name || "",
-          serviceType: s.serviceType || [],
+          service: cat?.name || "General Service",
+          serviceType: Array.isArray(s.serviceType) && s.serviceType.length > 0 ? s.serviceType : [],
           serviceCategory: s.serviceCategoryId || "",
           quantity: s.quantity ?? 1,
           rate: s.price ?? 0,
@@ -706,7 +720,7 @@ const BookingManagement = () => {
         {
           serviceCategoryId: "",
           serviceType: [] as string[],
-          date: "",
+          date: new Date().toISOString().split('T')[0], // Default to today's date
           startTime: "",
           endTime: "",
           venueName: "",
@@ -1286,35 +1300,24 @@ const BookingManagement = () => {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">
                     Function Details
                   </h3>
-                  <div>
-                    <button
-                      type="button"
-                      onClick={addScheduleEntry}
-                      className="px-3 py-1 bg-blue-600 text-white rounded mr-2"
-                    >
-                      Add Service
-                    </button>
-                  </div>
                 </div>
                 <div className="space-y-4">
                   {(formData.servicesSchedule || []).map(
                     (entry: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="p-4 border rounded-lg bg-gray-50"
-                      >
-                        <div className="flex justify-between items-center mb-2">
-                          <div className="font-medium">Service #{idx + 1}</div>
-                          <div>
-                            <button
-                              type="button"
-                              onClick={() => removeScheduleEntry(idx)}
-                              className="text-red-600"
-                            >
-                              Remove
-                            </button>
+                      <div key={idx}>
+                        <div className="p-4 border rounded-lg bg-gray-50">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="font-medium">Service #{idx + 1}</div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => removeScheduleEntry(idx)}
+                                className="text-red-600"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
-                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <label className="text-sm text-gray-600">
@@ -1445,11 +1448,11 @@ const BookingManagement = () => {
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">
-                              Start Time
+                              Start Time (Optional)
                             </label>
                             <input
                               type="time"
-                              value={entry.startTime}
+                              value={entry.startTime || ""}
                               onChange={(e) =>
                                 updateScheduleEntry(
                                   idx,
@@ -1462,11 +1465,11 @@ const BookingManagement = () => {
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">
-                              End Time
+                              End Time (Optional)
                             </label>
                             <input
                               type="time"
-                              value={entry.endTime}
+                              value={entry.endTime || ""}
                               onChange={(e) =>
                                 updateScheduleEntry(
                                   idx,
@@ -1479,10 +1482,10 @@ const BookingManagement = () => {
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">
-                              Venue Name
+                              Venue Name (Optional)
                             </label>
                             <input
-                              value={entry.venueName}
+                              value={entry.venueName || ""}
                               onChange={(e) =>
                                 updateScheduleEntry(
                                   idx,
@@ -1490,15 +1493,16 @@ const BookingManagement = () => {
                                   e.target.value
                                 )
                               }
+                              placeholder="Enter venue name (optional)"
                               className="w-full px-3 py-2 border rounded"
                             />
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">
-                              Venue Address
+                              Venue Address (Optional)
                             </label>
                             <input
-                              value={entry.venueAddress}
+                              value={entry.venueAddress || ""}
                               onChange={(e) =>
                                 updateScheduleEntry(
                                   idx,
@@ -1506,6 +1510,7 @@ const BookingManagement = () => {
                                   e.target.value
                                 )
                               }
+                              placeholder="Enter venue address (optional)"
                               className="w-full px-3 py-2 border rounded"
                             />
                           </div>
@@ -1567,9 +1572,26 @@ const BookingManagement = () => {
                         </div>
 
                         <div className="mt-3">
-                          <label className="text-sm font-medium text-gray-700">
-                            Assign Staff
-                          </label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-gray-700">
+                              Assign Staff (Optional)
+                            </label>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm text-gray-600">Internal</span>
+                              <button
+                                type="button"
+                                onClick={() => setStaffOutsourceStates(prev => ({ ...prev, [idx]: !staffOutsourceStates[idx] }))}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  staffOutsourceStates[idx] ? 'bg-blue-600' : 'bg-gray-200'
+                                }`}
+                              >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  staffOutsourceStates[idx] ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
+                              </button>
+                              <span className="text-sm text-gray-600">Outsource</span>
+                            </div>
+                          </div>
                           <div className="mt-2">
                             {(() => {
                               // compute conflicts: find other entries with same date and overlapping time
@@ -1623,6 +1645,59 @@ const BookingManagement = () => {
                               
                               const selectedStaff = entry.assignedStaff || [];
                               const staffDropdownOpen = staffDropdownStates[idx] || false;
+                              const isOutsourceMode = staffOutsourceStates[idx] || false;
+                              const selectedOutsourceStaff = outsourceStaff[idx] || [];
+                              
+                              if (isOutsourceMode) {
+                                return (
+                                  <div className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => setStaffDropdownStates(prev => ({ ...prev, [idx]: !staffDropdownOpen }))}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
+                                    >
+                                      <span className="text-gray-500">
+                                        {selectedOutsourceStaff.length === 0
+                                          ? "Select professional clients..."
+                                          : `${selectedOutsourceStaff.length} professionals selected`}
+                                      </span>
+                                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </button>
+                                    
+                                    {staffDropdownOpen && (
+                                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                        {professionalClients.map((client) => {
+                                          const isSelected = selectedOutsourceStaff.includes(client._id);
+                                          return (
+                                            <label
+                                              key={client._id}
+                                              className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                  const checked = e.target.checked;
+                                                  const list = new Set(selectedOutsourceStaff);
+                                                  if (checked) list.add(client._id);
+                                                  else list.delete(client._id);
+                                                  setOutsourceStaff(prev => ({ ...prev, [idx]: Array.from(list) }));
+                                                }}
+                                                className="mr-2"
+                                              />
+                                              <span className="text-sm">
+                                                {client.name} - {client.phone}
+                                              </span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              }
                               
                               return (
                                 <div className="relative">
@@ -1682,9 +1757,26 @@ const BookingManagement = () => {
                         </div>
 
                         <div className="mt-3">
-                          <label className="text-sm font-medium text-gray-700">
-                            Select Equipment
-                          </label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium text-gray-700">
+                              Select Equipment (Optional)
+                            </label>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm text-gray-600">Internal</span>
+                              <button
+                                type="button"
+                                onClick={() => setEquipOutsourceStates(prev => ({ ...prev, [idx]: !equipOutsourceStates[idx] }))}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  equipOutsourceStates[idx] ? 'bg-blue-600' : 'bg-gray-200'
+                                }`}
+                              >
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                  equipOutsourceStates[idx] ? 'translate-x-6' : 'translate-x-1'
+                                }`} />
+                              </button>
+                              <span className="text-sm text-gray-600">Outsource</span>
+                            </div>
+                          </div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <button
                               type="button"
@@ -1835,6 +1927,197 @@ const BookingManagement = () => {
                               
                               const selectedEquipment = entry.inventorySelection || [];
                               const equipDropdownOpen = equipDropdownStates[idx] || false;
+                              const isEquipOutsourceMode = equipOutsourceStates[idx] || false;
+                              const selectedOutsourceEquipment = outsourceEquipment[idx] || [];
+                              
+                              if (isEquipOutsourceMode) {
+                                return (
+                                  <div className="space-y-4">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm font-medium">Outsource Equipment</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newEquip = {
+                                            sku: '',
+                                            modelNo: '',
+                                            name: '',
+                                            brand: '',
+                                            qty: 1,
+                                            rentingAmount: 0,
+                                            rentingFromPersonName: '',
+                                            email: '',
+                                            phone: '',
+                                            address: ''
+                                          };
+                                          setOutsourceEquipment(prev => ({
+                                            ...prev,
+                                            [idx]: [...(prev[idx] || []), newEquip]
+                                          }));
+                                        }}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                                      >
+                                        Add Equipment
+                                      </button>
+                                    </div>
+                                    
+                                    {selectedOutsourceEquipment.map((equip: any, equipIdx: number) => (
+                                      <div key={equipIdx} className="border rounded-lg p-4 bg-gray-50">
+                                        <div className="flex justify-between items-center mb-3">
+                                          <span className="font-medium text-sm">Equipment #{equipIdx + 1}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setOutsourceEquipment(prev => ({
+                                                ...prev,
+                                                [idx]: prev[idx]?.filter((_, i) => i !== equipIdx) || []
+                                              }));
+                                            }}
+                                            className="text-red-600 text-sm"
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                          <div>
+                                            <label className="text-xs text-gray-600">SKU</label>
+                                            <input
+                                              type="text"
+                                              value={equip.sku || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], sku: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Model No</label>
+                                            <input
+                                              type="text"
+                                              value={equip.modelNo || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], modelNo: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Equipment Name</label>
+                                            <input
+                                              type="text"
+                                              value={equip.name || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], name: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Brand</label>
+                                            <input
+                                              type="text"
+                                              value={equip.brand || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], brand: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Quantity</label>
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              value={equip.qty || 1}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], qty: parseInt(e.target.value) || 1 };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Renting Amount</label>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={equip.rentingAmount || 0}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], rentingAmount: parseFloat(e.target.value) || 0 };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Renting From (Name)</label>
+                                            <input
+                                              type="text"
+                                              value={equip.rentingFromPersonName || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], rentingFromPersonName: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Email</label>
+                                            <input
+                                              type="email"
+                                              value={equip.email || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], email: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div>
+                                            <label className="text-xs text-gray-600">Phone</label>
+                                            <input
+                                              type="tel"
+                                              value={equip.phone || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], phone: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                          <div className="md:col-span-2">
+                                            <label className="text-xs text-gray-600">Address</label>
+                                            <textarea
+                                              value={equip.address || ''}
+                                              onChange={(e) => {
+                                                const updated = [...selectedOutsourceEquipment];
+                                                updated[equipIdx] = { ...updated[equipIdx], address: e.target.value };
+                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
+                                              }}
+                                              rows={2}
+                                              className="w-full px-2 py-1 border rounded text-sm"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              }
                               
                               return (
                                 <div className="relative">
@@ -1891,6 +2174,18 @@ const BookingManagement = () => {
                               );
                             })()}
                           </div>
+                        </div>
+                        </div>
+                        
+                        {/* Add Service button after each service entry */}
+                        <div className="mt-3 text-center">
+                          <button
+                            type="button"
+                            onClick={addScheduleEntry}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Add Another Service
+                          </button>
                         </div>
                       </div>
                     )
