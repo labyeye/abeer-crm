@@ -367,50 +367,61 @@ const BookingManagement = () => {
     // Build servicesSchedule from existing booking details. If booking has only single functionDetails,
     // convert it into a single-element schedule. Include assigned staff and inventory selection per entry.
     // Try to map existing booking.services (if present) to schedule entries so pricing is editable per schedule
-    let scheduleEntries: any[] = [];
-    if (Array.isArray(booking.services) && booking.services.length > 0) {
-      // Map each service item to a schedule entry where possible
-      scheduleEntries = booking.services.map((svc: any) => ({
-        serviceName:
-          svc.service ||
-          svc.serviceName ||
-          booking.serviceNeeded ||
-          booking.functionDetails.type ||
-          "",
-        date: booking.functionDetails?.date
-          ? booking.functionDetails.date.split("T")[0]
-          : "",
-        startTime: booking.functionDetails?.time?.start || "",
-        endTime: booking.functionDetails?.time?.end || "",
-        venueName: booking.functionDetails?.venue?.name || "",
-        venueAddress: booking.functionDetails?.venue?.address || "",
-        assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
-        inventorySelection: booking.inventorySelection?.map((i) => i._id) || [],
+  let scheduleEntries: any[] = [];
+  const b: any = booking as any;
+    // Prefer using functionDetailsList if available because it contains per-service dates, staff and inventory
+    if (Array.isArray(b.functionDetailsList) && b.functionDetailsList.length > 0) {
+      scheduleEntries = b.functionDetailsList.map((fd: any, i: number) => {
+        const svc = Array.isArray(b.services) ? b.services[i] : null;
+        return {
+          serviceName: svc?.service || svc?.serviceName || fd.type || b.serviceNeeded || '',
+          date: fd.date ? (typeof fd.date === 'string' ? fd.date.split('T')[0] : new Date(fd.date).toISOString().split('T')[0]) : (b.functionDetails?.date ? b.functionDetails.date.split('T')[0] : ''),
+          startTime: (fd.time && fd.time.start) || b.functionDetails?.time?.start || '',
+          endTime: (fd.time && fd.time.end) || b.functionDetails?.time?.end || '',
+          venueName: (fd.venue && fd.venue.name) || b.functionDetails?.venue?.name || '',
+          venueAddress: (fd.venue && fd.venue.address) || b.functionDetails?.venue?.address || '',
+          assignedStaff: Array.isArray(fd.assignedStaff) && fd.assignedStaff.length ? fd.assignedStaff.map((s: any) => (s._id ? s._id : s)) : (b.assignedStaff?.map((s: any) => s._id) || []),
+          inventorySelection: Array.isArray(fd.inventorySelection) && fd.inventorySelection.length ? fd.inventorySelection.map((it: any) => (it._id ? it._id : it)) : (b.inventorySelection?.map((i: any) => i._id) || []),
+          quantity: svc?.quantity ?? svc?.qty ?? 1,
+          price: svc?.rate ?? svc?.price ?? 0,
+          amount: svc?.amount ?? svc?.total ?? ((svc?.quantity ?? svc?.qty ?? 1) * (svc?.rate ?? svc?.price ?? 0)),
+          serviceCategoryId: svc?.serviceCategory || svc?.serviceCategoryId || '',
+          serviceType: svc?.serviceType || svc?.type || [],
+        };
+      });
+    } else if (Array.isArray(booking.services) && booking.services.length > 0) {
+      // Fallback: map services to a single-date (functionDetails) when functionDetailsList is absent
+      scheduleEntries = b.services.map((svc: any) => ({
+        serviceName: svc.service || svc.serviceName || b.serviceNeeded || b.functionDetails?.type || '',
+        date: b.functionDetails?.date ? b.functionDetails.date.split('T')[0] : '',
+        startTime: b.functionDetails?.time?.start || '',
+        endTime: b.functionDetails?.time?.end || '',
+        venueName: b.functionDetails?.venue?.name || '',
+        venueAddress: b.functionDetails?.venue?.address || '',
+        assignedStaff: b.assignedStaff?.map((s: any) => s._id) || [],
+        inventorySelection: b.inventorySelection?.map((i: any) => i._id) || [],
         quantity: svc.quantity ?? svc.qty ?? 1,
         price: svc.rate ?? svc.price ?? 0,
-        amount:
-          svc.amount ??
-          svc.total ??
-          (svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0),
+        amount: svc.amount ?? svc.total ?? (svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0),
+        serviceCategoryId: svc.serviceCategory || svc.serviceCategoryId || '',
+        serviceType: svc.serviceType || svc.type || [],
       }));
     } else {
       scheduleEntries = [
         {
-          serviceName:
-            booking.serviceNeeded || booking.functionDetails.type || "",
-          date: booking.functionDetails.date
-            ? booking.functionDetails.date.split("T")[0]
-            : "",
-          startTime: booking.functionDetails.time?.start || "",
-          endTime: booking.functionDetails.time?.end || "",
-          venueName: booking.functionDetails.venue?.name || "",
-          venueAddress: booking.functionDetails.venue?.address || "",
-          assignedStaff: booking.assignedStaff?.map((s) => s._id) || [],
-          inventorySelection:
-            booking.inventorySelection?.map((i) => i._id) || [],
+          serviceName: b.serviceNeeded || b.functionDetails?.type || '',
+          date: b.functionDetails?.date ? b.functionDetails.date.split('T')[0] : '',
+          startTime: b.functionDetails?.time?.start || '',
+          endTime: b.functionDetails?.time?.end || '',
+          venueName: b.functionDetails?.venue?.name || '',
+          venueAddress: b.functionDetails?.venue?.address || '',
+          assignedStaff: b.assignedStaff?.map((s: any) => s._id) || [],
+          inventorySelection: b.inventorySelection?.map((i: any) => i._id) || [],
           quantity: 1,
           price: 0,
           amount: 0,
+          serviceCategoryId: '',
+          serviceType: [],
         },
       ];
     }
@@ -1571,45 +1582,33 @@ const BookingManagement = () => {
                                   }
                                 }
                               );
-                              return staff.map((s) => {
-                                const disabled = conflicts.has(s._id);
-                                return (
-                                  <label
-                                    key={s._id}
-                                    className="inline-flex items-center space-x-2"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      disabled={disabled}
-                                      checked={(
-                                        entry.assignedStaff || []
-                                      ).includes(s._id)}
-                                      onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        const list = new Set(
-                                          entry.assignedStaff || []
-                                        );
-                                        if (checked) list.add(s._id);
-                                        else list.delete(s._id);
-                                        updateScheduleEntry(
-                                          idx,
-                                          "assignedStaff",
-                                          Array.from(list)
-                                        );
-                                      }}
-                                    />
-                                    <span
-                                      className={`text-sm ${
-                                        disabled
-                                          ? "text-gray-400 line-through"
-                                          : ""
-                                      }`}
-                                    >
-                                      {s.name} ({s.designation})
-                                    </span>
-                                  </label>
-                                );
-                              });
+                              // Render a multi-select picker for staff
+                              return (
+                                <select
+                                  key={`staff-select-${idx}`}
+                                  multiple
+                                  value={entry.assignedStaff || []}
+                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    const opts = Array.from(e.target.selectedOptions || []);
+                                    const vals = opts.map((o) => o.value);
+                                    updateScheduleEntry(idx, "assignedStaff", vals);
+                                  }}
+                                  className="w-full h-32 px-2 py-2 border rounded"
+                                >
+                                  {staff.map((s) => {
+                                    const disabled = conflicts.has(s._id);
+                                    return (
+                                      <option
+                                        key={s._id}
+                                        value={s._id}
+                                        disabled={disabled}
+                                      >
+                                        {s.name} ({s.designation})
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              );
                             })()}
                           </div>
                         </div>
@@ -1765,48 +1764,33 @@ const BookingManagement = () => {
                                   }
                                 }
                               );
-                              return filtered.map((it) => {
-                                const disabled = equipConflicts.has(it._id);
-                                return (
-                                  <label
-                                    key={it._id}
-                                    className="inline-flex items-center space-x-2"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      disabled={disabled}
-                                      checked={(
-                                        entry.inventorySelection || []
-                                      ).includes(it._id)}
-                                      onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        const list = new Set(
-                                          entry.inventorySelection || []
-                                        );
-                                        if (checked) list.add(it._id);
-                                        else list.delete(it._id);
-                                        updateScheduleEntry(
-                                          idx,
-                                          "inventorySelection",
-                                          Array.from(list)
-                                        );
-                                      }}
-                                    />
-                                    <span
-                                      className={`text-sm ${
-                                        disabled
-                                          ? "text-gray-400 line-through"
-                                          : ""
-                                      }`}
-                                    >
-                                      {it.name}{" "}
-                                      <span className="text-xs text-gray-400 ml-2">
-                                        ({it.category})
-                                      </span>
-                                    </span>
-                                  </label>
-                                );
-                              });
+                              // Render equipment as multi-select picker
+                              return (
+                                <select
+                                  key={`equip-select-${idx}`}
+                                  multiple
+                                  value={entry.inventorySelection || []}
+                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                    const opts = Array.from(e.target.selectedOptions || []);
+                                    const vals = opts.map((o) => o.value);
+                                    updateScheduleEntry(idx, "inventorySelection", vals);
+                                  }}
+                                  className="w-full h-36 px-2 py-2 border rounded"
+                                >
+                                  {filtered.map((it: any) => {
+                                    const disabled = equipConflicts.has(it._id);
+                                    return (
+                                      <option
+                                        key={it._id}
+                                        value={it._id}
+                                        disabled={disabled}
+                                      >
+                                        {it.name} ({it.category})
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              );
                             })()}
                           </div>
                         </div>
