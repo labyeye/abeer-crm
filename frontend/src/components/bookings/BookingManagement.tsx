@@ -102,6 +102,18 @@ interface Branch {
 }
 
 const BookingManagement = () => {
+  // Helper functions for DD/MM/YYYY date format
+  const formatDateForDisplay = (isoDate: string) => {
+    if (!isoDate) return "";
+    const date = new Date(isoDate);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -121,6 +133,8 @@ const BookingManagement = () => {
   const [cachedInventoryByCategory, setCachedInventoryByCategory] = useState<{
     [category: string]: InventoryItem[];
   }>({});
+  const [staffDropdownStates, setStaffDropdownStates] = useState<{[key: number]: boolean}>({});
+  const [equipDropdownStates, setEquipDropdownStates] = useState<{[key: number]: boolean}>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -1394,14 +1408,38 @@ const BookingManagement = () => {
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">
-                              Date
+                              Date (DD/MM/YYYY)
                             </label>
                             <input
-                              type="date"
-                              value={entry.date}
-                              onChange={(e) =>
-                                updateScheduleEntry(idx, "date", e.target.value)
-                              }
+                              type="text"
+                              placeholder="DD/MM/YYYY"
+                              value={formatDateForDisplay(entry.date)}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                // Allow typing DD/MM/YYYY format
+                                if (/^\d{0,2}\/?\d{0,2}\/?\d{0,4}$/.test(value) || value === "") {
+                                  // Convert DD/MM/YYYY to YYYY-MM-DD for storage
+                                  if (value.length === 10 && value.includes("/")) {
+                                    const [day, month, year] = value.split("/");
+                                    if (day && month && year && day.length === 2 && month.length === 2 && year.length === 4) {
+                                      const isoDate = `${year}-${month}-${day}`;
+                                      updateScheduleEntry(idx, "date", isoDate);
+                                    }
+                                  } else if (value === "") {
+                                    updateScheduleEntry(idx, "date", "");
+                                  }
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value;
+                                if (value && value.length === 10) {
+                                  const [day, month, year] = value.split("/");
+                                  if (day && month && year) {
+                                    const isoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+                                    updateScheduleEntry(idx, "date", isoDate);
+                                  }
+                                }
+                              }}
                               className="w-full px-3 py-2 border rounded"
                             />
                           </div>
@@ -1532,7 +1570,7 @@ const BookingManagement = () => {
                           <label className="text-sm font-medium text-gray-700">
                             Assign Staff
                           </label>
-                          <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="mt-2">
                             {(() => {
                               // compute conflicts: find other entries with same date and overlapping time
                               const conflicts = new Set<string>();
@@ -1582,32 +1620,62 @@ const BookingManagement = () => {
                                   }
                                 }
                               );
-                              // Render a multi-select picker for staff
+                              
+                              const selectedStaff = entry.assignedStaff || [];
+                              const staffDropdownOpen = staffDropdownStates[idx] || false;
+                              
                               return (
-                                <select
-                                  key={`staff-select-${idx}`}
-                                  multiple
-                                  value={entry.assignedStaff || []}
-                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                    const opts = Array.from(e.target.selectedOptions || []);
-                                    const vals = opts.map((o) => o.value);
-                                    updateScheduleEntry(idx, "assignedStaff", vals);
-                                  }}
-                                  className="w-full h-32 px-2 py-2 border rounded"
-                                >
-                                  {staff.map((s) => {
-                                    const disabled = conflicts.has(s._id);
-                                    return (
-                                      <option
-                                        key={s._id}
-                                        value={s._id}
-                                        disabled={disabled}
-                                      >
-                                        {s.name} ({s.designation})
-                                      </option>
-                                    );
-                                  })}
-                                </select>
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStaffDropdownStates(prev => ({ ...prev, [idx]: !staffDropdownOpen }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
+                                  >
+                                    <span className="text-gray-500">
+                                      {selectedStaff.length === 0
+                                        ? "Select staff members..."
+                                        : `${selectedStaff.length} staff selected`}
+                                    </span>
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  
+                                  {staffDropdownOpen && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                      {staff.map((s) => {
+                                        const disabled = conflicts.has(s._id);
+                                        const isSelected = selectedStaff.includes(s._id);
+                                        return (
+                                          <label
+                                            key={s._id}
+                                            className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
+                                              disabled ? 'opacity-50 cursor-not-allowed' : ''
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              disabled={disabled}
+                                              checked={isSelected}
+                                              onChange={(e) => {
+                                                if (disabled) return;
+                                                const checked = e.target.checked;
+                                                const list = new Set(selectedStaff);
+                                                if (checked) list.add(s._id);
+                                                else list.delete(s._id);
+                                                updateScheduleEntry(idx, "assignedStaff", Array.from(list));
+                                              }}
+                                              className="mr-2"
+                                            />
+                                            <span className={`text-sm ${disabled ? 'line-through text-gray-400' : ''}`}>
+                                              {s.name} ({s.designation})
+                                            </span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })()}
                           </div>
@@ -1692,7 +1760,7 @@ const BookingManagement = () => {
                             ))}
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="mt-2">
                             {(() => {
                               let inventoryList: any[] = [];
                               if (
@@ -1764,32 +1832,62 @@ const BookingManagement = () => {
                                   }
                                 }
                               );
-                              // Render equipment as multi-select picker
+                              
+                              const selectedEquipment = entry.inventorySelection || [];
+                              const equipDropdownOpen = equipDropdownStates[idx] || false;
+                              
                               return (
-                                <select
-                                  key={`equip-select-${idx}`}
-                                  multiple
-                                  value={entry.inventorySelection || []}
-                                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                    const opts = Array.from(e.target.selectedOptions || []);
-                                    const vals = opts.map((o) => o.value);
-                                    updateScheduleEntry(idx, "inventorySelection", vals);
-                                  }}
-                                  className="w-full h-36 px-2 py-2 border rounded"
-                                >
-                                  {filtered.map((it: any) => {
-                                    const disabled = equipConflicts.has(it._id);
-                                    return (
-                                      <option
-                                        key={it._id}
-                                        value={it._id}
-                                        disabled={disabled}
-                                      >
-                                        {it.name} ({it.category})
-                                      </option>
-                                    );
-                                  })}
-                                </select>
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEquipDropdownStates(prev => ({ ...prev, [idx]: !equipDropdownOpen }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
+                                  >
+                                    <span className="text-gray-500">
+                                      {selectedEquipment.length === 0
+                                        ? "Select equipment..."
+                                        : `${selectedEquipment.length} items selected`}
+                                    </span>
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  
+                                  {equipDropdownOpen && (
+                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                      {filtered.map((it: any) => {
+                                        const disabled = equipConflicts.has(it._id);
+                                        const isSelected = selectedEquipment.includes(it._id);
+                                        return (
+                                          <label
+                                            key={it._id}
+                                            className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
+                                              disabled ? 'opacity-50 cursor-not-allowed' : ''
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              disabled={disabled}
+                                              checked={isSelected}
+                                              onChange={(e) => {
+                                                if (disabled) return;
+                                                const checked = e.target.checked;
+                                                const list = new Set(selectedEquipment);
+                                                if (checked) list.add(it._id);
+                                                else list.delete(it._id);
+                                                updateScheduleEntry(idx, "inventorySelection", Array.from(list));
+                                              }}
+                                              className="mr-2"
+                                            />
+                                            <span className={`text-sm ${disabled ? 'line-through text-gray-400' : ''}`}>
+                                              {it.name} ({it.category})
+                                            </span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
                               );
                             })()}
                           </div>
