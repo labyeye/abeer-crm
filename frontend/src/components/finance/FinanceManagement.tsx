@@ -16,6 +16,7 @@ import {
   Download,
   Receipt,
 } from "lucide-react";
+import ReceivePayment from './ReceivePayment';
 import { useNotification } from "../../contexts/NotificationContext";
 
 const FinanceManagement = () => {
@@ -43,6 +44,7 @@ const FinanceManagement = () => {
     Record<string, number>
   >({});
   const [inventoryByBranch, setInventoryByBranch] = useState<Record<string, number>>({});
+  const [showReceivePayment, setShowReceivePayment] = useState(false);
 
   const financialStats = {
     totalRevenue: totals.revenue || 0,
@@ -482,6 +484,11 @@ const FinanceManagement = () => {
   return (
     <div className="space-y-6">
       {}
+      {showReceivePayment && (
+        <div className="p-4">
+          <ReceivePayment onDone={() => setShowReceivePayment(false)} />
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -493,6 +500,11 @@ const FinanceManagement = () => {
           <div className="text-sm text-gray-500 mt-1">
             Total Bookings:{" "}
             <span className="font-medium text-gray-700">{bookings.length}</span>
+          </div>
+          <div className="mt-3">
+            <button onClick={() => setShowReceivePayment(s => !s)} className="px-3 py-2 bg-emerald-600 text-white rounded">
+              {showReceivePayment ? 'Close Receive Payment' : 'Receive Payment'}
+            </button>
           </div>
         </div>
         <div className="flex space-x-3">

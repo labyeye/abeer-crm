@@ -367,6 +367,21 @@ export const bookingAPI = {
   },
 };
 
+export const paymentAPI = {
+  createPayment: async (paymentData: APIData) => {
+    const response = await api.post('/payments', paymentData);
+    return response.data;
+  },
+  getPayments: async (params?: QueryParams) => {
+    const response = await api.get('/payments', { params });
+    return response.data;
+  },
+  getClientBookings: async (clientId: string) => {
+    const response = await api.get(`/payments/client/${clientId}/bookings`);
+    return response.data;
+  }
+};
+
 
 export const rentalAPI = {
   getRentals: async (params?: QueryParams) => {

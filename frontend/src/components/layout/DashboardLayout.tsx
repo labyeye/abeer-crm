@@ -6,6 +6,7 @@ import StaffManagement from '../staff/StaffManagement';
 import BookingManagement from '../bookings/BookingManagement';
 import ClientManagement from '../clients/ClientManagement';
 import FinanceManagement from '../finance/FinanceManagement';
+import ReceivePayment from '../finance/ReceivePayment';
 import InventoryManagement from '../inventory/InventoryManagement';
 import AttendanceManagement from '../attendance/AttendanceManagement';
 import QuotationManagement from '../quotations/QuotationManagement';
@@ -37,6 +38,8 @@ const DashboardLayout = () => {
         return <ClientManagement />;
       case 'finance':
         return <FinanceManagement />;
+      case 'receive-payments':
+        return <ReceivePayment />;
       case 'inventory':
         return <InventoryManagement />;
       case 'attendance':

@@ -1400,17 +1400,32 @@ const BookingManagement = () => {
                             </div>
                           </div>
                           <div>
-                            <label className="text-sm text-gray-600">
-                              Date
-                            </label>
-                            <input
-                              type="date"
-                              value={entry.date || ""}
-                              onChange={(e) =>
-                                updateScheduleEntry(idx, "date", e.target.value)
-                              }
-                              className="w-full px-3 py-2 border rounded"
-                            />
+                            <label className="text-sm text-gray-600">Date</label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="date"
+                                value={entry.date || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(idx, "date", e.target.value)
+                                }
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                              {/* Show DD/MM/YYYY preview beside the native control */}
+                              <div className="text-sm text-gray-600 px-3 py-2 border rounded bg-gray-50">
+                                {entry.date ? (() => {
+                                  try {
+                                    const d = new Date(entry.date);
+                                    if (isNaN(d.getTime())) return "Invalid date";
+                                    const dd = String(d.getDate()).padStart(2, '0');
+                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                    const yyyy = d.getFullYear();
+                                    return `${dd}/${mm}/${yyyy}`;
+                                  } catch (e) {
+                                    return "Invalid date";
+                                  }
+                                })() : 'DD/MM/YYYY'}
+                              </div>
+                            </div>
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">

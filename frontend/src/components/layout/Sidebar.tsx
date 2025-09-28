@@ -5,6 +5,7 @@ import {
   Calendar, 
   UserCheck, 
   DollarSign, 
+  CreditCard,
   Package, 
   Building2, 
   X,
@@ -74,6 +75,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       permission: 'finance',
       roles: ['chairman', 'admin'],
       color: 'warning'
+    },
+    {
+      id: 'receive-payments',
+      name: 'Receive Payments',
+      icon: CreditCard,
+      permission: 'payments',
+      roles: ['chairman', 'admin', 'branch_admin'],
+      color: 'success'
     },
     {
       id: 'inventory',
