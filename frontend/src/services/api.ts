@@ -54,7 +54,7 @@ const VITE_API_URL = (import.meta as unknown as { env?: { VITE_API_URL?: string 
 type APIData = Record<string, unknown>;
 
 const api = axios.create({
-  baseURL: VITE_API_URL || 'https://abeer-crm-44fd.vercel.app/api',
+  baseURL: VITE_API_URL || 'http://localhost:3500/api',
   headers: {
     'Content-Type': 'application/json',
   },

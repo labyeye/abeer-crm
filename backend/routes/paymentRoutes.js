@@ -14,6 +14,30 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const payment = await Payment.create({ client, booking, invoice, amount, date, method, reference, notes, branch, company, createdBy: req.user && req.user._id });
 
+  // If linked to a booking, update booking.pricing.remainingAmount and paymentStatus
+  if (booking) {
+    try {
+      const b = await Booking.findById(booking);
+      if (b && b.pricing) {
+        // reduce remaining amount by the payment amount
+        b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - Number(amount || 0));
+        // update advanceAmount (treat payments towards advance)
+        b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + Number(amount || 0);
+        // set paymentStatus based on remainingAmount
+        if (b.pricing.remainingAmount === 0) {
+          b.paymentStatus = 'completed';
+        } else if (b.pricing.advanceAmount > 0) {
+          b.paymentStatus = 'partial';
+        } else {
+          b.paymentStatus = 'pending';
+        }
+        await b.save();
+      }
+    } catch (e) {
+      console.error('Failed to update booking after payment:', e);
+    }
+  }
+
   // If linked to an invoice, push to invoice.paymentHistory and update remaining/advance fields
   if (invoice) {
     const Invoice = require('../models/Invoice');

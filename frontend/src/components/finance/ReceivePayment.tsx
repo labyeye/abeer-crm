@@ -8,6 +8,8 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState<boolean>(false);
   const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
+  const [bookingPayments, setBookingPayments] = useState<any[]>([]);
+  const [bookingPaymentsLoading, setBookingPaymentsLoading] = useState<boolean>(false);
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0,10));
   const [amount, setAmount] = useState<number | ''>('');
   const [method, setMethod] = useState<string>('cash');
@@ -56,9 +58,29 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     if (!selectedBooking) return;
     const b = bookings.find(x => x._id === selectedBooking);
     if (b) {
-      setAmount(b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount || '');
+      setAmount(b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount || b.pricing?.remainingAmount || '');
     }
   }, [selectedBooking, bookings]);
+
+  // fetch payments for the selected booking
+  useEffect(() => {
+    if (!selectedBooking) {
+      setBookingPayments([]);
+      return;
+    }
+    (async () => {
+      setBookingPaymentsLoading(true);
+      try {
+        const res = await paymentAPI.getPayments({ booking: selectedBooking, limit: 100 });
+        const list = Array.isArray(res) ? res : (res && res.data) ? res.data : res || [];
+        setBookingPayments(list);
+      } catch (err) {
+        console.error('Failed to load booking payments', err);
+      } finally {
+        setBookingPaymentsLoading(false);
+      }
+    })();
+  }, [selectedBooking]);
 
   const submit = async () => {
     setError(null);
@@ -76,6 +98,31 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         notes
       };
       await paymentAPI.createPayment(payload);
+      // refresh bookings and payments for the selected client/booking
+      if (selectedClient) {
+        try {
+          const res = await paymentAPI.getClientBookings(selectedClient);
+          const list = Array.isArray(res) ? res : (res && res.data) ? res.data : [];
+          setBookings(list);
+        } catch (e) {
+          console.error('Failed to refresh bookings after payment', e);
+        }
+      }
+
+      if (selectedBooking) {
+        try {
+          const res2 = await paymentAPI.getPayments({ booking: selectedBooking, limit: 100 });
+          const list2 = Array.isArray(res2) ? res2 : (res2 && res2.data) ? res2.data : res2 || [];
+          setBookingPayments(list2);
+          // update amount field to remaining if available
+          const b = bookings.find(x => x._id === selectedBooking);
+          const remaining = b?.pricing?.remainingAmount ?? b?.pricing?.totalAmount ?? null;
+          if (remaining != null) setAmount(remaining);
+        } catch (e) {
+          console.error('Failed to refresh booking payments after payment', e);
+        }
+      }
+
       setSaving(false);
       if (onDone) onDone();
       alert('Payment saved');
@@ -293,6 +340,54 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                       Auto-fill
                     </button>
                   </div>
+                </div>
+                {/* Remaining and History */}
+                <div className="mt-4">
+                  {selectedBooking && (() => {
+                    const b = bookings.find(x => x._id === selectedBooking);
+                    const remaining = b?.pricing?.remainingAmount ?? b?.pricing?.totalAmount ?? null;
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-600">Remaining Amount:</div>
+                          <div className="px-3 py-1 bg-yellow-50 text-yellow-800 rounded font-semibold">{remaining != null ? `₹${Number(remaining).toLocaleString()}` : '—'}</div>
+                          <div className="text-xs text-gray-500">(updates when payments are recorded)</div>
+                        </div>
+
+                        <div>
+                          <div className="text-sm text-gray-600 mb-2">Payment History</div>
+                          <div className="bg-gray-50 border border-gray-100 rounded">
+                            {bookingPaymentsLoading ? (
+                              <div className="p-4 text-sm text-gray-500">Loading payments...</div>
+                            ) : bookingPayments && bookingPayments.length ? (
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-gray-600">
+                                    <th className="px-3 py-2">Date</th>
+                                    <th className="px-3 py-2">Amount</th>
+                                    <th className="px-3 py-2">Method</th>
+                                    <th className="px-3 py-2">Notes</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {bookingPayments.map(p => (
+                                    <tr key={p._id} className="border-t border-gray-100">
+                                      <td className="px-3 py-2">{new Date(p.date).toLocaleDateString()}</td>
+                                      <td className="px-3 py-2">₹{Number(p.amount).toLocaleString()}</td>
+                                      <td className="px-3 py-2">{p.method}</td>
+                                      <td className="px-3 py-2">{p.notes || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <div className="p-4 text-sm text-gray-500">No payments recorded for this booking</div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

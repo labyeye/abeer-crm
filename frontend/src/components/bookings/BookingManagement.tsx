@@ -1074,21 +1074,34 @@ const BookingManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        booking.status === "completed"
-                          ? "bg-green-100 text-green-800"
-                          : booking.status === "confirmed"
-                          ? "bg-blue-100 text-blue-800"
-                          : booking.status === "in_progress"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : booking.status === "cancelled"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {booking.status}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          booking.status === "completed"
+                            ? "bg-green-100 text-green-800"
+                            : booking.status === "confirmed"
+                            ? "bg-blue-100 text-blue-800"
+                            : booking.status === "in_progress"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : booking.status === "cancelled"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {booking.status}
+                      </span>
+
+                      {/* Payment status / remaining amount */}
+                      {(booking as any).paymentStatus === 'completed' ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Paid</span>
+                      ) : (booking as any).paymentStatus === 'partial' ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Partial</span>
+                      ) : (
+                        (booking as any).pricing?.remainingAmount ? (
+                          <span className="text-sm text-gray-600">Remaining: ₹{Number((booking as any).pricing.remainingAmount).toLocaleString()}</span>
+                        ) : null
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
