@@ -33,6 +33,16 @@ const DailyExpenses = () => {
     return found ? found.name || found.companyName || found.code || branch : branch;
   };
 
+  const formatDateDMY = (d: any) => {
+    if (!d) return "";
+    const dateObj = d instanceof Date ? d : new Date(d);
+    if (isNaN(dateObj.getTime())) return "";
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(dateObj.getFullYear());
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
   useEffect(() => {
     fetchExpenses();
   fetchPurposes();
@@ -172,6 +182,9 @@ const DailyExpenses = () => {
               }
               className="p-2 border rounded"
             />
+            <div className="ml-2 text-sm text-gray-600">
+              {formData.date ? formatDateDMY(formData.date) : ''}
+            </div>
             <div className="flex items-center space-x-2 w-full">
               <div className="flex-1">
                 <select
@@ -370,7 +383,7 @@ const DailyExpenses = () => {
             <tbody>
               {expenses.map((exp) => (
                 <tr key={exp._id} className="border-t">
-                  <td>{new Date(exp.date).toLocaleDateString()}</td>
+                  <td>{formatDateDMY(exp.date || exp.createdAt)}</td>
                   <td>{exp.purpose}</td>
                   <td>₹{exp.amount}</td>
                   <td>{exp.paidBy?.name || "-"}</td>
