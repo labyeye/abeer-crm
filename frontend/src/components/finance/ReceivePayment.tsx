@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { clientAPI, paymentAPI } from '../../services/api';
 import DateInputDDMMYYYY from '../common/DateInputDDMMYYYY';
+import logo from '../../images/logo.png';
 
 const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [clients, setClients] = useState<any[]>([]);
@@ -98,7 +99,13 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         method,
         notes
       };
-      await paymentAPI.createPayment(payload);
+      const res = await paymentAPI.createPayment(payload);
+      // normalize created payment from different API shapes
+      const createdPayment = Array.isArray(res)
+        ? res[0]
+        : res && res.data
+        ? res.data
+        : res;
       // refresh bookings and payments for the selected client/booking
       if (selectedClient) {
         try {
@@ -114,11 +121,17 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         try {
           const res2 = await paymentAPI.getPayments({ booking: selectedBooking, limit: 100 });
           const list2 = Array.isArray(res2) ? res2 : (res2 && res2.data) ? res2.data : res2 || [];
-          setBookingPayments(list2);
           // update amount field to remaining if available
           const b = bookings.find(x => x._id === selectedBooking);
           const remaining = b?.pricing?.remainingAmount ?? b?.pricing?.totalAmount ?? null;
           if (remaining != null) setAmount(remaining);
+          // ensure created payment appears at the top of the list if backend didn't include it
+          let finalList = list2 || [];
+          if (createdPayment && createdPayment._id) {
+            const exists = finalList.some((p: any) => p._id === createdPayment._id);
+            if (!exists) finalList = [createdPayment, ...finalList];
+          }
+          setBookingPayments(finalList);
         } catch (e) {
           console.error('Failed to refresh booking payments after payment', e);
         }
@@ -454,8 +467,193 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
           </div>
         </div>
       </div>
+      {/* Payment History & Invoice Actions */}
+      <div className="max-w-4xl mx-auto mt-6">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold mb-4">Payment History & Bills</h3>
+          {selectedBooking ? (
+            <div>
+              {bookingPaymentsLoading ? (
+                <div className="text-sm text-gray-500">Loading payments...</div>
+              ) : bookingPayments && bookingPayments.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm table-auto">
+                    <thead>
+                      <tr className="text-left text-gray-600">
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Amount (₹)</th>
+                        <th className="px-3 py-2">Method</th>
+                        <th className="px-3 py-2">Client</th>
+                        <th className="px-3 py-2">Booking</th>
+                        <th className="px-3 py-2">Notes</th>
+                        <th className="px-3 py-2">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bookingPayments.map((p: any) => (
+                        <tr key={p._id} className="border-t border-gray-100">
+                          <td className="px-3 py-2">{new Date(p.date).toLocaleDateString()}</td>
+                          <td className="px-3 py-2">{Number(p.amount).toLocaleString()}</td>
+                          <td className="px-3 py-2">{p.method}</td>
+                          <td className="px-3 py-2">{(p.client && (p.client.name || p.client.displayName)) || (clients.find(c => c._id === p.client)?.name) || '—'}</td>
+                          <td className="px-3 py-2">{(p.booking && (p.booking.bookingNumber || p.booking.title)) || (bookings.find(b => b._id === p.booking)?.bookingNumber) || '—'}</td>
+                          <td className="px-3 py-2">{p.notes || '—'}</td>
+                          <td className="px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => openInvoiceWindow(p)}
+                              className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs hover:bg-emerald-700"
+                            >
+                              Download Bill
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No payments recorded for this booking</div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">Select a booking to view payment history and download bills.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
+// helper to open a printable invoice in a new window
+function openInvoiceWindow(payment: any) {
+  const client = payment.client && (payment.client.name || payment.client.displayName) ? payment.client : null;
+  const booking = payment.booking || null;
+  const createdAt = payment.date || payment.createdAt || new Date().toISOString();
+  const amountRaw = Number(payment.amount || 0);
+  const amount = new Intl.NumberFormat('en-IN').format(amountRaw);
+  const notes = payment.notes || '';
+
+  // Build itemized rows if booking contains a servicesSchedule or items
+  let itemsHtml = '';
+  let subtotal = 0;
+  const schedule = (booking && (booking.servicesSchedule || booking.items || booking.services)) || [];
+  if (Array.isArray(schedule) && schedule.length > 0) {
+    const rows = schedule.map((it: any, idx: number) => {
+      const desc = it.serviceName || it.name || it.description || (typeof it === 'string' ? it : `Item ${idx + 1}`);
+      const qty = Number(it.quantity || 1);
+      const price = Number(it.amount || it.price || 0);
+      const rowAmount = qty * price;
+      subtotal += rowAmount;
+      return `<tr><td style="padding:10px;border-bottom:1px solid #e5e7eb">${desc}${qty !== 1 ? ` x${qty}` : ''}</td><td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">₹ ${new Intl.NumberFormat('en-IN').format(rowAmount)}</td></tr>`;
+    });
+    itemsHtml = rows.join('');
+  } else {
+    // Fallback single line item
+    subtotal = amountRaw;
+    itemsHtml = `<tr><td style="padding:10px;border-bottom:1px solid #e5e7eb">Payment received <div style="font-size:12px;color:#6b7280">Method: ${payment.method || '—'}${notes ? ' • ' + notes : ''}</div></td><td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">₹ ${amount}</td></tr>`;
+  }
+
+  const total = booking?.pricing?.totalAmount ?? subtotal;
+  const remaining = booking?.pricing?.remainingAmount ?? (total - (booking?.pricing?.advanceAmount || 0));
+
+  const html = `
+  <!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Receipt - ${payment._id}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; color:#111827; padding:20px }
+      .paper { width:210mm; min-height:297mm; margin:auto; background:white; padding:24px; box-sizing:border-box }
+      .header { display:flex; justify-content:space-between; align-items:flex-start }
+      .company { display:flex; gap:16px; align-items:center }
+      .logo { width:110px; height:110px; object-fit:contain }
+      .muted { color:#6b7280 }
+      .info-box { border:1px solid #e5e7eb; padding:12px }
+      table { width:100%; border-collapse:collapse; margin-top:12px }
+      th, td { padding:10px; border-bottom:1px solid #e5e7eb; text-align:left }
+      .right { text-align:right }
+      .total-row { font-weight:700 }
+      .terms { font-size:12px; color:#6b7280 }
+      .btn { display:inline-block; padding:8px 12px; background:#10b981; color:white; text-decoration:none; border-radius:6px }
+    </style>
+  </head>
+  <body>
+    <div class="paper">
+      <div class="header">
+        <div class="company">
+          <img src="${logo}" class="logo" alt="Logo" />
+          <div>
+            <div style="font-weight:700; font-size:18px">Abeer Motion Picture Pvt. Ltd.</div>
+            <div class="muted">Event Photography & Videography</div>
+            <div style="font-size:13px; margin-top:6px">Email: info@example.com | Phone: +91-XXXXXXXXXX</div>
+          </div>
+        </div>
+
+        <div class="info-box">
+          <div style="font-weight:600">Receipt</div>
+          <div style="margin-top:6px">Receipt #: <strong>${payment._id}</strong></div>
+          <div class="muted">Date: ${new Date(createdAt).toLocaleDateString()}</div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; margin-top:18px">
+        <div>
+          <div style="font-weight:600">Billed To</div>
+          <div>${client ? (client.name || client.displayName || client.email) : (payment.client || '')}</div>
+          <div class="muted">${client && client.address ? client.address : ''}</div>
+        </div>
+
+        <div>
+          <div style="font-weight:600">Booking</div>
+          <div>${booking ? (booking.bookingNumber || booking.title || booking._id) : ''}</div>
+          <div class="muted">${booking && booking.functionDetails?.date ? new Date(booking.functionDetails.date).toLocaleDateString() : ''}</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="right">Amount (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+
+      <div style="display:flex; justify-content:flex-end; margin-top:12px">
+        <div style="width:320px">
+          <div style="display:flex; justify-content:space-between; padding:8px 0"><div>Subtotal</div><div>₹ ${new Intl.NumberFormat('en-IN').format(subtotal)}</div></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0" class="muted"><div>Amount Received</div><div>₹ ${amount}</div></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; font-weight:700; border-top:1px solid #e5e7eb"><div>Total</div><div>₹ ${new Intl.NumberFormat('en-IN').format(total)}</div></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0;" class="muted"><div>Remaining</div><div>₹ ${new Intl.NumberFormat('en-IN').format(remaining ?? 0)}</div></div>
+        </div>
+      </div>
+
+      <div style="margin-top:28px; display:flex; justify-content:space-between; align-items:center">
+        <div class="terms">This is a computer generated receipt. Bank details: A/C No. 50100158433 IFSC: HDFC0003716</div>
+        <div>
+          <a href="#" onclick="window.print(); return false;" class="btn">Print / Save</a>
+        </div>
+      </div>
+
+    </div>
+  </body>
+  </html>
+  `;
+
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if (w) {
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  } else {
+    alert('Popup blocked - please allow popups for this site to download the bill.');
+  }
+}
 
 export default ReceivePayment;
