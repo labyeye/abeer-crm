@@ -102,16 +102,6 @@ interface Branch {
 }
 
 const BookingManagement = () => {
-  // Helper functions for DD/MM/YYYY date format
-  const formatDateForDisplay = (isoDate: string) => {
-    if (!isoDate) return "";
-    const date = new Date(isoDate);
-    const day = String(date.getDate()).padStart(2, "0");
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
 
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -1411,38 +1401,14 @@ const BookingManagement = () => {
                           </div>
                           <div>
                             <label className="text-sm text-gray-600">
-                              Date (DD/MM/YYYY)
+                              Date
                             </label>
                             <input
-                              type="text"
-                              placeholder="DD/MM/YYYY"
-                              value={formatDateForDisplay(entry.date)}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                // Allow typing DD/MM/YYYY format
-                                if (/^\d{0,2}\/?\d{0,2}\/?\d{0,4}$/.test(value) || value === "") {
-                                  // Convert DD/MM/YYYY to YYYY-MM-DD for storage
-                                  if (value.length === 10 && value.includes("/")) {
-                                    const [day, month, year] = value.split("/");
-                                    if (day && month && year && day.length === 2 && month.length === 2 && year.length === 4) {
-                                      const isoDate = `${year}-${month}-${day}`;
-                                      updateScheduleEntry(idx, "date", isoDate);
-                                    }
-                                  } else if (value === "") {
-                                    updateScheduleEntry(idx, "date", "");
-                                  }
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const value = e.target.value;
-                                if (value && value.length === 10) {
-                                  const [day, month, year] = value.split("/");
-                                  if (day && month && year) {
-                                    const isoDate = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-                                    updateScheduleEntry(idx, "date", isoDate);
-                                  }
-                                }
-                              }}
+                              type="date"
+                              value={entry.date || ""}
+                              onChange={(e) =>
+                                updateScheduleEntry(idx, "date", e.target.value)
+                              }
                               className="w-full px-3 py-2 border rounded"
                             />
                           </div>

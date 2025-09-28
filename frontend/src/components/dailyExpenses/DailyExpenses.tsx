@@ -17,6 +17,11 @@ const DailyExpenses = () => {
   });
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [purposes, setPurposes] = useState<any[]>([]);
+  const [showAddPurpose, setShowAddPurpose] = useState(false);
+  const [newPurposeName, setNewPurposeName] = useState("");
+  const [editingPurposeId, setEditingPurposeId] = useState<string | null>(null);
+  const [editingPurposeName, setEditingPurposeName] = useState("");
   const { user } = useAuth();
   
   const getBranchName = (branch: any) => {
@@ -30,6 +35,7 @@ const DailyExpenses = () => {
 
   useEffect(() => {
     fetchExpenses();
+  fetchPurposes();
 
     
     
@@ -42,6 +48,16 @@ const DailyExpenses = () => {
     }
     
   }, [user]);
+
+  const fetchPurposes = async () => {
+    try {
+      const res = await dailyExpensesAPI.getPurposes();
+      const list = (res && (res.data || res)) || [];
+      setPurposes(list);
+    } catch (err) {
+      // non-fatal
+    }
+  };
 
   const fetchExpenses = async () => {
     try {
@@ -156,14 +172,44 @@ const DailyExpenses = () => {
               }
               className="p-2 border rounded"
             />
-            <input
-              placeholder="Purpose"
-              value={formData.purpose}
-              onChange={(e) =>
-                setFormData({ ...formData, purpose: e.target.value })
-              }
-              className="p-2 border rounded"
-            />
+            <div className="flex items-center space-x-2 w-full">
+              <div className="flex-1">
+                <select
+                  value={formData.purpose}
+                  onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                  className="p-2 border rounded w-full"
+                >
+                  <option value="">-- Select purpose --</option>
+                  {purposes.map((p) => (
+                    <option key={p._id || p.id || p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-shrink-0 flex items-center space-x-1">
+                <button
+                  onClick={() => setShowAddPurpose(true)}
+                  className="px-2 py-1 border rounded bg-gray-50"
+                  title="Add purpose"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => {
+                    // open edit for currently selected purpose
+                    const selected = purposes.find((p) => p.name === formData.purpose);
+                    if (!selected) return setEditingPurposeId(null);
+                    setEditingPurposeId(selected._id || selected.id || null);
+                    setEditingPurposeName(selected.name || "");
+                  }}
+                  className="px-2 py-1 border rounded bg-gray-50"
+                  title="Edit purpose"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
             <input
               placeholder="Amount"
               type="number"
@@ -174,6 +220,81 @@ const DailyExpenses = () => {
               className="p-2 border rounded"
             />
           </div>
+
+          {showAddPurpose && (
+            <div className="mt-2 flex items-center space-x-2">
+              <input
+                placeholder="New purpose"
+                value={newPurposeName}
+                onChange={(e) => setNewPurposeName(e.target.value)}
+                className="p-2 border rounded w-full"
+              />
+              <button
+                onClick={async () => {
+                  if (!newPurposeName || !newPurposeName.trim()) return;
+                  try {
+                    const res = await dailyExpensesAPI.createPurpose({ name: newPurposeName.trim() });
+                    const created = (res && (res.data || res)) || res;
+                    setPurposes((prev) => [created, ...prev]);
+                    setFormData({ ...formData, purpose: created.name || created });
+                    setNewPurposeName("");
+                    setShowAddPurpose(false);
+                    addNotification({ type: 'success', title: 'Added', message: 'Purpose added' });
+                  } catch (err: any) {
+                    addNotification({ type: 'error', title: 'Error', message: err?.response?.data?.message || 'Failed to add purpose' });
+                  }
+                }}
+                className="px-3 py-1 bg-blue-600 text-white rounded"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => { setShowAddPurpose(false); setNewPurposeName(''); }}
+                className="px-3 py-1 border rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {editingPurposeId && (
+            <div className="mt-2 flex items-center space-x-2">
+              <input
+                placeholder="Edit purpose"
+                value={editingPurposeName}
+                onChange={(e) => setEditingPurposeName(e.target.value)}
+                className="p-2 border rounded w-full"
+              />
+              <button
+                onClick={async () => {
+                  if (!editingPurposeName || !editingPurposeName.trim()) return;
+                  try {
+                    const res = await dailyExpensesAPI.updatePurpose(editingPurposeId as string, { name: editingPurposeName.trim() });
+                    const updated = (res && (res.data || res)) || res;
+                    setPurposes((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
+                    // if currently selected purpose name changed, update formData
+                    if (formData.purpose && formData.purpose === (purposes.find(p => p._id === updated._id)?.name)) {
+                      setFormData({ ...formData, purpose: updated.name });
+                    }
+                    setEditingPurposeId(null);
+                    setEditingPurposeName("");
+                    addNotification({ type: 'success', title: 'Updated', message: 'Purpose updated' });
+                  } catch (err: any) {
+                    addNotification({ type: 'error', title: 'Error', message: err?.response?.data?.message || 'Failed to update purpose' });
+                  }
+                }}
+                className="px-3 py-1 bg-blue-600 text-white rounded"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => { setEditingPurposeId(null); setEditingPurposeName(''); }}
+                className="px-3 py-1 border rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
 
           {}
           {user && user.role === "chairman" ? (

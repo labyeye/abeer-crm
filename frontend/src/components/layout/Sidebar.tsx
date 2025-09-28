@@ -109,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
     },
     {
       id: 'daily-expenses',
-      name: 'Daily Expenses',
+      name: 'Expenses',
       icon: DollarSign,
       permission: 'daily_expenses',
       roles: ['chairman', 'company_admin', 'branch_head'],

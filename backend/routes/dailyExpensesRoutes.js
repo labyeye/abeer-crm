@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { protect, authorize } = require("../middleware/auth");
 const DailyExpense = require('../models/DailyExpense');
+const DailyExpensePurpose = require('../models/DailyExpensePurpose');
 const { updateBranchStats } = require('../utils/branchUtils');
 
 
@@ -29,6 +30,76 @@ router.get(
         console.error("Daily expenses fetch error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
       }
+  }
+);
+
+
+// Purposes list endpoints
+router.get(
+  "/purposes",
+  protect,
+  authorize(["chairman", "company_admin", "branch_head", "branch_staff"]),
+  async (req, res) => {
+    try {
+      const purposes = await DailyExpensePurpose.find({}).sort({ name: 1 });
+      res.status(200).json({ success: true, data: purposes });
+    } catch (error) {
+      console.error('Failed to fetch daily expense purposes', error);
+      res.status(500).json({ success: false, message: 'Server Error' });
+    }
+  }
+);
+
+router.post(
+  "/purposes",
+  protect,
+  authorize(["chairman", "company_admin", "branch_head", "branch_staff"]),
+  async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ success: false, message: 'Purpose name is required' });
+      }
+
+      const existing = await DailyExpensePurpose.findOne({ name: String(name).trim() });
+      if (existing) {
+        return res.status(409).json({ success: false, message: 'Purpose already exists' });
+      }
+
+      const created = await DailyExpensePurpose.create({ name: String(name).trim(), createdBy: req.user._id });
+      res.status(201).json({ success: true, data: created });
+    } catch (error) {
+      console.error('Failed to create daily expense purpose', error);
+      res.status(500).json({ success: false, message: 'Server Error' });
+    }
+  }
+);
+
+router.put(
+  "/purposes/:id",
+  protect,
+  authorize(["chairman", "company_admin", "branch_head", "branch_staff"]),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ success: false, message: 'Purpose name is required' });
+      }
+
+      const existing = await DailyExpensePurpose.findOne({ name: String(name).trim(), _id: { $ne: id } });
+      if (existing) {
+        return res.status(409).json({ success: false, message: 'Purpose with this name already exists' });
+      }
+
+      const updated = await DailyExpensePurpose.findByIdAndUpdate(id, { name: String(name).trim() }, { new: true });
+      if (!updated) return res.status(404).json({ success: false, message: 'Purpose not found' });
+
+      res.status(200).json({ success: true, data: updated });
+    } catch (error) {
+      console.error('Failed to update daily expense purpose', error);
+      res.status(500).json({ success: false, message: 'Server Error' });
+    }
   }
 );
 

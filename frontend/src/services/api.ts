@@ -566,6 +566,20 @@ export const dailyExpensesAPI = {
     const response = await api.get('/daily-expenses/stats');
     return response.data;
   }
+  ,
+  getPurposes: async () => {
+    const response = await api.get('/daily-expenses/purposes');
+    return response.data;
+  },
+  createPurpose: async (payload: { name: string }) => {
+    const response = await api.post('/daily-expenses/purposes', payload);
+    return response.data;
+  }
+  ,
+  updatePurpose: async (id: string, payload: { name: string }) => {
+    const response = await api.put(`/daily-expenses/purposes/${id}`, payload);
+    return response.data;
+  }
 };
 
 
