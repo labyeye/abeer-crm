@@ -10,6 +10,8 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState<boolean>(false);
   const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
+  const [multiSelectMode, setMultiSelectMode] = useState<boolean>(false);
+  const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
   const [bookingPayments, setBookingPayments] = useState<any[]>([]);
   const [bookingPaymentsLoading, setBookingPaymentsLoading] = useState<boolean>(false);
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0,10));
@@ -57,13 +59,14 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   }, [selectedClient]);
 
   useEffect(() => {
-    // If a booking is selected, prefill amount from booking.amount or booking.pricing
+    // If in single-select mode and a booking is selected, prefill amount from booking.pricing
+    if (multiSelectMode) return;
     if (!selectedBooking) return;
     const b = bookings.find(x => x._id === selectedBooking);
     if (b) {
       setAmount(b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount || b.pricing?.remainingAmount || '');
     }
-  }, [selectedBooking, bookings]);
+  }, [selectedBooking, bookings, multiSelectMode]);
 
   // fetch payments for the selected booking
   useEffect(() => {
@@ -90,16 +93,31 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     if (!selectedClient) return setError('Please select a client');
     if (!date) return setError('Please select a date');
     if (!amount || Number(amount) <= 0) return setError('Please enter a valid amount');
+    
+    // Validate booking selection
+    if (multiSelectMode && selectedBookings.length === 0) {
+      return setError('Please select at least one booking for multi-select mode');
+    }
+    if (!multiSelectMode && !selectedBooking) {
+      return setError('Please select a booking or enable multi-select mode');
+    }
+    
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         client: selectedClient,
-        booking: selectedBooking,
         amount: Number(amount),
         date,
         method,
         notes
       };
+      
+      // Add booking info based on mode
+      if (multiSelectMode && selectedBookings.length > 0) {
+        payload.bookings = selectedBookings;
+      } else if (selectedBooking) {
+        payload.booking = selectedBooking;
+      }
       let res;
       if (editingPaymentId) {
         res = await paymentAPI.updatePayment(editingPaymentId, payload);
@@ -123,7 +141,7 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         }
       }
 
-      if (selectedBooking) {
+      if (selectedBooking && !multiSelectMode) {
         try {
           const res2 = await paymentAPI.getPayments({ booking: selectedBooking, limit: 100 });
           const list2 = Array.isArray(res2) ? res2 : (res2 && res2.data) ? res2.data : res2 || [];
@@ -141,6 +159,10 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         } catch (e) {
           console.error('Failed to refresh booking payments after payment', e);
         }
+      } else if (multiSelectMode) {
+        // For multi-booking payments, clear selections and reset amount
+        setSelectedBookings([]);
+        setAmount('');
       }
 
       setSaving(false);
@@ -158,7 +180,18 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     // populate form with payment for editing
     setEditingPaymentId(p._id);
     setSelectedClient(p.client?._id || p.client || selectedClient);
-    setSelectedBooking(p.booking?._id || p.booking || selectedBooking);
+    
+    // Handle multi-booking vs single booking
+    if (p.bookings && Array.isArray(p.bookings) && p.bookings.length > 0) {
+      setMultiSelectMode(true);
+      setSelectedBookings(p.bookings.map((b: any) => b._id || b));
+      setSelectedBooking(null);
+    } else {
+      setMultiSelectMode(false);
+      setSelectedBooking(p.booking?._id || p.booking || null);
+      setSelectedBookings([]);
+    }
+    
     setDate(p.date ? new Date(p.date).toISOString().slice(0,10) : new Date().toISOString().slice(0,10));
     setAmount(p.amount || '');
     setMethod(p.method || 'cash');
@@ -271,25 +304,24 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                   Client Information
                 </h3>
 
-                <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
                       Client
-                      <span className="ml-2 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
-                        {clients.length} loaded
-                      </span>
                     </label>
                     <div className="relative">
                       <select 
-                        aria-label="Select client" 
                         value={selectedClient || ''} 
                         onChange={e => setSelectedClient(e.target.value || null)} 
                         className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors duration-200 bg-white"
                       >
-                        <option value="">-- Select a client --</option>
+                        <option value="">Select a client...</option>
                         {clients.map(c => (
                           <option key={c._id} value={c._id}>
-                            {c.name || c.displayName || c.email}
+                            {c.name || c.displayName || c.email || c._id}
                           </option>
                         ))}
                       </select>
@@ -311,32 +343,67 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Related Booking 
-                      <span className="text-xs text-gray-500 font-normal">(optional)</span>
-                    </label>
                     <div className="relative">
-                      <select 
-                        value={selectedBooking || ''} 
-                        onChange={e => setSelectedBooking(e.target.value || null)} 
-                        className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors duration-200 bg-white"
-                        disabled={!selectedClient}
-                      >
-                        <option value="">-- No specific booking --</option>
-                        {bookings.map(b => {
-                          const title = b.serviceName || b.title || b.bookingNumber || b._id;
-                          const amt = b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount;
-                          const dateLabel = b.functionDetails?.date ? new Date(b.functionDetails.date).toLocaleDateString() : '';
-                          return (
-                            <option key={b._id} value={b._id}>
-                              {title}{dateLabel ? ` • ${dateLabel}` : ''}{amt ? ` • ₹${Number(amt).toLocaleString()}` : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm text-gray-700">Select Booking</div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500">Multi-select</label>
+                          <input type="checkbox" checked={multiSelectMode} onChange={e => {
+                            const on = e.target.checked;
+                            // clear single selection when enabling multi
+                            if (on) setSelectedBooking(null);
+                            setMultiSelectMode(on);
+                            if (!on) setSelectedBookings([]);
+                          }} />
+                        </div>
+                      </div>
+
+                      {!multiSelectMode ? (
+                        <>
+                          <select 
+                            value={selectedBooking || ''} 
+                            onChange={e => setSelectedBooking(e.target.value || null)} 
+                            className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors duration-200 bg-white"
+                            disabled={!selectedClient}
+                          >
+                            <option value="">-- No specific booking --</option>
+                            {bookings.map(b => {
+                              const title = b.serviceName || b.title || b.bookingNumber || b._id;
+                              const amt = b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount;
+                              const dateLabel = b.functionDetails?.date ? new Date(b.functionDetails.date).toLocaleDateString() : '';
+                              return (
+                                <option key={b._id} value={b._id}>
+                                  {title}{dateLabel ? ` • ${dateLabel}` : ''}{amt ? ` • ₹${Number(amt).toLocaleString()}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                        </>
+                      ) : (
+                        <div className="bg-white border border-gray-200 rounded p-3 max-h-56 overflow-y-auto">
+                          {bookings.map(b => {
+                            const title = b.serviceName || b.title || b.bookingNumber || b._id;
+                            const amt = b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount;
+                            const dateLabel = b.functionDetails?.date ? new Date(b.functionDetails.date).toLocaleDateString() : '';
+                            const checked = selectedBookings.includes(b._id);
+                            return (
+                              <label key={b._id} className="flex items-center justify-between py-2 border-b border-gray-100">
+                                <div>
+                                  <div className="text-sm font-medium">{title} {dateLabel ? <span className="text-xs text-gray-500">• {dateLabel}</span> : null}</div>
+                                  <div className="text-xs text-gray-500">{amt ? `₹${Number(amt).toLocaleString()}` : '—'}</div>
+                                </div>
+                                <input type="checkbox" checked={checked} onChange={e => {
+                                  if (e.target.checked) setSelectedBookings(s => [...s, b._id]);
+                                  else setSelectedBookings(s => s.filter(id => id !== b._id));
+                                }} />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                       {bookingsLoading && (
                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                           <div className="animate-spin rounded-full h-5 w-5 border-2 border-emerald-500 border-t-transparent" />
@@ -347,7 +414,7 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Link payment to a specific booking for better tracking
+                      {multiSelectMode ? 'Select multiple bookings for this payment' : 'Link payment to a specific booking for better tracking'}
                     </p>
                   </div>
                 </div>
@@ -382,13 +449,21 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                     <button 
                       type="button"
                       onClick={() => {
-                        if (selectedBooking) {
+                        if (multiSelectMode && selectedBookings.length > 0) {
+                          // Calculate total remaining amount for selected bookings
+                          const total = selectedBookings.reduce((sum, id) => {
+                            const b = bookings.find(x => x._id === id);
+                            const amt = b?.pricing?.remainingAmount ?? b?.amount ?? b?.pricing?.finalAmount ?? b?.pricing?.totalAmount ?? 0;
+                            return sum + Number(amt || 0);
+                          }, 0);
+                          if (total > 0) setAmount(total);
+                        } else if (selectedBooking) {
                           const b = bookings.find(x => x._id === selectedBooking);
-                          const amt = b?.amount || b?.pricing?.finalAmount || b?.pricing?.totalAmount;
+                          const amt = b?.pricing?.remainingAmount ?? b?.amount ?? b?.pricing?.finalAmount ?? b?.pricing?.totalAmount;
                           if (amt) setAmount(Number(amt));
                         }
                       }} 
-                      disabled={!selectedBooking}
+                      disabled={!(selectedBooking || (multiSelectMode && selectedBookings.length > 0))}
                       className="px-6 py-4 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

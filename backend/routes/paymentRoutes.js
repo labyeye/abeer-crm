@@ -7,35 +7,57 @@ const asyncHandler = require('../utils/asyncHandler');
 
 // Create a payment
 router.post('/', asyncHandler(async (req, res) => {
-  const { client, booking, invoice, amount, date, method, reference, notes, branch, company } = req.body;
+  const { client, booking, bookings, allocations, invoice, amount, date, method, reference, notes, branch, company } = req.body;
   if (!client || !amount || !date) {
     return res.status(400).json({ message: 'client, amount and date are required' });
   }
 
-  const payment = await Payment.create({ client, booking, invoice, amount, date, method, reference, notes, branch, company, createdBy: req.user && req.user._id });
+  // Normalize bookings: allow single booking or array
+  const bookingArray = Array.isArray(bookings) ? bookings : (booking ? [booking] : []);
 
-  // If linked to a booking, update booking.pricing.remainingAmount and paymentStatus
-  if (booking) {
-    try {
+  // Create payment record with bookings and optional allocations
+  const paymentData = { client, booking: bookingArray.length === 1 ? bookingArray[0] : undefined, bookings: bookingArray, allocations, invoice, amount, date, method, reference, notes, branch, company, createdBy: req.user && req.user._id };
+  const payment = await Payment.create(paymentData);
+
+  // Apply allocations if provided, otherwise split amount equally across bookings
+  try {
+    if (bookingArray && bookingArray.length > 0) {
+      let allocs = allocations || [];
+      if (!allocs || !allocs.length) {
+        const share = Number(amount || 0) / bookingArray.length;
+        allocs = bookingArray.map(bId => ({ booking: bId, amount: share }));
+      }
+
+      for (const a of allocs) {
+        try {
+          const b = await Booking.findById(a.booking || a);
+          const amt = Number(a.amount || a.amount === 0 ? a.amount : (Number(amount || 0) / bookingArray.length));
+          if (b && b.pricing) {
+            b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - amt);
+            b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + amt;
+            if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
+            else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
+            else b.paymentStatus = 'pending';
+            await b.save();
+          }
+        } catch (e) {
+          console.error('Failed to update one of the bookings after payment:', e);
+        }
+      }
+    } else if (booking) {
+      // legacy single booking behavior
       const b = await Booking.findById(booking);
       if (b && b.pricing) {
-        // reduce remaining amount by the payment amount
         b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - Number(amount || 0));
-        // update advanceAmount (treat payments towards advance)
         b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + Number(amount || 0);
-        // set paymentStatus based on remainingAmount
-        if (b.pricing.remainingAmount === 0) {
-          b.paymentStatus = 'completed';
-        } else if (b.pricing.advanceAmount > 0) {
-          b.paymentStatus = 'partial';
-        } else {
-          b.paymentStatus = 'pending';
-        }
+        if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
+        else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
+        else b.paymentStatus = 'pending';
         await b.save();
       }
-    } catch (e) {
-      console.error('Failed to update booking after payment:', e);
     }
+  } catch (e) {
+    console.error('Failed to apply allocations to bookings after payment:', e);
   }
 
   // If linked to an invoice, push to invoice.paymentHistory and update remaining/advance fields
@@ -54,7 +76,8 @@ router.post('/', asyncHandler(async (req, res) => {
     }
   }
 
-  res.status(201).json(payment);
+  const populated = await Payment.findById(payment._id).populate('client booking invoice bookings');
+  res.status(201).json(populated);
 }));
 
 // List payments (optionally filter by client)
@@ -83,6 +106,8 @@ router.put('/:id', asyncHandler(async (req, res) => {
   // store previous values to adjust booking/invoice if needed
   const prevAmount = payment.amount;
   const prevBooking = payment.booking ? String(payment.booking) : null;
+  const prevBookings = Array.isArray(payment.bookings) ? payment.bookings.map(x => String(x)) : [];
+  const prevAllocations = Array.isArray(payment.allocations) ? payment.allocations.map(a => ({ booking: String(a.booking), amount: Number(a.amount) })) : [];
   const prevInvoice = payment.invoice ? String(payment.invoice) : null;
 
   Object.assign(payment, updates);
@@ -90,8 +115,22 @@ router.put('/:id', asyncHandler(async (req, res) => {
 
   // If booking changed or amount changed, try to reconcile booking pricing
   try {
-    // if booking was previously linked, revert its pricing by adding back prevAmount
-    if (prevBooking) {
+    // if payment previously allocated to multiple bookings, revert each allocation first
+    if (prevAllocations && prevAllocations.length > 0) {
+      for (const a of prevAllocations) {
+        try {
+          const bPrev = await Booking.findById(a.booking);
+          if (bPrev && bPrev.pricing) {
+            bPrev.pricing.remainingAmount = (bPrev.pricing.remainingAmount || bPrev.pricing.totalAmount || 0) + Number(a.amount || 0);
+            bPrev.pricing.advanceAmount = Math.max(0, (bPrev.pricing.advanceAmount || 0) - Number(a.amount || 0));
+            await bPrev.save();
+          }
+        } catch (e) {
+          console.error('Failed to revert previous allocation for booking', a.booking, e);
+        }
+      }
+    } else if (prevBooking) {
+      // legacy single booking revert
       const bPrev = await Booking.findById(prevBooking);
       if (bPrev && bPrev.pricing) {
         bPrev.pricing.remainingAmount = (bPrev.pricing.remainingAmount || bPrev.pricing.totalAmount || 0) + Number(prevAmount || 0);
@@ -100,8 +139,43 @@ router.put('/:id', asyncHandler(async (req, res) => {
       }
     }
 
-    // apply to the new booking if present
-    if (payment.booking) {
+    // Now apply allocations from the updated payment (if any)
+    if (payment.allocations && payment.allocations.length > 0) {
+      for (const a of payment.allocations) {
+        try {
+          const b = await Booking.findById(a.booking || a);
+          const amt = Number(a.amount || a.amount === 0 ? a.amount : 0);
+          if (b && b.pricing) {
+            b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - amt);
+            b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + amt;
+            if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
+            else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
+            else b.paymentStatus = 'pending';
+            await b.save();
+          }
+        } catch (e) {
+          console.error('Failed to apply allocation to booking after payment update', e);
+        }
+      }
+    } else if (payment.bookings && payment.bookings.length > 0) {
+      // if bookings array provided without explicit allocations, split equally
+      const share = Number(payment.amount || 0) / payment.bookings.length;
+      for (const bId of payment.bookings) {
+        try {
+          const b = await Booking.findById(bId);
+          if (b && b.pricing) {
+            b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - share);
+            b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + share;
+            if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
+            else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
+            else b.paymentStatus = 'pending';
+            await b.save();
+          }
+        } catch (e) {
+          console.error('Failed to apply equal-split allocation to booking', bId, e);
+        }
+      }
+    } else if (payment.booking) {
       const b = await Booking.findById(payment.booking);
       if (b && b.pricing) {
         b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - Number(payment.amount || 0));
@@ -154,7 +228,42 @@ router.delete('/:id', asyncHandler(async (req, res) => {
 
   // Before deleting, revert booking/invoice pricing
   try {
-    if (payment.booking) {
+    // If payment had allocations, revert each allocation on the booking
+    if (payment.allocations && payment.allocations.length > 0) {
+      for (const a of payment.allocations) {
+        try {
+          const b = await Booking.findById(a.booking || a);
+          if (b && b.pricing) {
+            b.pricing.remainingAmount = (b.pricing.remainingAmount || b.pricing.totalAmount || 0) + Number(a.amount || 0);
+            b.pricing.advanceAmount = Math.max(0, (b.pricing.advanceAmount || 0) - Number(a.amount || 0));
+            if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
+            else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
+            else b.paymentStatus = 'pending';
+            await b.save();
+          }
+        } catch (e) {
+          console.error('Failed to revert allocation during payment deletion for booking', a.booking, e);
+        }
+      }
+    } else if (payment.bookings && payment.bookings.length > 0) {
+      // split amount equally across bookings when allocations absent
+      const share = Number(payment.amount || 0) / payment.bookings.length;
+      for (const bId of payment.bookings) {
+        try {
+          const b = await Booking.findById(bId);
+          if (b && b.pricing) {
+            b.pricing.remainingAmount = (b.pricing.remainingAmount || b.pricing.totalAmount || 0) + share;
+            b.pricing.advanceAmount = Math.max(0, (b.pricing.advanceAmount || 0) - share);
+            if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
+            else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
+            else b.paymentStatus = 'pending';
+            await b.save();
+          }
+        } catch (e) {
+          console.error('Failed to revert equal-split allocation during deletion for booking', bId, e);
+        }
+      }
+    } else if (payment.booking) {
       const b = await Booking.findById(payment.booking);
       if (b && b.pricing) {
         b.pricing.remainingAmount = (b.pricing.remainingAmount || b.pricing.totalAmount || 0) + Number(payment.amount || 0);
@@ -164,17 +273,6 @@ router.delete('/:id', asyncHandler(async (req, res) => {
         else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
         else b.paymentStatus = 'pending';
         await b.save();
-      }
-    }
-
-    if (payment.invoice) {
-      const Invoice = require('../models/Invoice');
-      const inv = await Invoice.findById(payment.invoice);
-      if (inv && inv.pricing) {
-        inv.pricing.advancePaid = Math.max(0, (inv.pricing.advancePaid || 0) - Number(payment.amount || 0));
-        inv.pricing.remainingAmount = Math.max(0, (inv.pricing.remainingAmount || inv.pricing.finalAmount || 0) + Number(payment.amount || 0));
-        if (inv.pricing.remainingAmount > 0 && inv.status === 'paid') inv.status = 'partially_paid';
-        await inv.save();
       }
     }
   } catch (e) {

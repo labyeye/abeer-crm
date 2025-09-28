@@ -5,6 +5,10 @@ const paymentSchema = new mongoose.Schema({
   branch: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
   client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
   booking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
+  // support multiple bookings paid in a single payment
+  bookings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }],
+  // allocations store amount applied per booking when using multiple bookings
+  allocations: [{ booking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }, amount: Number }],
   invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
   amount: { type: Number, required: true },
   date: { type: Date, required: true },
