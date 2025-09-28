@@ -14,6 +14,8 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
   const [bookingPayments, setBookingPayments] = useState<any[]>([]);
   const [bookingPaymentsLoading, setBookingPaymentsLoading] = useState<boolean>(false);
+  const [allPayments, setAllPayments] = useState<any[]>([]);
+  const [allPaymentsLoading, setAllPaymentsLoading] = useState<boolean>(false);
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0,10));
   const [amount, setAmount] = useState<number | ''>('');
   const [method, setMethod] = useState<string>('cash');
@@ -34,6 +36,22 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         console.error('Failed to load clients', err);
       } finally {
         setClientsLoading(false);
+      }
+    })();
+  }, []);
+
+  // Load all payments on component mount
+  useEffect(() => {
+    (async () => {
+      setAllPaymentsLoading(true);
+      try {
+        const res = await paymentAPI.getPayments({ limit: 1000 }); // Get all payments
+        const list = Array.isArray(res) ? res : (res && res.data) ? res.data : res || [];
+        setAllPayments(list);
+      } catch (err) {
+        console.error('Failed to load all payments', err);
+      } finally {
+        setAllPaymentsLoading(false);
       }
     })();
   }, []);
@@ -165,6 +183,9 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         setAmount('');
       }
 
+      // Refresh all payments list
+      await refreshAllPayments();
+
       setSaving(false);
       if (onDone) onDone();
       alert(editingPaymentId ? 'Payment updated' : 'Payment saved');
@@ -200,6 +221,16 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const refreshAllPayments = async () => {
+    try {
+      const res = await paymentAPI.getPayments({ limit: 1000 });
+      const list = Array.isArray(res) ? res : (res && res.data) ? res.data : res || [];
+      setAllPayments(list);
+    } catch (err) {
+      console.error('Failed to refresh all payments', err);
+    }
+  };
+
   const handleDelete = async (p: any) => {
     if (!p || !p._id) return;
     if (!confirm('Delete this payment? This will revert booking/invoice balances.')) return;
@@ -217,6 +248,8 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         const listb = Array.isArray(resb) ? resb : (resb && resb.data) ? resb.data : [];
         setBookings(listb);
       }
+      // refresh all payments
+      await refreshAllPayments();
       alert('Payment deleted');
     } catch (e) {
       console.error('Failed to delete payment', e);
@@ -589,70 +622,101 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
       {/* Payment History & Invoice Actions */}
       <div className="max-w-4xl mx-auto mt-6">
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold mb-4">Payment History & Bills</h3>
-          {selectedBooking ? (
-            <div>
-              {bookingPaymentsLoading ? (
-                <div className="text-sm text-gray-500">Loading payments...</div>
-              ) : bookingPayments && bookingPayments.length ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm table-auto">
-                    <thead>
-                      <tr className="text-left text-gray-600">
-                        <th className="px-3 py-2">Date</th>
-                        <th className="px-3 py-2">Amount (₹)</th>
-                        <th className="px-3 py-2">Method</th>
-                        <th className="px-3 py-2">Client</th>
-                        <th className="px-3 py-2">Booking</th>
-                        <th className="px-3 py-2">Notes</th>
-                        <th className="px-3 py-2">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bookingPayments.map((p: any) => (
-                        <tr key={p._id} className="border-t border-gray-100">
-                          <td className="px-3 py-2">{new Date(p.date).toLocaleDateString()}</td>
-                          <td className="px-3 py-2">{Number(p.amount).toLocaleString()}</td>
-                          <td className="px-3 py-2">{p.method}</td>
-                          <td className="px-3 py-2">{(p.client && (p.client.name || p.client.displayName)) || (clients.find(c => c._id === p.client)?.name) || '—'}</td>
-                          <td className="px-3 py-2">{(p.booking && (p.booking.bookingNumber || p.booking.title)) || (bookings.find(b => b._id === p.booking)?.bookingNumber) || '—'}</td>
-                          <td className="px-3 py-2">{p.notes || '—'}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => openInvoiceWindow(p)}
-                                className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs hover:bg-emerald-700"
-                              >
-                                Download
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleEdit(p)}
-                                className="px-3 py-1 bg-yellow-400 text-black rounded-lg text-xs hover:bg-yellow-500"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(p)}
-                                className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs hover:bg-red-600"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">No payments recorded for this booking</div>
-              )}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">All Payment History & Bills</h3>
+            <div className="text-sm text-gray-500">
+              Total Payments: {allPayments.length} | 
+              Total Amount: ₹{allPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0).toLocaleString()}
+            </div>
+          </div>
+          {allPaymentsLoading ? (
+            <div className="text-sm text-gray-500 py-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent mx-auto mb-2" />
+              Loading all payments...
+            </div>
+          ) : allPayments && allPayments.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm table-auto">
+                <thead>
+                  <tr className="text-left text-gray-600 bg-gray-50">
+                    <th className="px-3 py-3 font-semibold">Date</th>
+                    <th className="px-3 py-3 font-semibold">Amount (₹)</th>
+                    <th className="px-3 py-3 font-semibold">Method</th>
+                    <th className="px-3 py-3 font-semibold">Client</th>
+                    <th className="px-3 py-3 font-semibold">Booking</th>
+                    <th className="px-3 py-3 font-semibold">Notes</th>
+                    <th className="px-3 py-3 font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allPayments.map((p: any) => (
+                    <tr key={p._id} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-3">{new Date(p.date).toLocaleDateString('en-IN')}</td>
+                      <td className="px-3 py-3 font-medium">₹{Number(p.amount).toLocaleString()}</td>
+                      <td className="px-3 py-3">
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                          {p.method}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">{(p.client && (p.client.name || p.client.displayName)) || (clients.find(c => c._id === p.client)?.name) || '—'}</td>
+                      <td className="px-3 py-3">
+                        {p.bookings && Array.isArray(p.bookings) && p.bookings.length > 1 ? (
+                          <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                            Multi ({p.bookings.length} bookings)
+                          </span>
+                        ) : (
+                          (p.booking && (p.booking.bookingNumber || p.booking.title)) || 
+                          (bookings.find(b => b._id === p.booking)?.bookingNumber) || 
+                          (p.bookings && p.bookings[0] && (p.bookings[0].bookingNumber || p.bookings[0].title)) ||
+                          '—'
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-xs text-gray-600">{p.notes || '—'}</span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openInvoiceWindow(p)}
+                            className="px-2 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-700"
+                            title="Download Receipt"
+                          >
+                            📄
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(p)}
+                            className="px-2 py-1 bg-yellow-400 text-black rounded text-xs hover:bg-yellow-500"
+                            title="Edit Payment"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(p)}
+                            className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                            title="Delete Payment"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <div className="text-sm text-gray-500">Select a booking to view payment history and download bills.</div>
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <div className="text-sm text-gray-500">No payments recorded yet</div>
+              <div className="text-xs text-gray-400">Start by creating your first payment above</div>
+            </div>
           )}
         </div>
       </div>
