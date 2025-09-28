@@ -18,6 +18,7 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -99,7 +100,12 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         method,
         notes
       };
-      const res = await paymentAPI.createPayment(payload);
+      let res;
+      if (editingPaymentId) {
+        res = await paymentAPI.updatePayment(editingPaymentId, payload);
+      } else {
+        res = await paymentAPI.createPayment(payload);
+      }
       // normalize created payment from different API shapes
       const createdPayment = Array.isArray(res)
         ? res[0]
@@ -139,11 +145,49 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
 
       setSaving(false);
       if (onDone) onDone();
-      alert('Payment saved');
+      alert(editingPaymentId ? 'Payment updated' : 'Payment saved');
+      setEditingPaymentId(null);
     } catch (err) {
       console.error(err);
       setSaving(false);
       setError('Failed to save payment');
+    }
+  };
+
+  const handleEdit = (p: any) => {
+    // populate form with payment for editing
+    setEditingPaymentId(p._id);
+    setSelectedClient(p.client?._id || p.client || selectedClient);
+    setSelectedBooking(p.booking?._id || p.booking || selectedBooking);
+    setDate(p.date ? new Date(p.date).toISOString().slice(0,10) : new Date().toISOString().slice(0,10));
+    setAmount(p.amount || '');
+    setMethod(p.method || 'cash');
+    setNotes(p.notes || '');
+    // scroll to top where the form is
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (p: any) => {
+    if (!p || !p._id) return;
+    if (!confirm('Delete this payment? This will revert booking/invoice balances.')) return;
+    try {
+      await paymentAPI.deletePayment(p._id);
+      // refresh payments list
+      if (selectedBooking) {
+        const res2 = await paymentAPI.getPayments({ booking: selectedBooking, limit: 100 });
+        const list2 = Array.isArray(res2) ? res2 : (res2 && res2.data) ? res2.data : res2 || [];
+        setBookingPayments(list2);
+      }
+      // refresh bookings
+      if (selectedClient) {
+        const resb = await paymentAPI.getClientBookings(selectedClient);
+        const listb = Array.isArray(resb) ? resb : (resb && resb.data) ? resb.data : [];
+        setBookings(listb);
+      }
+      alert('Payment deleted');
+    } catch (e) {
+      console.error('Failed to delete payment', e);
+      alert('Failed to delete payment');
     }
   };
 
@@ -499,13 +543,29 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                           <td className="px-3 py-2">{(p.booking && (p.booking.bookingNumber || p.booking.title)) || (bookings.find(b => b._id === p.booking)?.bookingNumber) || '—'}</td>
                           <td className="px-3 py-2">{p.notes || '—'}</td>
                           <td className="px-3 py-2">
-                            <button
-                              type="button"
-                              onClick={() => openInvoiceWindow(p)}
-                              className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs hover:bg-emerald-700"
-                            >
-                              Download Bill
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openInvoiceWindow(p)}
+                                className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs hover:bg-emerald-700"
+                              >
+                                Download
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(p)}
+                                className="px-3 py-1 bg-yellow-400 text-black rounded-lg text-xs hover:bg-yellow-500"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(p)}
+                                className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs hover:bg-red-600"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

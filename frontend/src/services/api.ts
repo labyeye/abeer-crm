@@ -380,6 +380,15 @@ export const paymentAPI = {
     const response = await api.get(`/payments/client/${clientId}/bookings`);
     return response.data;
   }
+  ,
+  updatePayment: async (id: string, data: APIData) => {
+    const response = await api.put(`/payments/${id}`, data);
+    return response.data;
+  },
+  deletePayment: async (id: string) => {
+    const response = await api.delete(`/payments/${id}`);
+    return response.data;
+  }
 };
 
 
