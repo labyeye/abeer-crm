@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { clientAPI, paymentAPI } from '../../services/api';
+import DateInputDDMMYYYY from '../common/DateInputDDMMYYYY';
 
 const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [clients, setClients] = useState<any[]>([]);
@@ -174,11 +175,10 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                       </svg>
                       Date
                     </label>
-                    <input 
-                      type="date" 
-                      value={date} 
-                      onChange={e => setDate(e.target.value)} 
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors duration-200" 
+                    <DateInputDDMMYYYY
+                      value={date}
+                      onChange={(v) => setDate(v)}
+                      className="w-full"
                     />
                   </div>
 

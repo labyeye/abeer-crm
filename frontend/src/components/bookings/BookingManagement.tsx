@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import DateInputDDMMYYYY from '../common/DateInputDDMMYYYY';
 import {
   Calendar,
   Plus,
@@ -102,6 +103,8 @@ interface Branch {
 }
 
 const BookingManagement = () => {
+
+  // DateInputDDMMYYYY keeps native picker but shows DD/MM/YYYY preview
 
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -1415,29 +1418,7 @@ const BookingManagement = () => {
                           <div>
                             <label className="text-sm text-gray-600">Date</label>
                             <div className="flex items-center gap-3">
-                              <input
-                                type="date"
-                                value={entry.date || ""}
-                                onChange={(e) =>
-                                  updateScheduleEntry(idx, "date", e.target.value)
-                                }
-                                className="w-full px-3 py-2 border rounded"
-                              />
-                              {/* Show DD/MM/YYYY preview beside the native control */}
-                              <div className="text-sm text-gray-600 px-3 py-2 border rounded bg-gray-50">
-                                {entry.date ? (() => {
-                                  try {
-                                    const d = new Date(entry.date);
-                                    if (isNaN(d.getTime())) return "Invalid date";
-                                    const dd = String(d.getDate()).padStart(2, '0');
-                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
-                                    const yyyy = d.getFullYear();
-                                    return `${dd}/${mm}/${yyyy}`;
-                                  } catch (e) {
-                                    return "Invalid date";
-                                  }
-                                })() : 'DD/MM/YYYY'}
-                              </div>
+                              <DateInputDDMMYYYY value={entry.date || ''} onChange={(v: string) => updateScheduleEntry(idx, 'date', v)} className="w-full" />
                             </div>
                           </div>
                           <div>
