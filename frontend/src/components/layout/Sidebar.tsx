@@ -53,6 +53,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       color: 'teal'
     },
     {
+      id: 'salary',
+      name: 'Salary Management',
+      icon: DollarSign,
+      permission: 'salary_manage',
+      roles: ['chairman', 'admin'],
+      color: 'teal'
+    },
+    {
       id: 'bookings',
       name: 'Bookings',
       icon: Calendar,

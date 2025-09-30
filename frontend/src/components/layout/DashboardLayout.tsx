@@ -14,6 +14,7 @@ import EntityReport from '../reports/EntityReport';
 import ProfilePage from '../profile/ProfilePage';
 import TaskManagement from '../tasks/TaskManagement';
 import VendorManagement from '../vendors/VendorManagement';
+import SalaryManagement from '../staff/SalaryManagement';
 import AdvancedAnalytics from '../analytics/AdvancedAnalytics';
 import CategoryManagement from '../catalog/CategoryManagement';
 import { AIInsights } from '../ai/AIInsights';
@@ -43,6 +44,8 @@ const DashboardLayout = () => {
         return <InventoryManagement />;
       case 'attendance':
         return <AttendanceManagement />;
+      case 'salary':
+        return <SalaryManagement />;
       // quotations removed - functionality moved into bookings
       case 'tasks':
         return <TaskManagement />;

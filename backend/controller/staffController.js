@@ -504,6 +504,93 @@ const getStaffSalary = asyncHandler(async (req, res) => {
   });
 });
 
+
+// Create a salary/payment record for a staff member (mark salary as paid or record advance)
+const createStaffSalary = asyncHandler(async (req, res) => {
+  const staffId = req.params.id;
+  const staff = await Staff.findById(staffId);
+  if (!staff || staff.isDeleted) {
+    return next(new ErrorResponse('Staff not found', 404));
+  }
+
+  // Accept either a full salary object or a minimal payment/advance record
+  const payload = req.body || {};
+
+  // Require month and year for salary records (for monthly salaries)
+  if (!payload.month || !payload.year) {
+    return res.status(400).json({ success: false, message: 'Month and year are required' });
+  }
+
+  // Prevent creating duplicate salary records for the same staff/month/year
+  const existingSalary = await Salary.findOne({ staff: staffId, month: Number(payload.month), year: Number(payload.year), isDeleted: false });
+  if (existingSalary) {
+    if (existingSalary.paymentStatus === 'paid') {
+      // Signal to frontend so it can offer advance-for-next-month flow
+      return res.status(409).json({ success: false, code: 'ALREADY_PAID', message: 'Salary already paid for this month' });
+    }
+    // A salary record already exists (pending/partial) — prevent duplicate creation
+    return res.status(409).json({ success: false, code: 'ALREADY_EXISTS', message: 'Salary record already exists for this month' });
+  }
+
+  // Basic fields
+  const basicSalary = Number((payload.basicSalary ?? payload.basic) ?? staff.salary ?? 0);
+  const allowances = Number(payload.allowances ?? 0);
+  const deductions = payload.deductions || { advance: 0, loan: 0, emi: 0, other: 0 };
+
+  const totalDeductions = Number(deductions.advance || 0) + Number(deductions.loan || 0) + Number(deductions.emi || 0) + Number(deductions.other || 0);
+
+  const netSalary = basicSalary + Number(allowances || 0) - totalDeductions + Number(payload.performance?.bonus || 0) - Number(payload.performance?.penalty || 0);
+
+  const companyId = req.user.company || req.user.companyId || undefined;
+  const periodStr = `${new Date(Number(payload.year), Number(payload.month) - 1).toLocaleString('default', { month: 'long' })} ${payload.year}`;
+
+  // If paymentStatus is paid and no paymentDate provided, set it to now
+  const paymentDateValue = payload.paymentDate ? new Date(payload.paymentDate) : (payload.paymentStatus === 'paid' ? new Date() : undefined);
+
+  let salaryDoc;
+  try {
+    salaryDoc = await Salary.create({
+      company: companyId,
+      branch: staff.branch,
+      staff: staffId,
+      month: Number(payload.month),
+      year: Number(payload.year),
+      basicSalary,
+      allowances,
+      overtime: payload.overtime || { hours: 0, rate: 0, amount: 0 },
+      deductions: {
+        loan: Number(deductions.loan || 0),
+        emi: Number(deductions.emi || 0),
+        advance: Number(deductions.advance || 0),
+        other: Number(deductions.other || 0),
+        total: totalDeductions,
+      },
+      attendance: payload.attendance || {},
+      performance: payload.performance || {},
+      netSalary: Number(netSalary),
+      paymentStatus: payload.paymentStatus || 'pending',
+      paymentDate: paymentDateValue,
+      period: periodStr,
+      advanceSchedule: payload.advanceSchedule || { total: 0, months: 0, monthly: 0 },
+      paymentMethod: payload.paymentMethod || 'bank_transfer',
+      paymentReference: payload.paymentReference || '',
+      notes: payload.notes || ''
+    });
+  } catch (err) {
+    console.error('Salary.create failed:', err);
+    if (err.name === 'ValidationError') {
+      const details = Object.keys(err.errors || {}).reduce((acc, k) => {
+        acc[k] = err.errors[k].message;
+        return acc;
+      }, {});
+      return res.status(400).json({ success: false, message: 'Salary validation failed', details });
+    }
+    return res.status(500).json({ success: false, message: err.message || 'Failed to create salary' });
+  }
+
+  res.status(201).json({ success: true, data: salaryDoc });
+});
+
 module.exports = {
   getAllStaff,
   getStaff,
@@ -513,5 +600,6 @@ module.exports = {
   getStaffAttendance,
   getStaffPerformance,
   updateStaffPerformance,
-  getStaffSalary
+  getStaffSalary,
+  createStaffSalary
 }; 

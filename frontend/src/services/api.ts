@@ -232,6 +232,21 @@ export const staffAPI = {
     const response = await api.get(`/staff/${id}/salary`, { params });
     return response.data;
   },
+  createStaffSalary: async (id: string, salaryData?: QueryParams) => {
+    const response = await api.post(`/staff/${id}/salary`, salaryData);
+    return response.data;
+  },
+};
+
+export const advanceAPI = {
+  createAdvanceForStaff: async (staffId: string, advanceData?: QueryParams) => {
+    const response = await api.post(`/advances/staff/${staffId}`, advanceData);
+    return response.data;
+  },
+  listAdvancesForStaff: async (staffId: string) => {
+    const response = await api.get(`/advances/staff/${staffId}`);
+    return response.data;
+  }
 };
 
 

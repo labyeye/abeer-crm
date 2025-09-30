@@ -67,6 +67,7 @@ interface InventoryItem {
   status: string;
   tags?: string[];
   notes?: string;
+  forBooking?: boolean;
   createdAt: string;
 }
 
@@ -129,6 +130,8 @@ const InventoryManagement = () => {
     status: 'Active',
     tags: '',
     notes: ''
+    ,
+    forBooking: true
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -232,7 +235,8 @@ const InventoryManagement = () => {
       warrantyExpiry: '',
       status: 'Active',
       tags: '',
-      notes: ''
+      notes: '',
+      forBooking: true
     });
   };
 
@@ -284,6 +288,8 @@ const InventoryManagement = () => {
       status: item.status,
       tags: item.tags?.join(', ') || '',
       notes: item.notes || ''
+      ,
+      forBooking: item.forBooking !== undefined ? item.forBooking : true
     });
     setShowEditModal(true);
   };
@@ -330,6 +336,8 @@ const InventoryManagement = () => {
         status: formData.status,
         tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag) : undefined,
         notes: formData.notes || undefined
+        ,
+        forBooking: typeof formData.forBooking === 'boolean' ? formData.forBooking : true
       };
 
       if (selectedItem) {
@@ -429,7 +437,6 @@ const InventoryManagement = () => {
       </div>
     );
   }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -716,7 +723,8 @@ const InventoryManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        <button
+                        <div className="flex items-center space-x-2">
+                          <button
                           onClick={() => handleEditItem(item)}
                           className="text-blue-600 hover:text-blue-900"
                           title="Edit"
@@ -730,6 +738,25 @@ const InventoryManagement = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                          <button
+                            onClick={async () => {
+                              // optimistic toggle
+                              const newVal = !item.forBooking;
+                              try {
+                                const payload = { ...item, forBooking: newVal } as any;
+                                await inventoryAPI.updateInventoryItem(item._id, payload);
+                                addNotification({ type: 'success', title: 'Updated', message: `Visibility for booking set to ${newVal ? 'Yes' : 'No'}` });
+                                fetchData();
+                              } catch (err) {
+                                addNotification({ type: 'error', title: 'Error', message: 'Failed to update visibility' });
+                              }
+                            }}
+                            className={`text-sm px-2 py-1 rounded ${item.forBooking ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
+                            title={item.forBooking ? 'Hide from booking picker' : 'Show in booking picker'}
+                          >
+                            {item.forBooking ? 'For Booking' : 'Hidden'}
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1183,6 +1210,20 @@ const InventoryManagement = () => {
                       onChange={(e) => setFormData({...formData, notes: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Booking Visibility</label>
+                    <div className="flex items-center">
+                      <input
+                        id="forBooking"
+                        type="checkbox"
+                        checked={!!formData.forBooking}
+                        onChange={(e) => setFormData({ ...formData, forBooking: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      />
+                      <label htmlFor="forBooking" className="ml-2 text-sm text-gray-700">Available for Booking (will appear in Booking equipment picker)</label>
+                    </div>
                   </div>
                 </div>
               </div>

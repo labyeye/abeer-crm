@@ -4,7 +4,9 @@ const salarySchema = new mongoose.Schema({
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
-    required: true
+    // company may be optional in some deployments where branch is primary
+    // keep it nullable to avoid validation errors when company id isn't available on the user
+    required: false
   },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
@@ -107,6 +109,15 @@ const salarySchema = new mongoose.Schema({
   netSalary: {
     type: Number,
     required: true
+  },
+  // Human readable period, e.g. "September 2025"
+  period: {
+    type: String
+  },
+  advanceSchedule: {
+    total: { type: Number, default: 0 },
+    months: { type: Number, default: 0 },
+    monthly: { type: Number, default: 0 }
   },
   paymentStatus: {
     type: String,

@@ -9,7 +9,8 @@ const {
   getStaffAttendance,
   getStaffPerformance,
   updateStaffPerformance,
-  getStaffSalary
+  getStaffSalary,
+  createStaffSalary
 } = require('../controller/staffController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -36,6 +37,7 @@ router.route('/:id/performance')
   .put(authorize('chairman', 'admin', 'manager'), updateStaffPerformance);
 
 router.route('/:id/salary')
-  .get(authorize('chairman', 'admin', 'manager'), getStaffSalary);
+  .get(authorize('chairman', 'admin', 'manager'), getStaffSalary)
+  .post(authorize('chairman', 'admin', 'manager'), createStaffSalary);
 
 module.exports = router; 

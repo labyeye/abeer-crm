@@ -2214,15 +2214,11 @@ const BookingManagement = () => {
                                   inventoryList = inventory;
                                 const selectedCategory =
                                   inventoryCategoryFilters[idx];
-                                const filtered = selectedCategory
-                                  ? (
-                                      cachedInventoryByCategory[
-                                        selectedCategory
-                                      ] || []
-                                    )
-                                      .concat()
-                                      .filter(Boolean)
+                                const baseList = selectedCategory
+                                  ? (cachedInventoryByCategory[selectedCategory] || []).concat().filter(Boolean)
                                   : inventoryList;
+                                // Only include items marked for booking (forBooking !== false). Treat undefined as true for backward compatibility.
+                                const filtered = baseList.filter((it: any) => it.forBooking !== false);
                                 // compute equipment conflicts similar to staff
                                 const equipConflicts = new Set<string>();
                                 const curStartE =

@@ -104,6 +104,11 @@ const inventorySchema = new mongoose.Schema({
     enum: ['Piece', 'Set', 'Box', 'Case', 'Roll', 'Meter', 'Foot', 'Other'],
     default: 'Piece'
   },
+  // whether this inventory item should appear in booking equipment pickers
+  forBooking: {
+    type: Boolean,
+    default: true,
+  },
   purchasePrice: {
     type: Number,
     min: [0, 'Purchase price cannot be negative'],
