@@ -72,11 +72,6 @@ const branchSchema = new mongoose.Schema(
         default: 0,
         min: [0, "Revenue cannot be negative"],
       },
-      quotations: {
-        type: Number,
-        default: 0,
-        min: [0, "Revenue cannot be negative"],
-      },
     },
     companySettings: {
       timezone: {

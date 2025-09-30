@@ -313,12 +313,6 @@ export const clientAPI = {
     const response = await api.get(`/clients/${id}/bookings`, { params });
     return response.data;
   },
-  
-  getClientQuotations: async (id: string, params?: QueryParams) => {
-    const response = await api.get(`/clients/${id}/quotations`, { params });
-    return response.data;
-  },
-  
   getClientInvoices: async (id: string, params?: QueryParams) => {
     const response = await api.get(`/clients/${id}/invoices`, { params });
     return response.data;
@@ -509,52 +503,6 @@ export const taskAPI = {
   
   getTaskStats: async () => {
     const response = await api.get('/tasks/stats');
-    return response.data;
-  }
-};
-
-export const quotationAPI = {
-  getQuotations: async (params?: QueryParams) => {
-    const response = await api.get('/quotations', { params });
-    return response.data;
-  },
-  
-  getQuotation: async (id: string) => {
-    const response = await api.get(`/quotations/${id}`);
-    return response.data;
-  },
-  
-  createQuotation: async (quotationData: APIData) => {
-    const response = await api.post('/quotations', quotationData);
-    return response.data;
-  },
-  
-  updateQuotation: async (id: string, quotationData: APIData) => {
-    const response = await api.put(`/quotations/${id}`, quotationData);
-    return response.data;
-  },
-  
-  deleteQuotation: async (id: string) => {
-    const response = await api.delete(`/quotations/${id}`);
-    return response.data;
-  },
-  downloadQuotationPdf: async (id: string) => {
-    const response = await api.get(`/quotations/${id}/pdf`, { responseType: 'blob' });
-    return response.data;
-  },
-  
-  convertToBooking: async (id: string) => {
-    const response = await api.post(`/quotations/${id}/convert-to-booking`);
-    return response.data;
-  },
-  
-  sendFollowUp: async (id: string) => {
-    const response = await api.post(`/quotations/${id}/follow-up`);
-    return response.data;
-  },
-  
-  getQuotationStats: async () => {
-    const response = await api.get('/quotations/stats');
     return response.data;
   }
 };

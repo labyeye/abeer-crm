@@ -198,23 +198,41 @@ const bookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'],
-    default: 'pending'
+    enum: ['enquiry', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'],
+    default: 'enquiry'
   },
   paymentStatus: {
     type: String,
     enum: ['pending', 'partial', 'completed'],
     default: 'pending'
   },
-  quotation: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Quotation'
-  },
+
   invoice: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Invoice'
   },
   notes: String,
+  event: String,
+  videoOutput: String,
+  photoOutput: String,
+  rawOutput: String,
+  audioOutput: String,
+  videoOutputEnabled: {
+    type: Boolean,
+    default: false
+  },
+  photoOutputEnabled: {
+    type: Boolean,
+    default: false
+  },
+  rawOutputEnabled: {
+    type: Boolean,
+    default: false
+  },
+  audioOutputEnabled: {
+    type: Boolean,
+    default: false
+  },
   isDeleted: {
     type: Boolean,
     default: false

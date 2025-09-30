@@ -1,6 +1,5 @@
 const cron = require('node-cron');
 const Notification = require('../models/Notification');
-const Quotation = require('../models/Quotation');
 const Invoice = require('../models/Invoice');
 const automatedMessaging = require('./automatedMessaging');
 
@@ -22,9 +21,7 @@ class AutomationScheduler {
     this.isRunning = true;
 
     
-    cron.schedule('0 10 * * *', () => {
-      this.checkQuotationFollowUps();
-    });
+    // Quotation follow-ups removed - functionality handled via bookings
 
     
     cron.schedule('0 11 * * *', () => {
@@ -66,54 +63,7 @@ class AutomationScheduler {
   
 
 
-  async checkQuotationFollowUps() {
-    try {
-      console.log('Checking quotation follow-ups...');
-      
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
-      
-      const quotations = await Quotation.find({
-        createdAt: {
-          $gte: new Date(sevenDaysAgo.setHours(0, 0, 0, 0)),
-          $lt: new Date(sevenDaysAgo.setHours(23, 59, 59, 999))
-        },
-        status: 'pending',
-        lastFollowUp: { $exists: false },
-        isDeleted: false
-      })
-      .populate('client company branch');
-
-      for (const quotation of quotations) {
-        
-        const existingFollowUp = await Notification.findOne({
-          'relatedTo.quotation': quotation._id,
-          type: 'quotation_followup_7days',
-          createdAt: {
-            $gte: new Date(new Date().setHours(0, 0, 0, 0))
-          }
-        });
-
-        if (!existingFollowUp) {
-          await automatedMessaging.sendQuotationFollowUp({
-            client: quotation.client,
-            quotation: quotation,
-            company: quotation.company,
-            branch: quotation.branch
-          });
-
-          
-          quotation.lastFollowUp = new Date();
-          await quotation.save();
-        }
-      }
-      
-      console.log(`Processed ${quotations.length} quotation follow-ups`);
-    } catch (error) {
-      console.error('Error checking quotation follow-ups:', error);
-    }
-  }
+  // Quotation follow-ups removed
 
   
 
@@ -188,34 +138,7 @@ class AutomationScheduler {
       tomorrow.setDate(tomorrow.getDate() + 1);
       
       
-      const upcomingBookings = await Quotation.find({
-        'appointmentDetails.date': {
-          $gte: new Date(tomorrow.setHours(0, 0, 0, 0)),
-          $lt: new Date(tomorrow.setHours(23, 59, 59, 999))
-        },
-        status: 'approved',
-        isDeleted: false
-      })
-      .populate('client company branch');
-
-      for (const quotation of upcomingBookings) {
-        
-        const existingReminder = await Notification.findOne({
-          'relatedTo.quotation': quotation._id,
-          type: 'appointment_reminder',
-          createdAt: {
-            $gte: new Date(new Date().setHours(0, 0, 0, 0))
-          }
-        });
-
-        if (!existingReminder && quotation.appointmentDetails) {
-          
-          
-          console.log(`Appointment reminder needed for quotation ${quotation.quotationNumber}`);
-        }
-      }
-      
-      console.log(`Processed ${upcomingBookings.length} appointment reminders`);
+      // Appointment reminders for quotations removed
     } catch (error) {
       console.error('Error checking appointment reminders:', error);
     }
@@ -286,9 +209,7 @@ class AutomationScheduler {
 
   async runManualCheck(type) {
     switch (type) {
-      case 'quotation_followups':
-        await this.checkQuotationFollowUps();
-        break;
+      // quotation follow-ups removed
       case 'payment_reminders':
         await this.checkPaymentReminders();
         break;
@@ -313,7 +234,7 @@ class AutomationScheduler {
     return {
       isRunning: this.isRunning,
       nextSchedule: {
-        quotationFollowUps: '10:00 AM daily',
+  // quotationFollowUps removed
         paymentReminders: '11:00 AM daily',
         photoReminders: '2:00 PM daily',
         appointmentReminders: '9:00 AM daily',

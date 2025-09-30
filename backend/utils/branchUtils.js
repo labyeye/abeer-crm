@@ -3,7 +3,6 @@ const Branch = require('../models/Branch');
 const Staff = require('../models/Staff');
 const Invoice = require('../models/Invoice');
 const Booking = require('../models/Booking');
-const Quotation = require('../models/Quotation');
 
 
 const updateBranchEmployeeCount = async (branchId) => {
@@ -63,30 +62,18 @@ const computeBranchRevenueBreakdown = async (branchId) => {
       } } } }
     ]);
 
-    const quotationRevenue = await Quotation.aggregate([
-      { $match: { branch: branchId, status: 'accepted', isDeleted: false } },
-      { $group: { _id: null, total: { $sum: {
-        $ifNull: [
-          '$pricing.totalAmount',
-          { $ifNull: ['$pricing.finalAmount', { $ifNull: ['$pricing.total', '$totalAmount'] }] }
-        ]
-      } } } }
-    ]);
-
     const breakdown = {
       invoices: invoiceRevenue[0]?.total || 0,
       bookings: bookingRevenue[0]?.total || 0,
-      quotations: quotationRevenue[0]?.total || 0,
     };
 
-    breakdown.total = breakdown.invoices + breakdown.bookings + breakdown.quotations;
+    breakdown.total = breakdown.invoices + breakdown.bookings;
 
     // persist breakdown object to branch.revenue
     await Branch.findByIdAndUpdate(branchId, { revenue: {
       total: breakdown.total,
       invoices: breakdown.invoices,
       bookings: breakdown.bookings,
-      quotations: breakdown.quotations
     } });
 
     return breakdown;

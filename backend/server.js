@@ -21,7 +21,6 @@ const clients = require('./routes/clientRoutes');
 const rentals = require('./routes/rentalRoutes');
 const notifications = require('./routes/notificationRoutes');
 const tasks = require('./routes/taskRoutes');
-const quotations = require('./routes/quotationRoutes');
 const production = require('./routes/productionRoutes');
 const dailyExpenses = require('./routes/dailyExpensesRoutes');
 const vendors = require('./routes/vendorRoutes');
@@ -96,7 +95,7 @@ app.use('/api/clients', clients);
 app.use('/api/rentals', rentals);
 app.use('/api/notifications', notifications);
 app.use('/api/tasks', tasks);
-app.use('/api/quotations', quotations);
+// quotations route removed - functionality merged into bookings
 app.use('/api/production', production);
 app.use('/api/daily-expenses', dailyExpenses);
 app.use('/api/vendors', vendors);

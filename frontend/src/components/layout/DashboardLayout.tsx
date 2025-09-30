@@ -9,7 +9,6 @@ import FinanceManagement from '../finance/FinanceManagement';
 import ReceivePayment from '../finance/ReceivePayment';
 import InventoryManagement from '../inventory/InventoryManagement';
 import AttendanceManagement from '../attendance/AttendanceManagement';
-import QuotationManagement from '../quotations/QuotationManagement';
 import BranchManagement from '../branch/BranchManagement';
 import EntityReport from '../reports/EntityReport';
 import ProfilePage from '../profile/ProfilePage';
@@ -44,8 +43,7 @@ const DashboardLayout = () => {
         return <InventoryManagement />;
       case 'attendance':
         return <AttendanceManagement />;
-      case 'quotations':
-        return <QuotationManagement />;
+      // quotations removed - functionality moved into bookings
       case 'tasks':
         return <TaskManagement />;
       case 'production':

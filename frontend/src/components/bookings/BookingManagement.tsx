@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import DateInputDDMMYYYY from '../common/DateInputDDMMYYYY';
+import React, { useState, useEffect, useRef } from "react";
+import DateInputDDMMYYYY from "../common/DateInputDDMMYYYY";
 import {
   Calendar,
   Plus,
@@ -11,8 +11,12 @@ import {
   Trash2,
   Loader2,
   X,
+  FileText,
+  Download,
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
+import BookingPDFTemplate from "./BookingPDFTemplate";
+import { useReactToPrint } from "react-to-print";
 import { useAuth } from "../../contexts/AuthContext";
 
 import {
@@ -71,7 +75,11 @@ interface Booking {
     advanceAmount: number;
     remainingAmount?: number;
   };
-  status: "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+  status: "enquiry" | "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+  videoOutput?: string;
+  photoOutput?: string;
+  rawOutput?: string;
+  notes?: string;
   createdAt: string;
 }
 
@@ -103,9 +111,7 @@ interface Branch {
 }
 
 const BookingManagement = () => {
-
   // DateInputDDMMYYYY keeps native picker but shows DD/MM/YYYY preview
-
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -127,16 +133,32 @@ const BookingManagement = () => {
   const [cachedInventoryByCategory, setCachedInventoryByCategory] = useState<{
     [category: string]: InventoryItem[];
   }>({});
-  const [staffDropdownStates, setStaffDropdownStates] = useState<{[key: number]: boolean}>({});
-  const [equipDropdownStates, setEquipDropdownStates] = useState<{[key: number]: boolean}>({});
-  const [staffOutsourceStates, setStaffOutsourceStates] = useState<{[key: number]: boolean}>({});
-  const [equipOutsourceStates, setEquipOutsourceStates] = useState<{[key: number]: boolean}>({});
-  const [outsourceStaff, setOutsourceStaff] = useState<{[key: number]: string[]}>({});
-  const [outsourceEquipment, setOutsourceEquipment] = useState<{[key: number]: any[]}>({});
+  const [staffDropdownStates, setStaffDropdownStates] = useState<{
+    [key: number]: boolean;
+  }>({});
+  const [equipDropdownStates, setEquipDropdownStates] = useState<{
+    [key: number]: boolean;
+  }>({});
+  const [staffOutsourceStates, setStaffOutsourceStates] = useState<{
+    [key: number]: boolean;
+  }>({});
+  const [equipOutsourceStates, setEquipOutsourceStates] = useState<{
+    [key: number]: boolean;
+  }>({});
+  const [outsourceStaff, setOutsourceStaff] = useState<{
+    [key: number]: string[];
+  }>({});
+  const [outsourceEquipment, setOutsourceEquipment] = useState<{
+    [key: number]: any[];
+  }>({});
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showPDFModal, setShowPDFModal] = useState(false);
+  const [pdfBookingData, setPdfBookingData] = useState<any>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
+  
   const [formData, setFormData] = useState({
     clientId: "",
     // servicesSchedule allows multiple service entries (date/time/staff/equipment per entry)
@@ -145,6 +167,7 @@ const BookingManagement = () => {
         serviceCategoryId: "",
         serviceType: [] as string[],
         serviceName: "",
+        event: "",
         date: "",
         startTime: "",
         endTime: "",
@@ -160,6 +183,7 @@ const BookingManagement = () => {
       serviceName?: string;
       serviceCategoryId?: string;
       serviceType?: string[];
+      event?: string;
       date: string;
       startTime: string;
       endTime: string;
@@ -181,8 +205,17 @@ const BookingManagement = () => {
     services: [] as any[],
     totalAmount: 0,
     advanceAmount: 0,
-    status: "pending",
+    status: "enquiry",
     notes: "",
+    event: "",
+    videoOutput: "",
+    photoOutput: "",
+    rawOutput: "",
+    audioOutput: "",
+    videoOutputEnabled: false,
+    photoOutputEnabled: false,
+    rawOutputEnabled: false,
+    audioOutputEnabled: false,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -231,8 +264,9 @@ const BookingManagement = () => {
       setClients(allClients);
       // Filter professional clients for outsource staff
       setProfessionalClients(
-        allClients.filter((client: any) => 
-          client.category && client.category.toLowerCase() === 'professional'
+        allClients.filter(
+          (client: any) =>
+            client.category && client.category.toLowerCase() === "professional"
         )
       );
       setStaff(
@@ -332,7 +366,8 @@ const BookingManagement = () => {
         {
           serviceCategoryId: "",
           serviceType: [] as string[],
-          date: new Date().toISOString().split('T')[0], // Default to today's date
+          event: "",
+          date: new Date().toISOString().split("T")[0], // Default to today's date
           startTime: "",
           endTime: "",
           venueName: "",
@@ -354,8 +389,17 @@ const BookingManagement = () => {
       services: [],
       totalAmount: 0,
       advanceAmount: 0,
-      status: "pending",
+      status: "enquiry",
       notes: "",
+      event: "",
+      videoOutput: "",
+      photoOutput: "",
+      rawOutput: "",
+      audioOutput: "",
+      videoOutputEnabled: false,
+      photoOutputEnabled: false,
+      rawOutputEnabled: false,
+      audioOutputEnabled: false,
     });
   };
 
@@ -383,60 +427,103 @@ const BookingManagement = () => {
     // Build servicesSchedule from existing booking details. If booking has only single functionDetails,
     // convert it into a single-element schedule. Include assigned staff and inventory selection per entry.
     // Try to map existing booking.services (if present) to schedule entries so pricing is editable per schedule
-  let scheduleEntries: any[] = [];
-  const b: any = booking as any;
+    let scheduleEntries: any[] = [];
+    const b: any = booking as any;
     // Prefer using functionDetailsList if available because it contains per-service dates, staff and inventory
-    if (Array.isArray(b.functionDetailsList) && b.functionDetailsList.length > 0) {
+    if (
+      Array.isArray(b.functionDetailsList) &&
+      b.functionDetailsList.length > 0
+    ) {
       scheduleEntries = b.functionDetailsList.map((fd: any, i: number) => {
         const svc = Array.isArray(b.services) ? b.services[i] : null;
         return {
-          serviceName: svc?.service || svc?.serviceName || fd.type || b.serviceNeeded || '',
-          date: fd.date ? (typeof fd.date === 'string' ? fd.date.split('T')[0] : new Date(fd.date).toISOString().split('T')[0]) : (b.functionDetails?.date ? b.functionDetails.date.split('T')[0] : ''),
-          startTime: (fd.time && fd.time.start) || b.functionDetails?.time?.start || '',
-          endTime: (fd.time && fd.time.end) || b.functionDetails?.time?.end || '',
-          venueName: (fd.venue && fd.venue.name) || b.functionDetails?.venue?.name || '',
-          venueAddress: (fd.venue && fd.venue.address) || b.functionDetails?.venue?.address || '',
-          assignedStaff: Array.isArray(fd.assignedStaff) && fd.assignedStaff.length ? fd.assignedStaff.map((s: any) => (s._id ? s._id : s)) : (b.assignedStaff?.map((s: any) => s._id) || []),
-          inventorySelection: Array.isArray(fd.inventorySelection) && fd.inventorySelection.length ? fd.inventorySelection.map((it: any) => (it._id ? it._id : it)) : (b.inventorySelection?.map((i: any) => i._id) || []),
+          serviceName:
+            svc?.service ||
+            svc?.serviceName ||
+            fd.type ||
+            b.serviceNeeded ||
+            "",
+          date: fd.date
+            ? typeof fd.date === "string"
+              ? fd.date.split("T")[0]
+              : new Date(fd.date).toISOString().split("T")[0]
+            : b.functionDetails?.date
+            ? b.functionDetails.date.split("T")[0]
+            : "",
+          startTime:
+            (fd.time && fd.time.start) || b.functionDetails?.time?.start || "",
+          endTime:
+            (fd.time && fd.time.end) || b.functionDetails?.time?.end || "",
+          venueName:
+            (fd.venue && fd.venue.name) || b.functionDetails?.venue?.name || "",
+          venueAddress:
+            (fd.venue && fd.venue.address) ||
+            b.functionDetails?.venue?.address ||
+            "",
+          assignedStaff:
+            Array.isArray(fd.assignedStaff) && fd.assignedStaff.length
+              ? fd.assignedStaff.map((s: any) => (s._id ? s._id : s))
+              : b.assignedStaff?.map((s: any) => s._id) || [],
+          inventorySelection:
+            Array.isArray(fd.inventorySelection) && fd.inventorySelection.length
+              ? fd.inventorySelection.map((it: any) => (it._id ? it._id : it))
+              : b.inventorySelection?.map((i: any) => i._id) || [],
           quantity: svc?.quantity ?? svc?.qty ?? 1,
           price: svc?.rate ?? svc?.price ?? 0,
-          amount: svc?.amount ?? svc?.total ?? ((svc?.quantity ?? svc?.qty ?? 1) * (svc?.rate ?? svc?.price ?? 0)),
-          serviceCategoryId: svc?.serviceCategory || svc?.serviceCategoryId || '',
+          amount:
+            svc?.amount ??
+            svc?.total ??
+            (svc?.quantity ?? svc?.qty ?? 1) * (svc?.rate ?? svc?.price ?? 0),
+          serviceCategoryId:
+            svc?.serviceCategory || svc?.serviceCategoryId || "",
           serviceType: svc?.serviceType || svc?.type || [],
         };
       });
     } else if (Array.isArray(booking.services) && booking.services.length > 0) {
       // Fallback: map services to a single-date (functionDetails) when functionDetailsList is absent
       scheduleEntries = b.services.map((svc: any) => ({
-        serviceName: svc.service || svc.serviceName || b.serviceNeeded || b.functionDetails?.type || '',
-        date: b.functionDetails?.date ? b.functionDetails.date.split('T')[0] : '',
-        startTime: b.functionDetails?.time?.start || '',
-        endTime: b.functionDetails?.time?.end || '',
-        venueName: b.functionDetails?.venue?.name || '',
-        venueAddress: b.functionDetails?.venue?.address || '',
+        serviceName:
+          svc.service ||
+          svc.serviceName ||
+          b.serviceNeeded ||
+          b.functionDetails?.type ||
+          "",
+        date: b.functionDetails?.date
+          ? b.functionDetails.date.split("T")[0]
+          : "",
+        startTime: b.functionDetails?.time?.start || "",
+        endTime: b.functionDetails?.time?.end || "",
+        venueName: b.functionDetails?.venue?.name || "",
+        venueAddress: b.functionDetails?.venue?.address || "",
         assignedStaff: b.assignedStaff?.map((s: any) => s._id) || [],
         inventorySelection: b.inventorySelection?.map((i: any) => i._id) || [],
         quantity: svc.quantity ?? svc.qty ?? 1,
         price: svc.rate ?? svc.price ?? 0,
-        amount: svc.amount ?? svc.total ?? (svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0),
-        serviceCategoryId: svc.serviceCategory || svc.serviceCategoryId || '',
+        amount:
+          svc.amount ??
+          svc.total ??
+          (svc.quantity ?? svc.qty ?? 1) * (svc.rate ?? svc.price ?? 0),
+        serviceCategoryId: svc.serviceCategory || svc.serviceCategoryId || "",
         serviceType: svc.serviceType || svc.type || [],
       }));
     } else {
       scheduleEntries = [
         {
-          serviceName: b.serviceNeeded || b.functionDetails?.type || '',
-          date: b.functionDetails?.date ? b.functionDetails.date.split('T')[0] : '',
-          startTime: b.functionDetails?.time?.start || '',
-          endTime: b.functionDetails?.time?.end || '',
-          venueName: b.functionDetails?.venue?.name || '',
-          venueAddress: b.functionDetails?.venue?.address || '',
+          serviceName: b.serviceNeeded || b.functionDetails?.type || "",
+          date: b.functionDetails?.date
+            ? b.functionDetails.date.split("T")[0]
+            : "",
+          startTime: b.functionDetails?.time?.start || "",
+          endTime: b.functionDetails?.time?.end || "",
+          venueName: b.functionDetails?.venue?.name || "",
+          venueAddress: b.functionDetails?.venue?.address || "",
           assignedStaff: b.assignedStaff?.map((s: any) => s._id) || [],
-          inventorySelection: b.inventorySelection?.map((i: any) => i._id) || [],
+          inventorySelection:
+            b.inventorySelection?.map((i: any) => i._id) || [],
           quantity: 1,
           price: 0,
           amount: 0,
-          serviceCategoryId: '',
+          serviceCategoryId: "",
           serviceType: [],
         },
       ];
@@ -446,9 +533,15 @@ const BookingManagement = () => {
     try {
       const initialFilters: { [key: number]: string } = {};
       const initialCache: { [key: string]: any[] } = {};
-      const branchId = (booking as any).branch?._id || booking.bookingBranch?._id || (user && user.branchId) || undefined;
+      const branchId =
+        (booking as any).branch?._id ||
+        booking.bookingBranch?._id ||
+        (user && user.branchId) ||
+        undefined;
       // booking.inventorySelection may contain objects; build a map
-      const invObjects = Array.isArray(booking.inventorySelection) ? booking.inventorySelection : [];
+      const invObjects = Array.isArray(booking.inventorySelection)
+        ? booking.inventorySelection
+        : [];
       for (let i = 0; i < scheduleEntries.length; i++) {
         const entry = scheduleEntries[i];
         const ids = entry.inventorySelection || [];
@@ -456,8 +549,10 @@ const BookingManagement = () => {
           // find category of first matched inventory object
           let foundCat: string | null = null;
           for (const id of ids) {
-            const found = invObjects.find((it: any) => String(it._id || it) === String(id));
-            if (found && (((found as any).category) || ((found as any).type))) {
+            const found = invObjects.find(
+              (it: any) => String(it._id || it) === String(id)
+            );
+            if (found && ((found as any).category || (found as any).type)) {
               foundCat = (found as any).category || (found as any).type || null;
               break;
             }
@@ -470,19 +565,33 @@ const BookingManagement = () => {
                 if (branchId) params.branch = branchId;
                 const res: any = await inventoryAPI.getInventory(params);
                 const invData = res.data || res;
-                const docs = invData.docs || invData.data || invData.items || invData || [];
+                const docs =
+                  invData.docs ||
+                  invData.data ||
+                  invData.items ||
+                  invData ||
+                  [];
                 initialCache[foundCat] = Array.isArray(docs) ? docs : [];
               } catch (err) {
-                console.warn('Failed to prefetch inventory for category', foundCat, err);
+                console.warn(
+                  "Failed to prefetch inventory for category",
+                  foundCat,
+                  err
+                );
               }
             }
           }
         }
       }
-      if (Object.keys(initialFilters).length) setInventoryCategoryFilters(prev => ({ ...prev, ...initialFilters }));
-      if (Object.keys(initialCache).length) setCachedInventoryByCategory(prev => ({ ...prev, ...initialCache }));
+      if (Object.keys(initialFilters).length)
+        setInventoryCategoryFilters((prev) => ({ ...prev, ...initialFilters }));
+      if (Object.keys(initialCache).length)
+        setCachedInventoryByCategory((prev) => ({ ...prev, ...initialCache }));
     } catch (err) {
-      console.warn('Error preparing edit prefill for inventory categories', err);
+      console.warn(
+        "Error preparing edit prefill for inventory categories",
+        err
+      );
     }
 
     setFormData({
@@ -504,8 +613,17 @@ const BookingManagement = () => {
       services: booking.services || [],
       totalAmount: booking.pricing.totalAmount,
       advanceAmount: booking.pricing.advanceAmount,
-      status: booking.status || "pending",
-      notes: "",
+      status: booking.status || "enquiry",
+      notes: (booking as any).notes || "",
+      event: (booking as any).event || "",
+      videoOutput: (booking as any).videoOutput || "",
+      photoOutput: (booking as any).photoOutput || "",
+      rawOutput: (booking as any).rawOutput || "",
+      audioOutput: (booking as any).audioOutput || "",
+      videoOutputEnabled: (booking as any).videoOutputEnabled ?? !!(booking as any).videoOutput,
+      photoOutputEnabled: (booking as any).photoOutputEnabled ?? !!(booking as any).photoOutput,
+      rawOutputEnabled: (booking as any).rawOutputEnabled ?? !!(booking as any).rawOutput,
+      audioOutputEnabled: (booking as any).audioOutputEnabled ?? !!(booking as any).audioOutput,
     });
     setShowEditModal(true);
   };
@@ -564,9 +682,9 @@ const BookingManagement = () => {
           s.date && s.endTime
             ? new Date(`${s.date}T${s.endTime}`).toISOString()
             : null,
-        time: { 
-          start: s.startTime || "", 
-          end: s.endTime || "" 
+        time: {
+          start: s.startTime || "",
+          end: s.endTime || "",
         },
         venue: {
           name: s.venueName || formData.venueName || "",
@@ -593,7 +711,8 @@ const BookingManagement = () => {
       // Optional validation - only validate if service category is provided
       const invalidEntry = (scheduleList || []).find(
         (s: any) =>
-          s.serviceCategoryId && !(Array.isArray(s.serviceType) && s.serviceType.length > 0)
+          s.serviceCategoryId &&
+          !(Array.isArray(s.serviceType) && s.serviceType.length > 0)
       );
       if (invalidEntry) {
         addNotification({
@@ -613,7 +732,10 @@ const BookingManagement = () => {
         );
         return {
           service: cat?.name || "General Service",
-          serviceType: Array.isArray(s.serviceType) && s.serviceType.length > 0 ? s.serviceType : [],
+          serviceType:
+            Array.isArray(s.serviceType) && s.serviceType.length > 0
+              ? s.serviceType
+              : [],
           serviceCategory: s.serviceCategoryId || "",
           quantity: s.quantity ?? 1,
           rate: s.price ?? 0,
@@ -662,6 +784,16 @@ const BookingManagement = () => {
           advanceAmount: formData.advanceAmount,
           remainingAmount,
         },
+        notes: formData.notes,
+        event: formData.event,
+        videoOutput: formData.videoOutputEnabled ? formData.videoOutput : "",
+        photoOutput: formData.photoOutputEnabled ? formData.photoOutput : "",
+        rawOutput: formData.rawOutputEnabled ? formData.rawOutput : "",
+        audioOutput: formData.audioOutputEnabled ? formData.audioOutput : "",
+        videoOutputEnabled: formData.videoOutputEnabled,
+        photoOutputEnabled: formData.photoOutputEnabled,
+        rawOutputEnabled: formData.rawOutputEnabled,
+        audioOutputEnabled: formData.audioOutputEnabled,
       };
 
       if (selectedBooking) {
@@ -713,7 +845,8 @@ const BookingManagement = () => {
         {
           serviceCategoryId: "",
           serviceType: [] as string[],
-          date: new Date().toISOString().split('T')[0], // Default to today's date
+          event: "",
+          date: new Date().toISOString().split("T")[0], // Default to today's date
           startTime: "",
           endTime: "",
           venueName: "",
@@ -833,6 +966,98 @@ const BookingManagement = () => {
       });
     }
   };
+
+  // PDF Generation Functions
+  const generatePDF = (booking: Booking) => {
+    // Build a list of function detail entries (supports multiple event dates)
+    const b: any = booking as any;
+    const functionEntries = (b.functionDetailsList && b.functionDetailsList.length > 0)
+      ? b.functionDetailsList
+      : b.functionDetails
+        ? [b.functionDetails]
+        : [];
+
+    // Map services to invoice items and schedule rows. If multiple function entries exist,
+    // we'll attach the first available function entry to each service (or try to match by index).
+    const services = b.services || [];
+    const items = services.map((s: any) => ({
+      description: s.description || s.service || b.serviceNeeded || 'Service',
+      rate: s.rate ?? 0,
+      amount: s.amount ?? ((s.rate ?? 0) * (s.quantity ?? 1)),
+      quantity: s.quantity ?? 1,
+    }));
+
+    const schedule = services.map((s: any, idx: number) => {
+      const func: any = functionEntries[idx] || functionEntries[0] || {};
+      return {
+        serviceGiven: s.service || b.serviceNeeded || '-',
+        serviceType: Array.isArray(s.serviceType) ? s.serviceType.join(', ') : (s.serviceType || func.type || '-'),
+        event: s.event || func.event || '-',
+        date: func.date || func.startDate || b.functionDetails?.date || '-',
+        startTime: func.time?.start || b.functionDetails?.time?.start || '-',
+        endTime: func.time?.end || b.functionDetails?.time?.end || '-',
+        quantity: s.quantity ?? 1,
+        price: s.rate ?? 0,
+        amount: s.amount ?? ((s.rate ?? 0) * (s.quantity ?? 1)),
+        venue: {
+          name: func.venue?.name || b.functionDetails?.venue?.name,
+          address: func.venue?.address || b.functionDetails?.venue?.address,
+        },
+      };
+    });
+
+    const totalAmount = b.pricing?.totalAmount ?? items.reduce((sum: number, it: any) => sum + (it.amount || 0), 0);
+
+    const pdfData = {
+      bookingNumber: booking.bookingNumber,
+      date: (functionEntries[0] && (functionEntries[0].date || functionEntries[0].startDate)) || booking.functionDetails?.date,
+      status: booking.status,
+      client: {
+        name: b.client?.name || "N/A",
+        address: b.functionDetails?.venue?.address || b.client?.address || "N/A",
+        phone: b.client?.phone || undefined,
+        email: b.client?.email || undefined,
+        contact: b.client?.phone || b.client?.email || "N/A",
+        gstin: b.client?.gstin || "",
+      },
+      branch: {
+        name: (b.bookingBranch as any)?.name || (b.branch as any)?.name,
+        code: (b.bookingBranch as any)?.code || (b.branch as any)?.code,
+      },
+      company: {
+        name: "Abeer Motion Picture Pvt. Ltd.",
+        address: "Your Company Address Here",
+      },
+  items,
+  total: totalAmount,
+  advanceAmount: b.pricing?.advanceAmount || 0,
+  balanceAmount: (totalAmount) - (b.pricing?.advanceAmount || 0),
+  event: b.event,
+  videoOutput: b.videoOutput,
+  photoOutput: b.photoOutput,
+  rawOutput: b.rawOutput,
+  audioOutput: b.audioOutput || b.audio || undefined,
+  videoOutputEnabled: typeof b.videoOutputEnabled !== 'undefined' ? b.videoOutputEnabled : undefined,
+  photoOutputEnabled: typeof b.photoOutputEnabled !== 'undefined' ? b.photoOutputEnabled : undefined,
+  rawOutputEnabled: typeof b.rawOutputEnabled !== 'undefined' ? b.rawOutputEnabled : undefined,
+  audioOutputEnabled: typeof b.audioOutputEnabled !== 'undefined' ? b.audioOutputEnabled : undefined,
+  schedule,
+      termsAndConditions: [
+        "Payment terms as agreed upon booking confirmation.",
+        "Cancellation charges apply as per company policy.",
+        "All services subject to availability and weather conditions.",
+        "Client is responsible for proper permissions and clearances.",
+      ],
+    };
+    
+    setPdfBookingData(pdfData);
+    setShowPDFModal(true);
+  };
+
+  const handlePrint = useReactToPrint({
+    contentRef: pdfRef,
+    documentTitle: `${pdfBookingData?.status === 'enquiry' ? 'Quotation' : 'Invoice'}-${pdfBookingData?.bookingNumber}`,
+  });
 
   const filteredBookings = bookings.filter((booking) => {
     // If the current user is a branch admin/head, restrict bookings to their branch only
@@ -970,6 +1195,7 @@ const BookingManagement = () => {
           className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="all">All Status</option>
+          <option value="enquiry">Enquiry</option>
           <option value="pending">Pending</option>
           <option value="confirmed">Confirmed</option>
           <option value="in_progress">In Progress</option>
@@ -1095,15 +1321,22 @@ const BookingManagement = () => {
                       </span>
 
                       {/* Payment status / remaining amount */}
-                      {(booking as any).paymentStatus === 'completed' ? (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">Paid</span>
-                      ) : (booking as any).paymentStatus === 'partial' ? (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Partial</span>
-                      ) : (
-                        (booking as any).pricing?.remainingAmount ? (
-                          <span className="text-sm text-gray-600">Remaining: ₹{Number((booking as any).pricing.remainingAmount).toLocaleString()}</span>
-                        ) : null
-                      )}
+                      {(booking as any).paymentStatus === "completed" ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                          Paid
+                        </span>
+                      ) : (booking as any).paymentStatus === "partial" ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+                          Partial
+                        </span>
+                      ) : (booking as any).pricing?.remainingAmount ? (
+                        <span className="text-sm text-gray-600">
+                          Remaining: ₹
+                          {Number(
+                            (booking as any).pricing.remainingAmount
+                          ).toLocaleString()}
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -1185,10 +1418,17 @@ const BookingManagement = () => {
                         <>
                           <button
                             onClick={() => handleEditBooking(booking)}
-                            className="text-blue-600 hover:text-blue-900"
+                            className="text-blue-600 hover:text-blue-900 mr-2"
                             title="Edit Booking"
                           >
                             <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => generatePDF(booking)}
+                            className="text-green-600 hover:text-green-900 mr-2"
+                            title="Generate PDF"
+                          >
+                            <FileText className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() =>
@@ -1313,7 +1553,9 @@ const BookingManagement = () => {
                       <div key={idx}>
                         <div className="p-4 border rounded-lg bg-gray-50">
                           <div className="flex justify-between items-center mb-2">
-                            <div className="font-medium">Service #{idx + 1}</div>
+                            <div className="font-medium">
+                              Service #{idx + 1}
+                            </div>
                             <div>
                               <button
                                 type="button"
@@ -1324,43 +1566,73 @@ const BookingManagement = () => {
                               </button>
                             </div>
                           </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              Service
-                            </label>
-                            <div className="flex space-x-2">
-                              <select
-                                value={entry.serviceCategoryId || ""}
-                                onChange={(e) =>
-                                  updateScheduleEntry(
-                                    idx,
-                                    "serviceCategoryId",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-1/2 px-3 py-2 border rounded"
-                              >
-                                <option value="">Select service</option>
-                                {(categories || []).map((c: any) => (
-                                  <option key={c._id} value={c._id}>
-                                    {c.name}
-                                  </option>
-                                ))}
-                              </select>
-                              {entry.serviceCategoryId ? (
-                                (() => {
-                                  const cat = (categories || []).find(
-                                    (c: any) =>
-                                      c._id === entry.serviceCategoryId
-                                  );
-                                  if (
-                                    cat &&
-                                    Array.isArray(cat.types) &&
-                                    cat.types.length > 0
-                                  ) {
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Service
+                              </label>
+                              <div className="flex space-x-2">
+                                <select
+                                  value={entry.serviceCategoryId || ""}
+                                  onChange={(e) =>
+                                    updateScheduleEntry(
+                                      idx,
+                                      "serviceCategoryId",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-1/2 px-3 py-2 border rounded"
+                                >
+                                  <option value="">Select service</option>
+                                  {(categories || []).map((c: any) => (
+                                    <option key={c._id} value={c._id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                {entry.serviceCategoryId ? (
+                                  (() => {
+                                    const cat = (categories || []).find(
+                                      (c: any) =>
+                                        c._id === entry.serviceCategoryId
+                                    );
+                                    if (
+                                      cat &&
+                                      Array.isArray(cat.types) &&
+                                      cat.types.length > 0
+                                    ) {
+                                      return (
+                                        <select
+                                          value={
+                                            Array.isArray(entry.serviceType)
+                                              ? entry.serviceType[0] || ""
+                                              : entry.serviceType || ""
+                                          }
+                                          onChange={(e) =>
+                                            updateScheduleEntry(
+                                              idx,
+                                              "serviceType",
+                                              e.target.value
+                                                ? [e.target.value]
+                                                : []
+                                            )
+                                          }
+                                          className="w-1/2 px-3 py-2 border rounded"
+                                        >
+                                          <option value="">Select type</option>
+                                          {cat.types.map(
+                                            (t: string, i: number) => (
+                                              <option key={i} value={t}>
+                                                {t}
+                                              </option>
+                                            )
+                                          )}
+                                        </select>
+                                      );
+                                    }
                                     return (
-                                      <select
+                                      <input
+                                        type="text"
                                         value={
                                           Array.isArray(entry.serviceType)
                                             ? entry.serviceType[0] || ""
@@ -1375,295 +1647,431 @@ const BookingManagement = () => {
                                               : []
                                           )
                                         }
+                                        placeholder="Type (optional)"
                                         className="w-1/2 px-3 py-2 border rounded"
-                                      >
-                                        <option value="">Select type</option>
-                                        {cat.types.map(
-                                          (t: string, i: number) => (
-                                            <option key={i} value={t}>
-                                              {t}
-                                            </option>
-                                          )
-                                        )}
-                                      </select>
+                                      />
                                     );
-                                  }
-                                  return (
-                                    <input
-                                      type="text"
-                                      value={
-                                        Array.isArray(entry.serviceType)
-                                          ? entry.serviceType[0] || ""
-                                          : entry.serviceType || ""
-                                      }
-                                      onChange={(e) =>
-                                        updateScheduleEntry(
-                                          idx,
-                                          "serviceType",
-                                          e.target.value ? [e.target.value] : []
-                                        )
-                                      }
-                                      placeholder="Type (optional)"
-                                      className="w-1/2 px-3 py-2 border rounded"
-                                    />
-                                  );
-                                })()
-                              ) : (
-                                <div className="w-1/2 px-3 py-2 border rounded text-sm text-gray-500">
-                                  Please select a Service
-                                </div>
-                              )}
+                                  })()
+                                ) : (
+                                  <div className="w-1/2 px-3 py-2 border rounded text-sm text-gray-500">
+                                    Please select a Service
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">Date</label>
-                            <div className="flex items-center gap-3">
-                              <DateInputDDMMYYYY value={entry.date || ''} onChange={(v: string) => updateScheduleEntry(idx, 'date', v)} className="w-full" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              Start Time (Optional)
-                            </label>
-                            <input
-                              type="time"
-                              value={entry.startTime || ""}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "startTime",
-                                  e.target.value
-                                )
-                              }
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              End Time (Optional)
-                            </label>
-                            <input
-                              type="time"
-                              value={entry.endTime || ""}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "endTime",
-                                  e.target.value
-                                )
-                              }
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              Venue Name (Optional)
-                            </label>
-                            <input
-                              value={entry.venueName || ""}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "venueName",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Enter venue name (optional)"
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              Venue Address (Optional)
-                            </label>
-                            <input
-                              value={entry.venueAddress || ""}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "venueAddress",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Enter venue address (optional)"
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">Qty</label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={entry.quantity ?? 0}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "quantity",
-                                  Number(e.target.value)
-                                )
-                              }
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              Price
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={entry.price ?? 0}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "price",
-                                  Number(e.target.value)
-                                )
-                              }
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-600">
-                              Amount
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              value={entry.amount ?? 0}
-                              onChange={(e) =>
-                                updateScheduleEntry(
-                                  idx,
-                                  "amount",
-                                  Number(e.target.value)
-                                )
-                              }
-                              className="w-full px-3 py-2 border rounded"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">
-                              kis cheez ka kitna lagega
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-gray-700">
-                              Assign Staff (Optional)
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-gray-600">Internal</span>
-                              <button
-                                type="button"
-                                onClick={() => setStaffOutsourceStates(prev => ({ ...prev, [idx]: !staffOutsourceStates[idx] }))}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                  staffOutsourceStates[idx] ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                              >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                  staffOutsourceStates[idx] ? 'translate-x-6' : 'translate-x-1'
-                                }`} />
-                              </button>
-                              <span className="text-sm text-gray-600">Outsource</span>
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            {(() => {
-                              // compute conflicts: find other entries with same date and overlapping time
-                              const conflicts = new Set<string>();
-                              const curStart =
-                                entry.date && entry.startTime
-                                  ? new Date(`${entry.date}T${entry.startTime}`)
-                                  : null;
-                              const curEnd =
-                                entry.date && entry.endTime
-                                  ? new Date(`${entry.date}T${entry.endTime}`)
-                                  : null;
-                              (formData.servicesSchedule || []).forEach(
-                                (other: any, j: number) => {
-                                  if (j === idx) return;
-                                  if (!other.date) return;
-                                  if (other.date !== entry.date) return; // only consider same-date entries
-                                  const oStart =
-                                    other.date && other.startTime
-                                      ? new Date(
-                                          `${other.date}T${other.startTime}`
-                                        )
-                                      : null;
-                                  const oEnd =
-                                    other.date && other.endTime
-                                      ? new Date(
-                                          `${other.date}T${other.endTime}`
-                                        )
-                                      : null;
-                                  // if times overlap or no precise times given, treat as conflict
-                                  const overlap = (() => {
-                                    if (
-                                      !curStart ||
-                                      !curEnd ||
-                                      !oStart ||
-                                      !oEnd
-                                    )
-                                      return true;
-                                    return curStart <= oEnd && oStart <= curEnd;
-                                  })();
-                                  if (
-                                    overlap &&
-                                    Array.isArray(other.assignedStaff)
-                                  ) {
-                                    other.assignedStaff.forEach((id: string) =>
-                                      conflicts.add(id)
-                                    );
-                                  }
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Event
+                              </label>
+                              <input
+                                type="text"
+                                value={entry.event || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "event",
+                                    e.target.value
+                                  )
                                 }
-                              );
-                              
-                              const selectedStaff = entry.assignedStaff || [];
-                              const staffDropdownOpen = staffDropdownStates[idx] || false;
-                              const isOutsourceMode = staffOutsourceStates[idx] || false;
-                              const selectedOutsourceStaff = outsourceStaff[idx] || [];
-                              
-                              if (isOutsourceMode) {
+                                placeholder="e.g. Wedding, Birthday, Corporate Event"
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Date
+                              </label>
+                              <div className="flex items-center gap-3">
+                                <DateInputDDMMYYYY
+                                  value={entry.date || ""}
+                                  onChange={(v: string) =>
+                                    updateScheduleEntry(idx, "date", v)
+                                  }
+                                  className="w-full"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Start Time (Optional)
+                              </label>
+                              <input
+                                type="time"
+                                value={entry.startTime || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "startTime",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                End Time (Optional)
+                              </label>
+                              <input
+                                type="time"
+                                value={entry.endTime || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "endTime",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Venue Name (Optional)
+                              </label>
+                              <input
+                                value={entry.venueName || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "venueName",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Enter venue name (optional)"
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Venue Address (Optional)
+                              </label>
+                              <input
+                                value={entry.venueAddress || ""}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "venueAddress",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Enter venue address (optional)"
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Qty
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.quantity ?? 0}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "quantity",
+                                    Number(e.target.value)
+                                  )
+                                }
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Price
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.price ?? 0}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "price",
+                                    Number(e.target.value)
+                                  )
+                                }
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-600">
+                                Amount
+                              </label>
+                              <input
+                                type="number"
+                                min={0}
+                                value={entry.amount ?? 0}
+                                onChange={(e) =>
+                                  updateScheduleEntry(
+                                    idx,
+                                    "amount",
+                                    Number(e.target.value)
+                                  )
+                                }
+                                className="w-full px-3 py-2 border rounded"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                kis cheez ka kitna lagega
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                Assign Staff (Optional)
+                              </label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-600">
+                                  Internal
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setStaffOutsourceStates((prev) => ({
+                                      ...prev,
+                                      [idx]: !staffOutsourceStates[idx],
+                                    }))
+                                  }
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                    staffOutsourceStates[idx]
+                                      ? "bg-blue-600"
+                                      : "bg-gray-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                      staffOutsourceStates[idx]
+                                        ? "translate-x-6"
+                                        : "translate-x-1"
+                                    }`}
+                                  />
+                                </button>
+                                <span className="text-sm text-gray-600">
+                                  Outsource
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              {(() => {
+                                // compute conflicts: find other entries with same date and overlapping time
+                                const conflicts = new Set<string>();
+                                const curStart =
+                                  entry.date && entry.startTime
+                                    ? new Date(
+                                        `${entry.date}T${entry.startTime}`
+                                      )
+                                    : null;
+                                const curEnd =
+                                  entry.date && entry.endTime
+                                    ? new Date(`${entry.date}T${entry.endTime}`)
+                                    : null;
+                                (formData.servicesSchedule || []).forEach(
+                                  (other: any, j: number) => {
+                                    if (j === idx) return;
+                                    if (!other.date) return;
+                                    if (other.date !== entry.date) return; // only consider same-date entries
+                                    const oStart =
+                                      other.date && other.startTime
+                                        ? new Date(
+                                            `${other.date}T${other.startTime}`
+                                          )
+                                        : null;
+                                    const oEnd =
+                                      other.date && other.endTime
+                                        ? new Date(
+                                            `${other.date}T${other.endTime}`
+                                          )
+                                        : null;
+                                    // if times overlap or no precise times given, treat as conflict
+                                    const overlap = (() => {
+                                      if (
+                                        !curStart ||
+                                        !curEnd ||
+                                        !oStart ||
+                                        !oEnd
+                                      )
+                                        return true;
+                                      return (
+                                        curStart <= oEnd && oStart <= curEnd
+                                      );
+                                    })();
+                                    if (
+                                      overlap &&
+                                      Array.isArray(other.assignedStaff)
+                                    ) {
+                                      other.assignedStaff.forEach(
+                                        (id: string) => conflicts.add(id)
+                                      );
+                                    }
+                                  }
+                                );
+
+                                const selectedStaff = entry.assignedStaff || [];
+                                const staffDropdownOpen =
+                                  staffDropdownStates[idx] || false;
+                                const isOutsourceMode =
+                                  staffOutsourceStates[idx] || false;
+                                const selectedOutsourceStaff =
+                                  outsourceStaff[idx] || [];
+
+                                if (isOutsourceMode) {
+                                  return (
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setStaffDropdownStates((prev) => ({
+                                            ...prev,
+                                            [idx]: !staffDropdownOpen,
+                                          }))
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
+                                      >
+                                        <span className="text-gray-500">
+                                          {selectedOutsourceStaff.length === 0
+                                            ? "Select professional clients..."
+                                            : `${selectedOutsourceStaff.length} professionals selected`}
+                                        </span>
+                                        <svg
+                                          className="w-5 h-5 text-gray-400"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M19 9l-7 7-7-7"
+                                          />
+                                        </svg>
+                                      </button>
+
+                                      {staffDropdownOpen && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                          {professionalClients.map((client) => {
+                                            const isSelected =
+                                              selectedOutsourceStaff.includes(
+                                                client._id
+                                              );
+                                            return (
+                                              <label
+                                                key={client._id}
+                                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isSelected}
+                                                  onChange={(e) => {
+                                                    const checked =
+                                                      e.target.checked;
+                                                    const list = new Set(
+                                                      selectedOutsourceStaff
+                                                    );
+                                                    if (checked)
+                                                      list.add(client._id);
+                                                    else
+                                                      list.delete(client._id);
+                                                    setOutsourceStaff(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: Array.from(list),
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="mr-2"
+                                                />
+                                                <span className="text-sm">
+                                                  {client.name} - {client.phone}
+                                                </span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
                                 return (
                                   <div className="relative">
                                     <button
                                       type="button"
-                                      onClick={() => setStaffDropdownStates(prev => ({ ...prev, [idx]: !staffDropdownOpen }))}
+                                      onClick={() =>
+                                        setStaffDropdownStates((prev) => ({
+                                          ...prev,
+                                          [idx]: !staffDropdownOpen,
+                                        }))
+                                      }
                                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
                                     >
                                       <span className="text-gray-500">
-                                        {selectedOutsourceStaff.length === 0
-                                          ? "Select professional clients..."
-                                          : `${selectedOutsourceStaff.length} professionals selected`}
+                                        {selectedStaff.length === 0
+                                          ? "Select staff members..."
+                                          : `${selectedStaff.length} staff selected`}
                                       </span>
-                                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      <svg
+                                        className="w-5 h-5 text-gray-400"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M19 9l-7 7-7-7"
+                                        />
                                       </svg>
                                     </button>
-                                    
+
                                     {staffDropdownOpen && (
                                       <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                        {professionalClients.map((client) => {
-                                          const isSelected = selectedOutsourceStaff.includes(client._id);
+                                        {staff.map((s) => {
+                                          const disabled = conflicts.has(s._id);
+                                          const isSelected =
+                                            selectedStaff.includes(s._id);
                                           return (
                                             <label
-                                              key={client._id}
-                                              className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                              key={s._id}
+                                              className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
+                                                disabled
+                                                  ? "opacity-50 cursor-not-allowed"
+                                                  : ""
+                                              }`}
                                             >
                                               <input
                                                 type="checkbox"
+                                                disabled={disabled}
                                                 checked={isSelected}
                                                 onChange={(e) => {
-                                                  const checked = e.target.checked;
-                                                  const list = new Set(selectedOutsourceStaff);
-                                                  if (checked) list.add(client._id);
-                                                  else list.delete(client._id);
-                                                  setOutsourceStaff(prev => ({ ...prev, [idx]: Array.from(list) }));
+                                                  if (disabled) return;
+                                                  const checked =
+                                                    e.target.checked;
+                                                  const list = new Set(
+                                                    selectedStaff
+                                                  );
+                                                  if (checked) list.add(s._id);
+                                                  else list.delete(s._id);
+                                                  updateScheduleEntry(
+                                                    idx,
+                                                    "assignedStaff",
+                                                    Array.from(list)
+                                                  );
                                                 }}
                                                 className="mr-2"
                                               />
-                                              <span className="text-sm">
-                                                {client.name} - {client.phone}
+                                              <span
+                                                className={`text-sm ${
+                                                  disabled
+                                                    ? "line-through text-gray-400"
+                                                    : ""
+                                                }`}
+                                              >
+                                                {s.name} ({s.designation})
                                               </span>
                                             </label>
                                           );
@@ -1672,486 +2080,655 @@ const BookingManagement = () => {
                                     )}
                                   </div>
                                 );
-                              }
-                              
-                              return (
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => setStaffDropdownStates(prev => ({ ...prev, [idx]: !staffDropdownOpen }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
-                                  >
-                                    <span className="text-gray-500">
-                                      {selectedStaff.length === 0
-                                        ? "Select staff members..."
-                                        : `${selectedStaff.length} staff selected`}
-                                    </span>
-                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                  
-                                  {staffDropdownOpen && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                      {staff.map((s) => {
-                                        const disabled = conflicts.has(s._id);
-                                        const isSelected = selectedStaff.includes(s._id);
-                                        return (
-                                          <label
-                                            key={s._id}
-                                            className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
-                                              disabled ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              disabled={disabled}
-                                              checked={isSelected}
-                                              onChange={(e) => {
-                                                if (disabled) return;
-                                                const checked = e.target.checked;
-                                                const list = new Set(selectedStaff);
-                                                if (checked) list.add(s._id);
-                                                else list.delete(s._id);
-                                                updateScheduleEntry(idx, "assignedStaff", Array.from(list));
-                                              }}
-                                              className="mr-2"
-                                            />
-                                            <span className={`text-sm ${disabled ? 'line-through text-gray-400' : ''}`}>
-                                              {s.name} ({s.designation})
-                                            </span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium text-gray-700">
-                              Select Equipment (Optional)
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-gray-600">Internal</span>
-                              <button
-                                type="button"
-                                onClick={() => setEquipOutsourceStates(prev => ({ ...prev, [idx]: !equipOutsourceStates[idx] }))}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                  equipOutsourceStates[idx] ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                              >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                  equipOutsourceStates[idx] ? 'translate-x-6' : 'translate-x-1'
-                                }`} />
-                              </button>
-                              <span className="text-sm text-gray-600">Outsource</span>
+                              })()}
                             </div>
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                // Clear filter and show all
-                                setInventoryCategoryFilters((prev) => ({
-                                  ...prev,
-                                  [idx]: "",
-                                }));
-                              }}
-                              className={`px-2 py-1 text-xs rounded ${
-                                !inventoryCategoryFilters[idx]
-                                  ? "bg-blue-600 text-white"
-                                  : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              All
-                            </button>
-                            {(Array.isArray(inventoryCategories)
-                              ? inventoryCategories
-                              : []
-                            ).map((c: any) => (
-                              <button
-                                key={c}
-                                type="button"
-                                onClick={async () => {
-                                  // when selecting a category, fetch inventory for that category (cached)
-                                  try {
-                                    setInventoryCategoryFilters((prev) => ({
+
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-sm font-medium text-gray-700">
+                                Select Equipment (Optional)
+                              </label>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-600">
+                                  Internal
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEquipOutsourceStates((prev) => ({
                                       ...prev,
-                                      [idx]: c,
-                                    }));
-                                    if (!cachedInventoryByCategory[c]) {
-                                      const params: any = { category: c };
-                                      // respect selected branch when fetching
-                                      if (formData.bookingBranch)
-                                        params.branch = formData.bookingBranch;
-                                      else if (user && user.branchId)
-                                        params.branch = user.branchId;
-                                      const res: any =
-                                        await inventoryAPI.getInventory(params);
-                                      const invData = res.data || res;
-                                      const docs =
-                                        invData.docs ||
-                                        invData.data ||
-                                        invData.items ||
-                                        invData ||
-                                        [];
-                                      const list = Array.isArray(docs)
-                                        ? docs
-                                        : [];
-                                      setCachedInventoryByCategory((prev) => ({
-                                        ...prev,
-                                        [c]: list,
-                                      }));
-                                    }
-                                  } catch (err) {
-                                    console.warn(
-                                      "Failed to fetch inventory for category",
-                                      c,
-                                      err
-                                    );
+                                      [idx]: !equipOutsourceStates[idx],
+                                    }))
                                   }
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                    equipOutsourceStates[idx]
+                                      ? "bg-blue-600"
+                                      : "bg-gray-200"
+                                  }`}
+                                >
+                                  <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                      equipOutsourceStates[idx]
+                                        ? "translate-x-6"
+                                        : "translate-x-1"
+                                    }`}
+                                  />
+                                </button>
+                                <span className="text-sm text-gray-600">
+                                  Outsource
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Clear filter and show all
+                                  setInventoryCategoryFilters((prev) => ({
+                                    ...prev,
+                                    [idx]: "",
+                                  }));
                                 }}
                                 className={`px-2 py-1 text-xs rounded ${
-                                  inventoryCategoryFilters[idx] === c
+                                  !inventoryCategoryFilters[idx]
                                     ? "bg-blue-600 text-white"
                                     : "bg-gray-100 text-gray-700"
                                 }`}
                               >
-                                {c}
+                                All
                               </button>
-                            ))}
-                          </div>
-
-                          <div className="mt-2">
-                            {(() => {
-                              let inventoryList: any[] = [];
-                              if (
-                                inventory &&
-                                typeof inventory === "object" &&
-                                "docs" in (inventory as any) &&
-                                Array.isArray((inventory as any).docs)
-                              )
-                                inventoryList = (inventory as any).docs;
-                              else if (Array.isArray(inventory))
-                                inventoryList = inventory;
-                              const selectedCategory =
-                                inventoryCategoryFilters[idx];
-                              const filtered = selectedCategory
-                                ? (
-                                    cachedInventoryByCategory[
-                                      selectedCategory
-                                    ] || []
-                                  )
-                                    .concat()
-                                    .filter(Boolean)
-                                : inventoryList;
-                              // compute equipment conflicts similar to staff
-                              const equipConflicts = new Set<string>();
-                              const curStartE =
-                                entry.date && entry.startTime
-                                  ? new Date(`${entry.date}T${entry.startTime}`)
-                                  : null;
-                              const curEndE =
-                                entry.date && entry.endTime
-                                  ? new Date(`${entry.date}T${entry.endTime}`)
-                                  : null;
-                              (formData.servicesSchedule || []).forEach(
-                                (other: any, j: number) => {
-                                  if (j === idx) return;
-                                  if (!other.date) return;
-                                  if (other.date !== entry.date) return;
-                                  const oStart =
-                                    other.date && other.startTime
-                                      ? new Date(
-                                          `${other.date}T${other.startTime}`
-                                        )
-                                      : null;
-                                  const oEnd =
-                                    other.date && other.endTime
-                                      ? new Date(
-                                          `${other.date}T${other.endTime}`
-                                        )
-                                      : null;
-                                  const overlap = (() => {
-                                    if (
-                                      !curStartE ||
-                                      !curEndE ||
-                                      !oStart ||
-                                      !oEnd
-                                    )
-                                      return true;
-                                    return (
-                                      curStartE <= oEnd && oStart <= curEndE
-                                    );
-                                  })();
-                                  if (
-                                    overlap &&
-                                    Array.isArray(other.inventorySelection)
-                                  ) {
-                                    other.inventorySelection.forEach(
-                                      (id: string) => equipConflicts.add(id)
-                                    );
-                                  }
-                                }
-                              );
-                              
-                              const selectedEquipment = entry.inventorySelection || [];
-                              const equipDropdownOpen = equipDropdownStates[idx] || false;
-                              const isEquipOutsourceMode = equipOutsourceStates[idx] || false;
-                              const selectedOutsourceEquipment = outsourceEquipment[idx] || [];
-                              
-                              if (isEquipOutsourceMode) {
-                                return (
-                                  <div className="space-y-4">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-sm font-medium">Outsource Equipment</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const newEquip = {
-                                            sku: '',
-                                            modelNo: '',
-                                            name: '',
-                                            brand: '',
-                                            qty: 1,
-                                            rentingAmount: 0,
-                                            rentingFromPersonName: '',
-                                            email: '',
-                                            phone: '',
-                                            address: ''
-                                          };
-                                          setOutsourceEquipment(prev => ({
+                              {(Array.isArray(inventoryCategories)
+                                ? inventoryCategories
+                                : []
+                              ).map((c: any) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={async () => {
+                                    // when selecting a category, fetch inventory for that category (cached)
+                                    try {
+                                      setInventoryCategoryFilters((prev) => ({
+                                        ...prev,
+                                        [idx]: c,
+                                      }));
+                                      if (!cachedInventoryByCategory[c]) {
+                                        const params: any = { category: c };
+                                        // respect selected branch when fetching
+                                        if (formData.bookingBranch)
+                                          params.branch =
+                                            formData.bookingBranch;
+                                        else if (user && user.branchId)
+                                          params.branch = user.branchId;
+                                        const res: any =
+                                          await inventoryAPI.getInventory(
+                                            params
+                                          );
+                                        const invData = res.data || res;
+                                        const docs =
+                                          invData.docs ||
+                                          invData.data ||
+                                          invData.items ||
+                                          invData ||
+                                          [];
+                                        const list = Array.isArray(docs)
+                                          ? docs
+                                          : [];
+                                        setCachedInventoryByCategory(
+                                          (prev) => ({
                                             ...prev,
-                                            [idx]: [...(prev[idx] || []), newEquip]
-                                          }));
-                                        }}
-                                        className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
-                                      >
-                                        Add Equipment
-                                      </button>
-                                    </div>
-                                    
-                                    {selectedOutsourceEquipment.map((equip: any, equipIdx: number) => (
-                                      <div key={equipIdx} className="border rounded-lg p-4 bg-gray-50">
-                                        <div className="flex justify-between items-center mb-3">
-                                          <span className="font-medium text-sm">Equipment #{equipIdx + 1}</span>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setOutsourceEquipment(prev => ({
-                                                ...prev,
-                                                [idx]: prev[idx]?.filter((_, i) => i !== equipIdx) || []
-                                              }));
-                                            }}
-                                            className="text-red-600 text-sm"
-                                          >
-                                            Remove
-                                          </button>
-                                        </div>
-                                        
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                          <div>
-                                            <label className="text-xs text-gray-600">SKU</label>
-                                            <input
-                                              type="text"
-                                              value={equip.sku || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], sku: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Model No</label>
-                                            <input
-                                              type="text"
-                                              value={equip.modelNo || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], modelNo: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Equipment Name</label>
-                                            <input
-                                              type="text"
-                                              value={equip.name || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], name: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Brand</label>
-                                            <input
-                                              type="text"
-                                              value={equip.brand || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], brand: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Quantity</label>
-                                            <input
-                                              type="number"
-                                              min="1"
-                                              value={equip.qty || 1}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], qty: parseInt(e.target.value) || 1 };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Renting Amount</label>
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              value={equip.rentingAmount || 0}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], rentingAmount: parseFloat(e.target.value) || 0 };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Renting From (Name)</label>
-                                            <input
-                                              type="text"
-                                              value={equip.rentingFromPersonName || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], rentingFromPersonName: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Email</label>
-                                            <input
-                                              type="email"
-                                              value={equip.email || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], email: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div>
-                                            <label className="text-xs text-gray-600">Phone</label>
-                                            <input
-                                              type="tel"
-                                              value={equip.phone || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], phone: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                          <div className="md:col-span-2">
-                                            <label className="text-xs text-gray-600">Address</label>
-                                            <textarea
-                                              value={equip.address || ''}
-                                              onChange={(e) => {
-                                                const updated = [...selectedOutsourceEquipment];
-                                                updated[equipIdx] = { ...updated[equipIdx], address: e.target.value };
-                                                setOutsourceEquipment(prev => ({ ...prev, [idx]: updated }));
-                                              }}
-                                              rows={2}
-                                              className="w-full px-2 py-1 border rounded text-sm"
-                                            />
-                                          </div>
-                                        </div>
+                                            [c]: list,
+                                          })
+                                        );
+                                      }
+                                    } catch (err) {
+                                      console.warn(
+                                        "Failed to fetch inventory for category",
+                                        c,
+                                        err
+                                      );
+                                    }
+                                  }}
+                                  className={`px-2 py-1 text-xs rounded ${
+                                    inventoryCategoryFilters[idx] === c
+                                      ? "bg-blue-600 text-white"
+                                      : "bg-gray-100 text-gray-700"
+                                  }`}
+                                >
+                                  {c}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="mt-2">
+                              {(() => {
+                                let inventoryList: any[] = [];
+                                if (
+                                  inventory &&
+                                  typeof inventory === "object" &&
+                                  "docs" in (inventory as any) &&
+                                  Array.isArray((inventory as any).docs)
+                                )
+                                  inventoryList = (inventory as any).docs;
+                                else if (Array.isArray(inventory))
+                                  inventoryList = inventory;
+                                const selectedCategory =
+                                  inventoryCategoryFilters[idx];
+                                const filtered = selectedCategory
+                                  ? (
+                                      cachedInventoryByCategory[
+                                        selectedCategory
+                                      ] || []
+                                    )
+                                      .concat()
+                                      .filter(Boolean)
+                                  : inventoryList;
+                                // compute equipment conflicts similar to staff
+                                const equipConflicts = new Set<string>();
+                                const curStartE =
+                                  entry.date && entry.startTime
+                                    ? new Date(
+                                        `${entry.date}T${entry.startTime}`
+                                      )
+                                    : null;
+                                const curEndE =
+                                  entry.date && entry.endTime
+                                    ? new Date(`${entry.date}T${entry.endTime}`)
+                                    : null;
+                                (formData.servicesSchedule || []).forEach(
+                                  (other: any, j: number) => {
+                                    if (j === idx) return;
+                                    if (!other.date) return;
+                                    if (other.date !== entry.date) return;
+                                    const oStart =
+                                      other.date && other.startTime
+                                        ? new Date(
+                                            `${other.date}T${other.startTime}`
+                                          )
+                                        : null;
+                                    const oEnd =
+                                      other.date && other.endTime
+                                        ? new Date(
+                                            `${other.date}T${other.endTime}`
+                                          )
+                                        : null;
+                                    const overlap = (() => {
+                                      if (
+                                        !curStartE ||
+                                        !curEndE ||
+                                        !oStart ||
+                                        !oEnd
+                                      )
+                                        return true;
+                                      return (
+                                        curStartE <= oEnd && oStart <= curEndE
+                                      );
+                                    })();
+                                    if (
+                                      overlap &&
+                                      Array.isArray(other.inventorySelection)
+                                    ) {
+                                      other.inventorySelection.forEach(
+                                        (id: string) => equipConflicts.add(id)
+                                      );
+                                    }
+                                  }
+                                );
+
+                                const selectedEquipment =
+                                  entry.inventorySelection || [];
+                                const equipDropdownOpen =
+                                  equipDropdownStates[idx] || false;
+                                const isEquipOutsourceMode =
+                                  equipOutsourceStates[idx] || false;
+                                const selectedOutsourceEquipment =
+                                  outsourceEquipment[idx] || [];
+
+                                if (isEquipOutsourceMode) {
+                                  return (
+                                    <div className="space-y-4">
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-sm font-medium">
+                                          Outsource Equipment
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const newEquip = {
+                                              sku: "",
+                                              modelNo: "",
+                                              name: "",
+                                              brand: "",
+                                              qty: 1,
+                                              rentingAmount: 0,
+                                              rentingFromPersonId: "",
+                                              rentingFromPersonName: "",
+                                              rentingFromPersonPhone: "",
+                                              rentingFromPersonEmail: "",
+                                              email: "",
+                                              phone: "",
+                                              address: "",
+                                            };
+                                            setOutsourceEquipment((prev) => ({
+                                              ...prev,
+                                              [idx]: [
+                                                ...(prev[idx] || []),
+                                                newEquip,
+                                              ],
+                                            }));
+                                          }}
+                                          className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                                        >
+                                          Add Equipment
+                                        </button>
                                       </div>
-                                    ))}
+
+                                      {selectedOutsourceEquipment.map(
+                                        (equip: any, equipIdx: number) => (
+                                          <div
+                                            key={equipIdx}
+                                            className="border rounded-lg p-4 bg-gray-50"
+                                          >
+                                            <div className="flex justify-between items-center mb-3">
+                                              <span className="font-medium text-sm">
+                                                Equipment #{equipIdx + 1}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setOutsourceEquipment(
+                                                    (prev) => ({
+                                                      ...prev,
+                                                      [idx]:
+                                                        prev[idx]?.filter(
+                                                          (_, i) =>
+                                                            i !== equipIdx
+                                                        ) || [],
+                                                    })
+                                                  );
+                                                }}
+                                                className="text-red-600 text-sm"
+                                              >
+                                                Remove
+                                              </button>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  SKU
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={equip.sku || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      sku: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Model No
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={equip.modelNo || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      modelNo: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Equipment Name
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={equip.name || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      name: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Brand
+                                                </label>
+                                                <input
+                                                  type="text"
+                                                  value={equip.brand || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      brand: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Quantity
+                                                </label>
+                                                <input
+                                                  type="number"
+                                                  min="1"
+                                                  value={equip.qty || 1}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      qty:
+                                                        parseInt(
+                                                          e.target.value
+                                                        ) || 1,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Renting Amount
+                                                </label>
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  value={
+                                                    equip.rentingAmount || 0
+                                                  }
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      rentingAmount:
+                                                        parseFloat(
+                                                          e.target.value
+                                                        ) || 0,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Renting From (Professional)
+                                                </label>
+                                                <select
+                                                  value={
+                                                    equip.rentingFromPersonId || ""
+                                                  }
+                                                  onChange={(e) => {
+                                                    const selectedId = e.target.value;
+                                                    const selectedClient = professionalClients.find(
+                                                      (c) => c._id === selectedId
+                                                    );
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      rentingFromPersonId: selectedId,
+                                                      rentingFromPersonName:
+                                                        selectedClient?.name || "",
+                                                      rentingFromPersonPhone:
+                                                        selectedClient?.phone || "",
+                                                      rentingFromPersonEmail:
+                                                        selectedClient?.email || "",
+                                                    };
+                                                    setOutsourceEquipment((prev) => ({
+                                                      ...prev,
+                                                      [idx]: updated,
+                                                    }));
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                >
+                                                  <option value="">Select professional...</option>
+                                                  {(professionalClients || []).map((pc) => (
+                                                    <option key={pc._id} value={pc._id}>
+                                                      {pc.name} {pc.phone ? `- ${pc.phone}` : ""}
+                                                    </option>
+                                                  ))}
+                                                </select>
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Email
+                                                </label>
+                                                <input
+                                                  type="email"
+                                                  value={equip.email || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      email: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="text-xs text-gray-600">
+                                                  Phone
+                                                </label>
+                                                <input
+                                                  type="tel"
+                                                  value={equip.phone || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      phone: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                              <div className="md:col-span-2">
+                                                <label className="text-xs text-gray-600">
+                                                  Address
+                                                </label>
+                                                <textarea
+                                                  value={equip.address || ""}
+                                                  onChange={(e) => {
+                                                    const updated = [
+                                                      ...selectedOutsourceEquipment,
+                                                    ];
+                                                    updated[equipIdx] = {
+                                                      ...updated[equipIdx],
+                                                      address: e.target.value,
+                                                    };
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
+                                                  }}
+                                                  rows={2}
+                                                  className="w-full px-2 py-1 border rounded text-sm"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <div className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setEquipDropdownStates((prev) => ({
+                                          ...prev,
+                                          [idx]: !equipDropdownOpen,
+                                        }))
+                                      }
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
+                                    >
+                                      <span className="text-gray-500">
+                                        {selectedEquipment.length === 0
+                                          ? "Select equipment..."
+                                          : `${selectedEquipment.length} items selected`}
+                                      </span>
+                                      <svg
+                                        className="w-5 h-5 text-gray-400"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M19 9l-7 7-7-7"
+                                        />
+                                      </svg>
+                                    </button>
+
+                                    {equipDropdownOpen && (
+                                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                        {filtered.map((it: any) => {
+                                          const disabled = equipConflicts.has(
+                                            it._id
+                                          );
+                                          const isSelected =
+                                            selectedEquipment.includes(it._id);
+                                          return (
+                                            <label
+                                              key={it._id}
+                                              className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
+                                                disabled
+                                                  ? "opacity-50 cursor-not-allowed"
+                                                  : ""
+                                              }`}
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                disabled={disabled}
+                                                checked={isSelected}
+                                                onChange={(e) => {
+                                                  if (disabled) return;
+                                                  const checked =
+                                                    e.target.checked;
+                                                  const list = new Set(
+                                                    selectedEquipment
+                                                  );
+                                                  if (checked) list.add(it._id);
+                                                  else list.delete(it._id);
+                                                  updateScheduleEntry(
+                                                    idx,
+                                                    "inventorySelection",
+                                                    Array.from(list)
+                                                  );
+                                                }}
+                                                className="mr-2"
+                                              />
+                                              <span
+                                                className={`text-sm ${
+                                                  disabled
+                                                    ? "line-through text-gray-400"
+                                                    : ""
+                                                }`}
+                                              >
+                                                {it.name} ({it.category})
+                                              </span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 );
-                              }
-                              
-                              return (
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => setEquipDropdownStates(prev => ({ ...prev, [idx]: !equipDropdownOpen }))}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between"
-                                  >
-                                    <span className="text-gray-500">
-                                      {selectedEquipment.length === 0
-                                        ? "Select equipment..."
-                                        : `${selectedEquipment.length} items selected`}
-                                    </span>
-                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-                                  
-                                  {equipDropdownOpen && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                      {filtered.map((it: any) => {
-                                        const disabled = equipConflicts.has(it._id);
-                                        const isSelected = selectedEquipment.includes(it._id);
-                                        return (
-                                          <label
-                                            key={it._id}
-                                            className={`flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer ${
-                                              disabled ? 'opacity-50 cursor-not-allowed' : ''
-                                            }`}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              disabled={disabled}
-                                              checked={isSelected}
-                                              onChange={(e) => {
-                                                if (disabled) return;
-                                                const checked = e.target.checked;
-                                                const list = new Set(selectedEquipment);
-                                                if (checked) list.add(it._id);
-                                                else list.delete(it._id);
-                                                updateScheduleEntry(idx, "inventorySelection", Array.from(list));
-                                              }}
-                                              className="mr-2"
-                                            />
-                                            <span className={`text-sm ${disabled ? 'line-through text-gray-400' : ''}`}>
-                                              {it.name} ({it.category})
-                                            </span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                              })()}
+                            </div>
                           </div>
                         </div>
-                        </div>
-                        
+
                         {/* Add Service button after each service entry */}
                         <div className="mt-3 text-center">
                           <button
@@ -2216,6 +2793,158 @@ const BookingManagement = () => {
                   </p>
                 </div>
               </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Output Specifications</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="videoOutputEnabled"
+                      checked={formData.videoOutputEnabled}
+                      onChange={(e) =>
+                        setFormData({ 
+                          ...formData, 
+                          videoOutputEnabled: e.target.checked,
+                          videoOutput: e.target.checked ? formData.videoOutput : ""
+                        })
+                      }
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="videoOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                        Video Output
+                      </label>
+                      {formData.videoOutputEnabled && (
+                        <input
+                          type="text"
+                          value={formData.videoOutput}
+                          onChange={(e) =>
+                            setFormData({ ...formData, videoOutput: e.target.value })
+                          }
+                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g. Full HD, 4K, etc."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Photo Output */}
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="photoOutputEnabled"
+                      checked={formData.photoOutputEnabled}
+                      onChange={(e) =>
+                        setFormData({ 
+                          ...formData, 
+                          photoOutputEnabled: e.target.checked,
+                          photoOutput: e.target.checked ? formData.photoOutput : ""
+                        })
+                      }
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="photoOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                        Photo Output
+                      </label>
+                      {formData.photoOutputEnabled && (
+                        <input
+                          type="text"
+                          value={formData.photoOutput}
+                          onChange={(e) =>
+                            setFormData({ ...formData, photoOutput: e.target.value })
+                          }
+                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g. JPEG, RAW, etc."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Raw Output */}
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="rawOutputEnabled"
+                      checked={formData.rawOutputEnabled}
+                      onChange={(e) =>
+                        setFormData({ 
+                          ...formData, 
+                          rawOutputEnabled: e.target.checked,
+                          rawOutput: e.target.checked ? formData.rawOutput : ""
+                        })
+                      }
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="rawOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                        Raw Output
+                      </label>
+                      {formData.rawOutputEnabled && (
+                        <input
+                          type="text"
+                          value={formData.rawOutput}
+                          onChange={(e) =>
+                            setFormData({ ...formData, rawOutput: e.target.value })
+                          }
+                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g. RAW files, unedited footage, etc."
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Audio Output */}
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="audioOutputEnabled"
+                      checked={formData.audioOutputEnabled}
+                      onChange={(e) =>
+                        setFormData({ 
+                          ...formData, 
+                          audioOutputEnabled: e.target.checked,
+                          audioOutput: e.target.checked ? formData.audioOutput : ""
+                        })
+                      }
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="audioOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                        Audio Output
+                      </label>
+                      {formData.audioOutputEnabled && (
+                        <input
+                          type="text"
+                          value={formData.audioOutput}
+                          onChange={(e) =>
+                            setFormData({ ...formData, audioOutput: e.target.value })
+                          }
+                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="e.g. WAV, MP3, etc."
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 mt-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes
+                  </label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notes: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={3}
+                    placeholder="Any additional notes..."
+                  />
+                </div>
+              </div>
 
               {/* Status selection (admin/managers) */}
               <div>
@@ -2229,6 +2958,7 @@ const BookingManagement = () => {
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
+                  <option value="enquiry">Enquiry</option>
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
                   <option value="in_progress">In Progress</option>
@@ -2436,6 +3166,41 @@ const BookingManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Modal */}
+      {showPDFModal && pdfBookingData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">
+                {pdfBookingData.status === 'enquiry' ? 'Quotation' : 'Invoice'} Preview
+              </h2>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handlePrint}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Print/Download</span>
+                </button>
+                <button
+                  onClick={() => setShowPDFModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="border border-gray-200 rounded-lg">
+              <BookingPDFTemplate 
+                ref={pdfRef} 
+                data={pdfBookingData} 
+              />
+            </div>
           </div>
         </div>
       )}

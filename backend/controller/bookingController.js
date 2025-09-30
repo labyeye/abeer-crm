@@ -3,7 +3,6 @@ const Client = require('../models/Client');
 const Staff = require('../models/Staff');
 const Inventory = require('../models/Inventory');
 const Branch = require('../models/Branch');
-const Quotation = require('../models/Quotation');
 const Invoice = require('../models/Invoice');
 const automatedMessaging = require('../services/automatedMessaging');
 const taskAutoAssignment = require('../services/taskAutoAssignment');
@@ -58,8 +57,7 @@ const getBookings = asyncHandler(async (req, res) => {
     .populate('inventorySelection', 'name category quantity')
     .populate('staffAssignment.staff', 'user designation department')
     .populate('equipmentAssignment.equipment', 'name sku category')
-    .populate('quotation')
-    .populate('invoice')
+  .populate('invoice')
   
   .sort({ 'functionDetails.date': -1 });
   res.status(200).json({ success: true, count: bookings.length, data: bookings });
@@ -76,7 +74,6 @@ const getBooking = asyncHandler(async (req, res) => {
     .populate('inventorySelection', 'name category quantity')
     .populate('staffAssignment.staff', 'user designation department')
     .populate('equipmentAssignment.equipment', 'name sku category')
-    .populate('quotation')
     .populate('invoice');
   if (!booking || booking.isDeleted) {
     return res.status(404).json({ success: false, message: 'Booking not found' });
@@ -88,6 +85,19 @@ const getBooking = asyncHandler(async (req, res) => {
 
 
 const createBooking = asyncHandler(async (req, res) => {
+  // Extract and validate output fields
+  const { videoOutput, photoOutput, rawOutput, notes } = req.body;
+  
+  // Ensure output fields are strings if provided
+  if (videoOutput !== undefined && typeof videoOutput !== 'string') {
+    return res.status(400).json({ success: false, message: 'Video output must be a string' });
+  }
+  if (photoOutput !== undefined && typeof photoOutput !== 'string') {
+    return res.status(400).json({ success: false, message: 'Photo output must be a string' });
+  }
+  if (rawOutput !== undefined && typeof rawOutput !== 'string') {
+    return res.status(400).json({ success: false, message: 'Raw output must be a string' });
+  }
   
   const booking = await Booking.create(req.body);
   
@@ -161,6 +171,20 @@ const updateBooking = asyncHandler(async (req, res) => {
   const oldBooking = await Booking.findById(req.params.id);
   if (!oldBooking) {
     return res.status(404).json({ success: false, message: 'Booking not found' });
+  }
+  
+  // Extract and validate output fields
+  const { videoOutput, photoOutput, rawOutput, notes } = req.body;
+  
+  // Ensure output fields are strings if provided
+  if (videoOutput !== undefined && typeof videoOutput !== 'string') {
+    return res.status(400).json({ success: false, message: 'Video output must be a string' });
+  }
+  if (photoOutput !== undefined && typeof photoOutput !== 'string') {
+    return res.status(400).json({ success: false, message: 'Photo output must be a string' });
+  }
+  if (rawOutput !== undefined && typeof rawOutput !== 'string') {
+    return res.status(400).json({ success: false, message: 'Raw output must be a string' });
   }
   
   const oldStatus = oldBooking.status;
@@ -327,8 +351,7 @@ const getBookingsForStaff = asyncHandler(async (req, res) => {
       .populate('inventorySelection', 'name category quantity')
       .populate('staffAssignment.staff', 'user designation department')
       .populate('equipmentAssignment.equipment', 'name sku category')
-      .populate('quotation')
-      .populate('invoice')
+  .populate('invoice')
       .sort({ 'functionDetails.date': -1 });
   } else {
     console.log('⚠️ No staff record found for user ID:', req.params.staffId);
@@ -363,7 +386,7 @@ const getMyBookings = asyncHandler(async (req, res) => {
     .populate('inventorySelection', 'name category quantity')
     .populate('staffAssignment.staff', 'user designation department')
     .populate('equipmentAssignment.equipment', 'name sku category')
-    .populate('quotation')
+    
     .populate('invoice')
     .sort({ 'functionDetails.date': -1 });
 
@@ -381,6 +404,31 @@ const getBookingsForInventory = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, count: bookings.length, data: bookings });
 });
 
+// Get booking output specifications only
+const getBookingOutputs = asyncHandler(async (req, res) => {
+  const booking = await Booking.findById(req.params.id)
+    .select('videoOutput photoOutput rawOutput notes client branch')
+    .populate('client', 'name phone email')
+    .populate('branch', 'name code');
+    
+  if (!booking || booking.isDeleted) {
+    return res.status(404).json({ success: false, message: 'Booking not found' });
+  }
+  
+  res.status(200).json({ 
+    success: true, 
+    data: {
+      id: booking._id,
+      client: booking.client,
+      branch: booking.branch,
+      videoOutput: booking.videoOutput || '',
+      photoOutput: booking.photoOutput || '',
+      rawOutput: booking.rawOutput || '',
+      notes: booking.notes || ''
+    }
+  });
+});
+
 module.exports = {
   getBookings,
   getBooking,
@@ -391,5 +439,6 @@ module.exports = {
   assignInventory,
   getBookingsForStaff,
   getMyBookings,
-  getBookingsForInventory
+  getBookingsForInventory,
+  getBookingOutputs
 }; 

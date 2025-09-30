@@ -20,10 +20,6 @@ const invoiceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Booking'
   },
-  quotation: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Quotation'
-  },
   invoiceNumber: {
     type: String,
     required: true,

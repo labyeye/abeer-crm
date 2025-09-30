@@ -100,14 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       roles: ['chairman', 'admin', 'staff'],
       color: 'pink'
     },
-    {
-      id: 'quotations',
-      name: 'Quotations',
-      icon: FileText,
-      permission: 'quotations',
-      roles: ['chairman', 'company_admin', 'branch_head'],
-      color: 'primary'
-    },
+
     {
       id: 'tasks',
       name: 'Task Management',

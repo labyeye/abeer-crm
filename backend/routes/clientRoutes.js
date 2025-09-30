@@ -7,7 +7,6 @@ const {
   updateClient,
   deleteClient,
   getClientBookings,
-  getClientQuotations,
   getClientInvoices,
   getClientSummary,
   searchClients
@@ -35,8 +34,6 @@ router.route('/:id')
 router.route('/:id/bookings')
   .get(authorize('chairman', 'company_admin', 'branch_admin'), getClientBookings);
 
-router.route('/:id/quotations')
-  .get(authorize('chairman', 'company_admin', 'branch_admin'), getClientQuotations);
 
 router.route('/:id/invoices')
   .get(authorize('chairman', 'company_admin', 'branch_admin'), getClientInvoices);

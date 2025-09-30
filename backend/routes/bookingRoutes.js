@@ -18,11 +18,62 @@ router.route('/:id')
   .put(protect, authorize('chairman', 'admin'), updateBooking)
   .delete(protect, authorize('chairman', 'admin'), deleteBooking);
 
+// Route to get only the output specifications
+router.get('/:id/outputs', protect, require('../controller/bookingController').getBookingOutputs);
+
+
+// Route to update output specifications
+router.put('/:id/outputs', protect, authorize('staff', 'chairman', 'admin'), async (req, res) => {
+  try {
+    const { videoOutput, photoOutput, rawOutput, notes } = req.body;
+    
+    // Validate that at least one output field is provided
+    if (!videoOutput && !photoOutput && !rawOutput && !notes) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'At least one output field (videoOutput, photoOutput, rawOutput, or notes) must be provided' 
+      });
+    }
+    
+    const Booking = require('../models/Booking');
+    const booking = await Booking.findById(req.params.id);
+    
+    if (!booking || booking.isDeleted) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    
+    // Update only the output fields
+    const updateFields = {};
+    if (videoOutput !== undefined) updateFields.videoOutput = videoOutput;
+    if (photoOutput !== undefined) updateFields.photoOutput = photoOutput;
+    if (rawOutput !== undefined) updateFields.rawOutput = rawOutput;
+    if (notes !== undefined) updateFields.notes = notes;
+    
+    const updatedBooking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      updateFields,
+      { new: true, runValidators: true }
+    ).populate([
+      { path: 'client', select: 'name phone email' },
+      { path: 'branch', select: 'name code' },
+      { path: 'assignedStaff', select: 'name designation employeeId' }
+    ]);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Output specifications updated successfully',
+      data: updatedBooking 
+    });
+  } catch (error) {
+    console.error('Error updating booking outputs:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 router.put('/:id/status', protect, authorize('staff', 'chairman', 'admin'), async (req, res) => {
   try {
     const { status } = req.body;
-    const allowedStatuses = ['pending', 'confirmed', 'in_progress', 'completed'];
+    const allowedStatuses = ['enquiry', 'pending', 'confirmed', 'in_progress', 'completed'];
     
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ 
