@@ -756,10 +756,8 @@ const BookingManagement = () => {
                 amount: undefined,
               },
             ];
-      const subtotal = (scheduleList || []).reduce(
-        (sum: number, s: any) => sum + (Number(s.amount) || 0),
-        0
-      );
+      // Calculate subtotal using same logic as the form (amount if provided, otherwise price * qty)
+  const subtotal = computeSubtotalFromForm({ servicesSchedule: scheduleList } as any);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
       const functionDetailsList = scheduleList.map((s: any, idx: number) => ({
@@ -1372,12 +1370,6 @@ const BookingManagement = () => {
                   </th>
                 )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Event Details
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Service & Staff
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1402,9 +1394,7 @@ const BookingManagement = () => {
                       <div className="text-sm font-medium text-gray-900">
                         {booking.bookingNumber}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {typeof booking.pricing?.totalAmount === 'number' && booking.pricing.totalAmount > 0 ? `₹${booking.pricing.totalAmount.toLocaleString()}` : '-'}
-                      </div>
+                     
                       {(booking.pricing as any)?.gstAmount ? (
                         <div className="text-xs text-gray-400">
                           + GST ({(booking.pricing as any).gstRate}%): ₹
@@ -1442,34 +1432,6 @@ const BookingManagement = () => {
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {booking.functionDetails.type}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(
-                          booking.functionDetails.date
-                        ).toLocaleDateString()}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {booking.functionDetails.venue.name}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {booking.serviceNeeded}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Staff: {booking.assignedStaff?.length || 0}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        Equipment: {booking.inventorySelection?.length || 0}
-                      </div>
-                    </div>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
                       <span
@@ -3314,6 +3276,7 @@ const BookingManagement = () => {
                             className="text-sm cursor-pointer"
                             onClick={() => {
                               setFormData((prev) => {
+                                // compute fresh subtotal from current services
                                 let subtotal = computeSubtotalFromForm(prev);
                                 if (
                                   (!subtotal || subtotal === 0) &&
@@ -3323,7 +3286,8 @@ const BookingManagement = () => {
                                     selectedBooking.pricing.subtotal || 0;
                                 }
                                 const gstRate = prev.gstRate || 18;
-                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                                // base is the subtotal (when prices don't include GST)
+                                const base = Number(subtotal || 0);
                                 const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
                                 const total = Number((base + gstAmount).toFixed(2));
                                 return {
@@ -3353,7 +3317,7 @@ const BookingManagement = () => {
                                     selectedBooking.pricing.subtotal || 0;
                                 }
                                 const gstRate = prev.gstRate || 18;
-                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                                const base = Number(subtotal || 0);
                                 const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
                                 const total = Number((base + gstAmount).toFixed(2));
                                 return {
