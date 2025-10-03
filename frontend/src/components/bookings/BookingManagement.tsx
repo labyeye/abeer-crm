@@ -75,7 +75,13 @@ interface Booking {
     advanceAmount: number;
     remainingAmount?: number;
   };
-  status: "enquiry" | "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
+  status:
+    | "enquiry"
+    | "pending"
+    | "confirmed"
+    | "in_progress"
+    | "completed"
+    | "cancelled";
   videoOutput?: string;
   photoOutput?: string;
   rawOutput?: string;
@@ -158,7 +164,7 @@ const BookingManagement = () => {
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [pdfBookingData, setPdfBookingData] = useState<any>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
-  
+
   const [formData, setFormData] = useState({
     clientId: "",
     // servicesSchedule allows multiple service entries (date/time/staff/equipment per entry)
@@ -176,8 +182,8 @@ const BookingManagement = () => {
         assignedStaff: [] as string[],
         inventorySelection: [] as string[],
         quantity: 1,
-        price: 0,
-        amount: 0,
+  price: undefined,
+  amount: undefined,
       },
     ] as Array<{
       serviceName?: string;
@@ -204,6 +210,15 @@ const BookingManagement = () => {
     bookingBranch: "",
     services: [] as any[],
     totalAmount: 0,
+    // GST controls
+    applyGST: false,
+    gstIncluded: true, // if true -> prices already include GST; if false -> add GST on top
+    gstRate: 18,
+    gstAmount: 0,
+  // Discount in currency (absolute amount)
+  discountAmount: 0,
+  // whether user manually edited totalAmount
+  manualTotal: false,
     advanceAmount: 0,
     status: "enquiry",
     notes: "",
@@ -375,8 +390,8 @@ const BookingManagement = () => {
           assignedStaff: [],
           inventorySelection: [],
           quantity: 1,
-          price: 0,
-          amount: 0,
+          price: undefined,
+          amount: undefined,
         },
       ],
       functionType: "",
@@ -388,6 +403,12 @@ const BookingManagement = () => {
       bookingBranch: "",
       services: [],
       totalAmount: 0,
+      applyGST: false,
+      gstIncluded: true,
+      gstRate: 18,
+      gstAmount: 0,
+  discountAmount: 0,
+  manualTotal: false,
       advanceAmount: 0,
       status: "enquiry",
       notes: "",
@@ -417,19 +438,88 @@ const BookingManagement = () => {
     return 0;
   };
 
+  // compute subtotal from current formData servicesSchedule
+  const computeSubtotalFromForm = (fd = formData) =>
+    (fd.servicesSchedule || []).reduce((sum: number, s: any) => {
+      const amount = Number(s.amount);
+      if (!isNaN(amount) && amount > 0) return sum + amount;
+      // fallback to price * quantity if amount not provided
+      const price = Number(s.price) || 0;
+      const qty = Number(s.quantity) || 1;
+      return sum + price * qty;
+    }, 0);
+
+  // Derive a reliable base amount excluding GST from previous form state or subtotal.
+  // This treats an existing gstAmount as authoritative when present, otherwise falls back
+  // to dividing a GST-included total by (1 + rate/100). Finally falls back to subtotal.
+  const computeBaseExcludingGST = (
+    prev: any,
+    subtotalFallback: number,
+    gstRate: number
+  ) => {
+    const ta = Number(prev.totalAmount) || 0;
+    const ga = Number(prev.gstAmount) || 0;
+    const rate = gstRate || 18;
+    if (ta > 0) {
+      if (ga > 0) {
+        // If we have a known gstAmount, subtract it to get base
+        return Number((ta - ga).toFixed(2));
+      }
+      // If no gstAmount but GST is applied, try dividing to extract base
+      if (prev.applyGST) {
+        return Number((ta / (1 + rate / 100)).toFixed(2));
+      }
+      // otherwise treat totalAmount as base (manual override without GST)
+      return Number(ta.toFixed(2));
+    }
+    // no manual total: fallback to computed subtotal (which is amount excluding GST)
+    return Number(subtotalFallback || 0);
+  };
   const handleAddBooking = () => {
     resetForm();
     setShowAddModal(true);
   };
 
+  // Recompute gstAmount and totalAmount when schedule or GST settings change, unless user has provided a manual totalAmount (>0)
+  useEffect(() => {
+    try {
+      const subtotal = computeSubtotalFromForm();
+      const gstRate = formData.gstRate ?? 18;
+      const apply = !!formData.applyGST;
+      const included = !!formData.gstIncluded;
+      const computed = apply
+        ? included
+          ? Number(((subtotal * gstRate) / (100 + gstRate)).toFixed(2))
+          : Number((subtotal * (gstRate / 100)).toFixed(2))
+        : 0;
+      // If user hasn't entered an override (<= 0), update total automatically
+      if (!formData.totalAmount || Number(formData.totalAmount) <= 0) {
+        const total =
+          apply && !included
+            ? Number((subtotal + computed).toFixed(2))
+            : Number(subtotal.toFixed(2));
+        setFormData((prev) => ({
+          ...prev,
+          gstAmount: computed,
+          totalAmount: total,
+        }));
+      } else {
+        setFormData((prev) => ({ ...prev, gstAmount: computed }));
+      }
+    } catch (err) {
+      // ignore
+    }
+  }, [
+    formData.servicesSchedule,
+    formData.gstRate,
+    formData.gstIncluded,
+    formData.applyGST,
+  ]);
+
   const handleEditBooking = async (booking: Booking) => {
     setSelectedBooking(booking);
-    // Build servicesSchedule from existing booking details. If booking has only single functionDetails,
-    // convert it into a single-element schedule. Include assigned staff and inventory selection per entry.
-    // Try to map existing booking.services (if present) to schedule entries so pricing is editable per schedule
     let scheduleEntries: any[] = [];
     const b: any = booking as any;
-    // Prefer using functionDetailsList if available because it contains per-service dates, staff and inventory
     if (
       Array.isArray(b.functionDetailsList) &&
       b.functionDetailsList.length > 0
@@ -612,6 +702,14 @@ const BookingManagement = () => {
         (booking as any).branch?._id || booking.bookingBranch?._id || "",
       services: booking.services || [],
       totalAmount: booking.pricing.totalAmount,
+      applyGST:
+        (booking.pricing as any)?.applyGST ??
+        !!((booking.pricing && (booking.pricing as any).gstAmount) || false),
+      gstIncluded: (booking.pricing as any)?.gstIncluded ?? true,
+      gstRate: (booking.pricing as any)?.gstRate || 18,
+      gstAmount: (booking.pricing as any)?.gstAmount ?? 0,
+      discountAmount: (booking.pricing as any)?.discountAmount ?? 0,
+      manualTotal: !!((booking.pricing as any)?.manualTotal) || false,
       advanceAmount: booking.pricing.advanceAmount,
       status: booking.status || "enquiry",
       notes: (booking as any).notes || "",
@@ -620,10 +718,14 @@ const BookingManagement = () => {
       photoOutput: (booking as any).photoOutput || "",
       rawOutput: (booking as any).rawOutput || "",
       audioOutput: (booking as any).audioOutput || "",
-      videoOutputEnabled: (booking as any).videoOutputEnabled ?? !!(booking as any).videoOutput,
-      photoOutputEnabled: (booking as any).photoOutputEnabled ?? !!(booking as any).photoOutput,
-      rawOutputEnabled: (booking as any).rawOutputEnabled ?? !!(booking as any).rawOutput,
-      audioOutputEnabled: (booking as any).audioOutputEnabled ?? !!(booking as any).audioOutput,
+      videoOutputEnabled:
+        (booking as any).videoOutputEnabled ?? !!(booking as any).videoOutput,
+      photoOutputEnabled:
+        (booking as any).photoOutputEnabled ?? !!(booking as any).photoOutput,
+      rawOutputEnabled:
+        (booking as any).rawOutputEnabled ?? !!(booking as any).rawOutput,
+      audioOutputEnabled:
+        (booking as any).audioOutputEnabled ?? !!(booking as any).audioOutput,
     });
     setShowEditModal(true);
   };
@@ -633,8 +735,6 @@ const BookingManagement = () => {
     setSubmitting(true);
 
     try {
-      // Generate booking number
-      const bookingNumber = `BK-${Date.now()}`;
 
       // Build schedule list and calculate pricing fields from servicesSchedule amounts
       const scheduleList =
@@ -652,15 +752,14 @@ const BookingManagement = () => {
                 assignedStaff: formData.assignedStaff || [],
                 inventorySelection: formData.inventorySelection || [],
                 quantity: 1,
-                price: 0,
-                amount: 0,
+                price: undefined,
+                amount: undefined,
               },
             ];
       const subtotal = (scheduleList || []).reduce(
         (sum: number, s: any) => sum + (Number(s.amount) || 0),
         0
       );
-      const remainingAmount = subtotal - (formData.advanceAmount || 0);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
       const functionDetailsList = scheduleList.map((s: any, idx: number) => ({
@@ -748,8 +847,30 @@ const BookingManagement = () => {
       const primaryFunction =
         functionDetailsList.length === 1 ? functionDetailsList[0] : null;
 
+      // compute GST and final totals respecting user override
+      const gstRateForCalc = formData.gstRate ?? 18;
+      const computedGstAmount = formData.applyGST
+        ? formData.gstIncluded
+          ? // GST already included in subtotal: extract portion
+            Number(
+              ((subtotal * gstRateForCalc) / (100 + gstRateForCalc)).toFixed(2)
+            )
+          : // GST not included: compute on top of subtotal
+            Number((subtotal * (gstRateForCalc / 100)).toFixed(2))
+        : 0;
+
+      // determine final total: if user provided a non-zero totalAmount, prefer it; otherwise compute
+      const rawFinal =
+        Number(formData.totalAmount) > 0
+          ? Number(formData.totalAmount)
+          : formData.applyGST && !formData.gstIncluded
+          ? Number((subtotal + computedGstAmount).toFixed(2))
+          : Number(subtotal.toFixed(2));
+      const finalTotalAmount = Math.max(0, rawFinal - (formData.discountAmount || 0));
+
+      const remainingAmount = Math.max(0, finalTotalAmount - (formData.advanceAmount || 0));
+
       const bookingData = {
-        bookingNumber,
         client: formData.clientId,
         branch: formData.bookingBranch,
         functionDetails: primaryFunction
@@ -780,7 +901,13 @@ const BookingManagement = () => {
         services: servicesFromSchedule,
         pricing: {
           subtotal,
-          totalAmount: subtotal,
+          applyGST: !!formData.applyGST,
+          gstRate: formData.applyGST ? formData.gstRate : 0,
+          gstIncluded: !!formData.applyGST && !!formData.gstIncluded,
+          gstAmount: computedGstAmount,
+          discountAmount: formData.discountAmount || 0,
+          manualTotal: !!formData.manualTotal,
+          totalAmount: finalTotalAmount,
           advanceAmount: formData.advanceAmount,
           remainingAmount,
         },
@@ -854,8 +981,8 @@ const BookingManagement = () => {
           assignedStaff: [],
           inventorySelection: [],
           quantity: 1,
-          price: 0,
-          amount: 0,
+          price: undefined,
+          amount: undefined,
         },
       ],
     }));
@@ -971,9 +1098,10 @@ const BookingManagement = () => {
   const generatePDF = (booking: Booking) => {
     // Build a list of function detail entries (supports multiple event dates)
     const b: any = booking as any;
-    const functionEntries = (b.functionDetailsList && b.functionDetailsList.length > 0)
-      ? b.functionDetailsList
-      : b.functionDetails
+    const functionEntries =
+      b.functionDetailsList && b.functionDetailsList.length > 0
+        ? b.functionDetailsList
+        : b.functionDetails
         ? [b.functionDetails]
         : [];
 
@@ -981,24 +1109,26 @@ const BookingManagement = () => {
     // we'll attach the first available function entry to each service (or try to match by index).
     const services = b.services || [];
     const items = services.map((s: any) => ({
-      description: s.description || s.service || b.serviceNeeded || 'Service',
+      description: s.description || s.service || b.serviceNeeded || "Service",
       rate: s.rate ?? 0,
-      amount: s.amount ?? ((s.rate ?? 0) * (s.quantity ?? 1)),
+      amount: s.amount ?? (s.rate ?? 0) * (s.quantity ?? 1),
       quantity: s.quantity ?? 1,
     }));
 
     const schedule = services.map((s: any, idx: number) => {
       const func: any = functionEntries[idx] || functionEntries[0] || {};
       return {
-        serviceGiven: s.service || b.serviceNeeded || '-',
-        serviceType: Array.isArray(s.serviceType) ? s.serviceType.join(', ') : (s.serviceType || func.type || '-'),
-        event: s.event || func.event || '-',
-        date: func.date || func.startDate || b.functionDetails?.date || '-',
-        startTime: func.time?.start || b.functionDetails?.time?.start || '-',
-        endTime: func.time?.end || b.functionDetails?.time?.end || '-',
+        serviceGiven: s.service || b.serviceNeeded || "-",
+        serviceType: Array.isArray(s.serviceType)
+          ? s.serviceType.join(", ")
+          : s.serviceType || func.type || "-",
+        event: s.event || func.event || "-",
+        date: func.date || func.startDate || b.functionDetails?.date || "-",
+        startTime: func.time?.start || b.functionDetails?.time?.start || "-",
+        endTime: func.time?.end || b.functionDetails?.time?.end || "-",
         quantity: s.quantity ?? 1,
         price: s.rate ?? 0,
-        amount: s.amount ?? ((s.rate ?? 0) * (s.quantity ?? 1)),
+        amount: s.amount ?? (s.rate ?? 0) * (s.quantity ?? 1),
         venue: {
           name: func.venue?.name || b.functionDetails?.venue?.name,
           address: func.venue?.address || b.functionDetails?.venue?.address,
@@ -1006,15 +1136,21 @@ const BookingManagement = () => {
       };
     });
 
-    const totalAmount = b.pricing?.totalAmount ?? items.reduce((sum: number, it: any) => sum + (it.amount || 0), 0);
+    const totalAmount =
+      b.pricing?.totalAmount ??
+      items.reduce((sum: number, it: any) => sum + (it.amount || 0), 0);
 
     const pdfData = {
       bookingNumber: booking.bookingNumber,
-      date: (functionEntries[0] && (functionEntries[0].date || functionEntries[0].startDate)) || booking.functionDetails?.date,
+      date:
+        (functionEntries[0] &&
+          (functionEntries[0].date || functionEntries[0].startDate)) ||
+        booking.functionDetails?.date,
       status: booking.status,
       client: {
         name: b.client?.name || "N/A",
-        address: b.functionDetails?.venue?.address || b.client?.address || "N/A",
+        address:
+          b.functionDetails?.venue?.address || b.client?.address || "N/A",
         phone: b.client?.phone || undefined,
         email: b.client?.email || undefined,
         contact: b.client?.phone || b.client?.email || "N/A",
@@ -1028,20 +1164,32 @@ const BookingManagement = () => {
         name: "Abeer Motion Picture Pvt. Ltd.",
         address: "Your Company Address Here",
       },
-  items,
-  total: totalAmount,
-  advanceAmount: b.pricing?.advanceAmount || 0,
-  balanceAmount: (totalAmount) - (b.pricing?.advanceAmount || 0),
-  event: b.event,
-  videoOutput: b.videoOutput,
-  photoOutput: b.photoOutput,
-  rawOutput: b.rawOutput,
-  audioOutput: b.audioOutput || b.audio || undefined,
-  videoOutputEnabled: typeof b.videoOutputEnabled !== 'undefined' ? b.videoOutputEnabled : undefined,
-  photoOutputEnabled: typeof b.photoOutputEnabled !== 'undefined' ? b.photoOutputEnabled : undefined,
-  rawOutputEnabled: typeof b.rawOutputEnabled !== 'undefined' ? b.rawOutputEnabled : undefined,
-  audioOutputEnabled: typeof b.audioOutputEnabled !== 'undefined' ? b.audioOutputEnabled : undefined,
-  schedule,
+      items,
+      total: totalAmount,
+      advanceAmount: b.pricing?.advanceAmount || "-",
+      balanceAmount: totalAmount - (b.pricing?.advanceAmount || 0),
+      event: b.event,
+      videoOutput: b.videoOutput,
+      photoOutput: b.photoOutput,
+      rawOutput: b.rawOutput,
+      audioOutput: b.audioOutput || b.audio || undefined,
+      videoOutputEnabled:
+        typeof b.videoOutputEnabled !== "undefined"
+          ? b.videoOutputEnabled
+          : undefined,
+      photoOutputEnabled:
+        typeof b.photoOutputEnabled !== "undefined"
+          ? b.photoOutputEnabled
+          : undefined,
+      rawOutputEnabled:
+        typeof b.rawOutputEnabled !== "undefined"
+          ? b.rawOutputEnabled
+          : undefined,
+      audioOutputEnabled:
+        typeof b.audioOutputEnabled !== "undefined"
+          ? b.audioOutputEnabled
+          : undefined,
+      schedule,
       termsAndConditions: [
         "Payment terms as agreed upon booking confirmation.",
         "Cancellation charges apply as per company policy.",
@@ -1049,14 +1197,16 @@ const BookingManagement = () => {
         "Client is responsible for proper permissions and clearances.",
       ],
     };
-    
+
     setPdfBookingData(pdfData);
     setShowPDFModal(true);
   };
 
   const handlePrint = useReactToPrint({
     contentRef: pdfRef,
-    documentTitle: `${pdfBookingData?.status === 'enquiry' ? 'Quotation' : 'Invoice'}-${pdfBookingData?.bookingNumber}`,
+    documentTitle: `${
+      pdfBookingData?.status === "enquiry" ? "Quotation" : "Invoice"
+    }-${pdfBookingData?.bookingNumber}`,
   });
 
   const filteredBookings = bookings.filter((booking) => {
@@ -1230,6 +1380,15 @@ const BookingManagement = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Received
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Balance Due
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
@@ -1244,10 +1403,19 @@ const BookingManagement = () => {
                         {booking.bookingNumber}
                       </div>
                       <div className="text-sm text-gray-500">
-                        ₹{booking.pricing.totalAmount.toLocaleString()}
+                        {typeof booking.pricing?.totalAmount === 'number' && booking.pricing.totalAmount > 0 ? `₹${booking.pricing.totalAmount.toLocaleString()}` : '-'}
                       </div>
+                      {(booking.pricing as any)?.gstAmount ? (
+                        <div className="text-xs text-gray-400">
+                          + GST ({(booking.pricing as any).gstRate}%): ₹
+                          {(
+                            (booking.pricing as any).gstAmount || 0
+                          ).toLocaleString()}
+                        </div>
+                      ) : null}
                     </div>
                   </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -1338,6 +1506,15 @@ const BookingManagement = () => {
                         </span>
                       ) : null}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    {typeof booking.pricing?.totalAmount === 'number' && booking.pricing.totalAmount > 0 ? `₹${booking.pricing.totalAmount.toLocaleString()}` : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    {typeof booking.pricing?.advanceAmount === 'number' && booking.pricing.advanceAmount > 0 ? `₹${booking.pricing.advanceAmount.toLocaleString()}` : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    {typeof booking.pricing?.remainingAmount === 'number' && booking.pricing.remainingAmount > 0 ? `₹${booking.pricing.remainingAmount.toLocaleString()}` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -1784,12 +1961,12 @@ const BookingManagement = () => {
                               <input
                                 type="number"
                                 min={0}
-                                value={entry.price ?? 0}
+                                value={typeof entry.price === 'number' ? entry.price : ''}
                                 onChange={(e) =>
                                   updateScheduleEntry(
                                     idx,
                                     "price",
-                                    Number(e.target.value)
+                                    e.target.value === "" ? undefined : Number(e.target.value)
                                   )
                                 }
                                 className="w-full px-3 py-2 border rounded"
@@ -1802,12 +1979,12 @@ const BookingManagement = () => {
                               <input
                                 type="number"
                                 min={0}
-                                value={entry.amount ?? 0}
+                                value={typeof entry.amount === 'number' ? entry.amount : ''}
                                 onChange={(e) =>
                                   updateScheduleEntry(
                                     idx,
                                     "amount",
-                                    Number(e.target.value)
+                                    e.target.value === "" ? undefined : Number(e.target.value)
                                   )
                                 }
                                 className="w-full px-3 py-2 border rounded"
@@ -2215,10 +2392,18 @@ const BookingManagement = () => {
                                 const selectedCategory =
                                   inventoryCategoryFilters[idx];
                                 const baseList = selectedCategory
-                                  ? (cachedInventoryByCategory[selectedCategory] || []).concat().filter(Boolean)
+                                  ? (
+                                      cachedInventoryByCategory[
+                                        selectedCategory
+                                      ] || []
+                                    )
+                                      .concat()
+                                      .filter(Boolean)
                                   : inventoryList;
                                 // Only include items marked for booking (forBooking !== false). Treat undefined as true for backward compatibility.
-                                const filtered = baseList.filter((it: any) => it.forBooking !== false);
+                                const filtered = baseList.filter(
+                                  (it: any) => it.forBooking !== false
+                                );
                                 // compute equipment conflicts similar to staff
                                 const equipConflicts = new Set<string>();
                                 const curStartE =
@@ -2516,37 +2701,57 @@ const BookingManagement = () => {
                                                 </label>
                                                 <select
                                                   value={
-                                                    equip.rentingFromPersonId || ""
+                                                    equip.rentingFromPersonId ||
+                                                    ""
                                                   }
                                                   onChange={(e) => {
-                                                    const selectedId = e.target.value;
-                                                    const selectedClient = professionalClients.find(
-                                                      (c) => c._id === selectedId
-                                                    );
+                                                    const selectedId =
+                                                      e.target.value;
+                                                    const selectedClient =
+                                                      professionalClients.find(
+                                                        (c) =>
+                                                          c._id === selectedId
+                                                      );
                                                     const updated = [
                                                       ...selectedOutsourceEquipment,
                                                     ];
                                                     updated[equipIdx] = {
                                                       ...updated[equipIdx],
-                                                      rentingFromPersonId: selectedId,
+                                                      rentingFromPersonId:
+                                                        selectedId,
                                                       rentingFromPersonName:
-                                                        selectedClient?.name || "",
+                                                        selectedClient?.name ||
+                                                        "",
                                                       rentingFromPersonPhone:
-                                                        selectedClient?.phone || "",
+                                                        selectedClient?.phone ||
+                                                        "",
                                                       rentingFromPersonEmail:
-                                                        selectedClient?.email || "",
+                                                        selectedClient?.email ||
+                                                        "",
                                                     };
-                                                    setOutsourceEquipment((prev) => ({
-                                                      ...prev,
-                                                      [idx]: updated,
-                                                    }));
+                                                    setOutsourceEquipment(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [idx]: updated,
+                                                      })
+                                                    );
                                                   }}
                                                   className="w-full px-2 py-1 border rounded text-sm"
                                                 >
-                                                  <option value="">Select professional...</option>
-                                                  {(professionalClients || []).map((pc) => (
-                                                    <option key={pc._id} value={pc._id}>
-                                                      {pc.name} {pc.phone ? `- ${pc.phone}` : ""}
+                                                  <option value="">
+                                                    Select professional...
+                                                  </option>
+                                                  {(
+                                                    professionalClients || []
+                                                  ).map((pc) => (
+                                                    <option
+                                                      key={pc._id}
+                                                      value={pc._id}
+                                                    >
+                                                      {pc.name}{" "}
+                                                      {pc.phone
+                                                        ? `- ${pc.phone}`
+                                                        : ""}
                                                     </option>
                                                   ))}
                                                 </select>
@@ -2790,7 +2995,9 @@ const BookingManagement = () => {
                 </div>
               </div>
               <div className="mt-8">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Output Specifications</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  Output Specifications
+                </h3>
                 <div className="space-y-4">
                   <div className="flex items-start space-x-3">
                     <input
@@ -2798,16 +3005,21 @@ const BookingManagement = () => {
                       id="videoOutputEnabled"
                       checked={formData.videoOutputEnabled}
                       onChange={(e) =>
-                        setFormData({ 
-                          ...formData, 
+                        setFormData({
+                          ...formData,
                           videoOutputEnabled: e.target.checked,
-                          videoOutput: e.target.checked ? formData.videoOutput : ""
+                          videoOutput: e.target.checked
+                            ? formData.videoOutput
+                            : "",
                         })
                       }
                       className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <div className="flex-1">
-                      <label htmlFor="videoOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                      <label
+                        htmlFor="videoOutputEnabled"
+                        className="text-sm font-medium text-gray-700 cursor-pointer"
+                      >
                         Video Output
                       </label>
                       {formData.videoOutputEnabled && (
@@ -2815,7 +3027,10 @@ const BookingManagement = () => {
                           type="text"
                           value={formData.videoOutput}
                           onChange={(e) =>
-                            setFormData({ ...formData, videoOutput: e.target.value })
+                            setFormData({
+                              ...formData,
+                              videoOutput: e.target.value,
+                            })
                           }
                           className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="e.g. Full HD, 4K, etc."
@@ -2831,16 +3046,21 @@ const BookingManagement = () => {
                       id="photoOutputEnabled"
                       checked={formData.photoOutputEnabled}
                       onChange={(e) =>
-                        setFormData({ 
-                          ...formData, 
+                        setFormData({
+                          ...formData,
                           photoOutputEnabled: e.target.checked,
-                          photoOutput: e.target.checked ? formData.photoOutput : ""
+                          photoOutput: e.target.checked
+                            ? formData.photoOutput
+                            : "",
                         })
                       }
                       className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <div className="flex-1">
-                      <label htmlFor="photoOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                      <label
+                        htmlFor="photoOutputEnabled"
+                        className="text-sm font-medium text-gray-700 cursor-pointer"
+                      >
                         Photo Output
                       </label>
                       {formData.photoOutputEnabled && (
@@ -2848,7 +3068,10 @@ const BookingManagement = () => {
                           type="text"
                           value={formData.photoOutput}
                           onChange={(e) =>
-                            setFormData({ ...formData, photoOutput: e.target.value })
+                            setFormData({
+                              ...formData,
+                              photoOutput: e.target.value,
+                            })
                           }
                           className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="e.g. JPEG, RAW, etc."
@@ -2864,16 +3087,19 @@ const BookingManagement = () => {
                       id="rawOutputEnabled"
                       checked={formData.rawOutputEnabled}
                       onChange={(e) =>
-                        setFormData({ 
-                          ...formData, 
+                        setFormData({
+                          ...formData,
                           rawOutputEnabled: e.target.checked,
-                          rawOutput: e.target.checked ? formData.rawOutput : ""
+                          rawOutput: e.target.checked ? formData.rawOutput : "",
                         })
                       }
                       className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <div className="flex-1">
-                      <label htmlFor="rawOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                      <label
+                        htmlFor="rawOutputEnabled"
+                        className="text-sm font-medium text-gray-700 cursor-pointer"
+                      >
                         Raw Output
                       </label>
                       {formData.rawOutputEnabled && (
@@ -2881,7 +3107,10 @@ const BookingManagement = () => {
                           type="text"
                           value={formData.rawOutput}
                           onChange={(e) =>
-                            setFormData({ ...formData, rawOutput: e.target.value })
+                            setFormData({
+                              ...formData,
+                              rawOutput: e.target.value,
+                            })
                           }
                           className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="e.g. RAW files, unedited footage, etc."
@@ -2897,16 +3126,21 @@ const BookingManagement = () => {
                       id="audioOutputEnabled"
                       checked={formData.audioOutputEnabled}
                       onChange={(e) =>
-                        setFormData({ 
-                          ...formData, 
+                        setFormData({
+                          ...formData,
                           audioOutputEnabled: e.target.checked,
-                          audioOutput: e.target.checked ? formData.audioOutput : ""
+                          audioOutput: e.target.checked
+                            ? formData.audioOutput
+                            : "",
                         })
                       }
                       className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <div className="flex-1">
-                      <label htmlFor="audioOutputEnabled" className="text-sm font-medium text-gray-700 cursor-pointer">
+                      <label
+                        htmlFor="audioOutputEnabled"
+                        className="text-sm font-medium text-gray-700 cursor-pointer"
+                      >
                         Audio Output
                       </label>
                       {formData.audioOutputEnabled && (
@@ -2914,7 +3148,10 @@ const BookingManagement = () => {
                           type="text"
                           value={formData.audioOutput}
                           onChange={(e) =>
-                            setFormData({ ...formData, audioOutput: e.target.value })
+                            setFormData({
+                              ...formData,
+                              audioOutput: e.target.value,
+                            })
                           }
                           className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="e.g. WAV, MP3, etc."
@@ -3008,6 +3245,183 @@ const BookingManagement = () => {
                         : "None"}
                     </div>
                   </div>
+                  <div>
+                    <div className="text-xs text-gray-500">GST</div>
+                    <div className="flex items-center space-x-3">
+                      <label className="text-sm">Apply GST</label>
+                      <input
+                        type="checkbox"
+                        checked={formData.applyGST}
+                        onChange={(e) => {
+                          const apply = e.target.checked;
+                          setFormData((prev) => {
+                            let subtotal = computeSubtotalFromForm(prev);
+                            if (
+                              (!subtotal || subtotal === 0) &&
+                              selectedBooking?.pricing?.subtotal
+                            ) {
+                              subtotal = selectedBooking.pricing.subtotal || 0;
+                            }
+                            const gstRate = prev.gstRate || 18;
+                            const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                            const gstAmount = apply
+                              ? prev.gstIncluded
+                                ? Number(((base * gstRate) / (100 + gstRate)).toFixed(2))
+                                : Number((base * (gstRate / 100)).toFixed(2))
+                              : 0;
+                            const total = apply && !prev.gstIncluded ? Number((base + gstAmount).toFixed(2)) : Number(base.toFixed(2));
+                            return {
+                              ...prev,
+                              applyGST: apply,
+                              gstAmount,
+                              totalAmount: total,
+                            };
+                          });
+                        }}
+                      />
+                      {formData.applyGST && (
+                        <div className="flex items-center space-x-2">
+                          <label className="text-sm">Included</label>
+                          <input
+                            type="radio"
+                            name="gstIncluded"
+                            checked={formData.gstIncluded}
+                            onChange={() => {
+                              setFormData((prev) => {
+                                let subtotal = computeSubtotalFromForm(prev);
+                                if (
+                                  (!subtotal || subtotal === 0) &&
+                                  selectedBooking?.pricing?.subtotal
+                                ) {
+                                  subtotal =
+                                    selectedBooking.pricing.subtotal || 0;
+                                }
+                                const gstRate = prev.gstRate || 18;
+                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                                const gstAmount = Number(((base * gstRate) / (100 + gstRate)).toFixed(2));
+                                const total = Number(base.toFixed(2));
+                                return {
+                                  ...prev,
+                                  applyGST: true,
+                                  gstIncluded: true,
+                                  gstAmount,
+                                  totalAmount: total,
+                                };
+                              });
+                            }}
+                          />
+                          <label
+                            className="text-sm cursor-pointer"
+                            onClick={() => {
+                              setFormData((prev) => {
+                                let subtotal = computeSubtotalFromForm(prev);
+                                if (
+                                  (!subtotal || subtotal === 0) &&
+                                  selectedBooking?.pricing?.subtotal
+                                ) {
+                                  subtotal =
+                                    selectedBooking.pricing.subtotal || 0;
+                                }
+                                const gstRate = prev.gstRate || 18;
+                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                                const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
+                                const total = Number((base + gstAmount).toFixed(2));
+                                return {
+                                  ...prev,
+                                  applyGST: true,
+                                  gstIncluded: false,
+                                  gstAmount,
+                                  totalAmount: total,
+                                };
+                              });
+                            }}
+                          >
+                            Not Included (+{formData.gstRate || 18}% )
+                          </label>
+                          <input
+                            type="radio"
+                            name="gstIncluded"
+                            checked={!formData.gstIncluded}
+                            onChange={() => {
+                              setFormData((prev) => {
+                                let subtotal = computeSubtotalFromForm(prev);
+                                if (
+                                  (!subtotal || subtotal === 0) &&
+                                  selectedBooking?.pricing?.subtotal
+                                ) {
+                                  subtotal =
+                                    selectedBooking.pricing.subtotal || 0;
+                                }
+                                const gstRate = prev.gstRate || 18;
+                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                                const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
+                                const total = Number((base + gstAmount).toFixed(2));
+                                return {
+                                  ...prev,
+                                  applyGST: true,
+                                  gstIncluded: false,
+                                  gstAmount,
+                                  totalAmount: total,
+                                };
+                              });
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Discount</div>
+                    <div>
+                      <input
+                        type="number"
+                        min={0}
+                        value={formData.discountAmount || 0}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            discountAmount: Number(e.target.value) || 0,
+                          }))
+                        }
+                        className="w-full px-2 py-1 border rounded"
+                      />
+                      <div className="text-sm text-gray-500 mt-1">
+                        Discount will be subtracted from final total
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Total Amount</div>
+                    <div>
+                        <input
+                          type="number"
+                          value={formData.totalAmount}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              totalAmount: Number(e.target.value),
+                              manualTotal: true,
+                            }))
+                          }
+                          className="w-full px-2 py-1 border rounded"
+                        />
+                      {formData.applyGST && !formData.gstIncluded ? (
+                        <div className="text-sm text-gray-500 mt-1">
+                          Computed with GST: ₹
+                          {(
+                            computeSubtotalFromForm() +
+                            (formData.gstAmount || 0) -
+                            (formData.discountAmount || 0)
+                          ).toLocaleString()}
+                        </div>
+                      ) : formData.applyGST && formData.gstIncluded ? (
+                        <div className="text-sm text-gray-500 mt-1">
+                          GST included portion: ₹
+                          {(formData.gstAmount || 0).toLocaleString()}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -3037,6 +3451,13 @@ const BookingManagement = () => {
                           subtotal:
                             selectedBooking.pricing?.subtotal ?? currentTotal,
                           totalAmount: currentTotal,
+                          gstRate:
+                            (selectedBooking.pricing as any)?.gstRate ?? 0,
+                          gstIncluded:
+                            (selectedBooking.pricing as any)?.gstIncluded ??
+                            false,
+                          gstAmount:
+                            (selectedBooking.pricing as any)?.gstAmount ?? 0,
                           advanceAmount: Math.max(currentAdvance, currentTotal),
                           remainingAmount: 0,
                         };
@@ -3172,7 +3593,8 @@ const BookingManagement = () => {
           <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">
-                {pdfBookingData.status === 'enquiry' ? 'Quotation' : 'Invoice'} Preview
+                {pdfBookingData.status === "enquiry" ? "Quotation" : "Invoice"}{" "}
+                Preview
               </h2>
               <div className="flex space-x-2">
                 <button
@@ -3190,12 +3612,9 @@ const BookingManagement = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="border border-gray-200 rounded-lg">
-              <BookingPDFTemplate 
-                ref={pdfRef} 
-                data={pdfBookingData} 
-              />
+              <BookingPDFTemplate ref={pdfRef} data={pdfBookingData} />
             </div>
           </div>
         </div>

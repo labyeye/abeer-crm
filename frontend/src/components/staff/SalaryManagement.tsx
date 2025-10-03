@@ -200,7 +200,18 @@ const SalaryManagement = () => {
       }
 
       // refresh
-  const refreshed: any = await staffAPI.getStaffSalary(selectedStaffId);
+      // If an advance was provided in the salary form, record it as an Advance too so history shows
+      const advAmount = Number(paymentForm.deductions?.advance || 0);
+      if (advAmount > 0) {
+        try {
+          await advanceAPI.createAdvanceForStaff(selectedStaffId, { amount: advAmount, notes: 'Recorded via salary', applyToSalary: true, targetMonth: paymentForm.month, targetYear: paymentForm.year });
+        } catch (e) {
+          // non-fatal: log and continue
+          console.warn('Failed to create advance record from salary form', e);
+        }
+      }
+
+      const refreshed: any = await staffAPI.getStaffSalary(selectedStaffId);
   let recs: any[] = [];
   if (Array.isArray(refreshed)) recs = refreshed;
   else if (Array.isArray(refreshed.data)) recs = refreshed.data;
@@ -216,6 +227,25 @@ const SalaryManagement = () => {
 
   return (
     <div className="space-y-6">
+      {/* Payroll prompt visible on days 1-5 */}
+      {(() => {
+        const day = new Date().getDate();
+        if (day >=1 && day <=5) {
+          return (
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+              <div className="flex items-center justify-between">
+                <div>
+                  <strong>Payroll reminder:</strong> It's the start of the month. Mark salaries as given for staff if you have paid them.
+                </div>
+                <div>
+                  <button onClick={() => { if (!selectedStaffId) { addNotification({ type: 'error', title: 'Select staff', message: 'Select a staff member to mark salary given.' }); return; } setPaymentForm(pf => ({ ...pf, month: new Date().getMonth() + 1, year: new Date().getFullYear() })); setShowPaymentModal(true); }} className="px-3 py-1 bg-green-600 text-white rounded">Mark Salary Given</button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Salary Management</h1>
         <div>

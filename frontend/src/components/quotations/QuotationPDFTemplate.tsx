@@ -121,34 +121,24 @@ const QuotationPDFTemplate = forwardRef<
             {data.schedule.map((s, i) => (
               <div key={i} className="flex justify-between items-start">
                 <div>
-                  <div className="font-semibold">
-                    {s.type || `Service ${i + 1}`}
-                  </div>
+                  <div className="font-semibold">{s.type || `Service ${i + 1}`}</div>
                   {s.serviceGiven && (
-                    <div className="text-xs text-gray-700">
-                      Service: {s.serviceGiven}
-                    </div>
+                    <div className="text-xs text-gray-700">Service: {s.serviceGiven}</div>
                   )}
                   {s.serviceType && (
-                    <div className="text-xs text-gray-600">
-                      Type: {s.serviceType}
-                    </div>
+                    <div className="text-xs text-gray-600">Type: {s.serviceType}</div>
                   )}
                   <div className="text-xs text-gray-600">
-                    Qty: {s.quantity ?? 0} × Price:{" "}
-                    {s.price ? `₹ ${s.price.toLocaleString()}` : "-"} ={" "}
-                    <strong>₹ {Number(s.amount ?? 0).toLocaleString()}</strong>
+                    Qty: {s.quantity ?? 0} × Price: {s.price ? `₹ ${s.price.toLocaleString()}` : "-"} = {" "}
+                    <strong>{typeof s.amount === 'number' ? `₹ ${Number(s.amount).toLocaleString()}` : '-'}</strong>
                   </div>
                   <div className="text-xs">
-                    {s.venue?.name || ""}{" "}
-                    {s.venue?.address ? `- ${s.venue.address}` : ""}
+                    {s.venue?.name || ""} {s.venue?.address ? `- ${s.venue.address}` : ""}
                   </div>
                 </div>
                 <div className="text-right text-xs">
                   <div>Date: {s.date || "N/A"}</div>
-                  <div>
-                    Time: {s.startTime || "-"} - {s.endTime || "-"}
-                  </div>
+                  <div>Time: {s.startTime || "-"} - {s.endTime || "-"}</div>
                 </div>
               </div>
             ))}
@@ -189,7 +179,7 @@ const QuotationPDFTemplate = forwardRef<
                 {item.rate > 0 ? `₹ ${item.rate.toLocaleString()}` : "-"}
               </div>
               <div className="text-center flex items-center justify-center font-semibold">
-                ₹ {item.amount.toLocaleString()}/-
+                {typeof item.amount === 'number' ? `₹ ${item.amount.toLocaleString()}/-` : '-'}
               </div>
             </div>
           </div>

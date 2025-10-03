@@ -168,8 +168,26 @@ const BookingPDFTemplate = forwardRef<
               </thead>
               <tbody>
                 {data.schedule.map((scheduleItem, index) => {
-                  const rate = (scheduleItem as any).price ?? (scheduleItem as any).rate ?? 0;
-                  const amount = (scheduleItem as any).amount ?? (rate * ((scheduleItem as any).quantity ?? 1));
+                  // Prefer explicit numeric price/rate when provided; do not default to 0
+                  const rawRate = (scheduleItem as any).price ?? (scheduleItem as any).rate;
+                  const rate = typeof rawRate === "number" ? rawRate : undefined;
+                  const qty = (scheduleItem as any).quantity ?? 1;
+
+                  // If an explicit amount property exists and is a positive number, use it.
+                  // Otherwise, compute amount from rate * qty only when rate is a positive number.
+                  const hasExplicitAmount = Object.prototype.hasOwnProperty.call(
+                    scheduleItem as any,
+                    "amount"
+                  );
+                  const rawAmount = hasExplicitAmount ? (scheduleItem as any).amount : undefined;
+                  let amountToShow: number | undefined = undefined;
+                  if (typeof rawAmount === "number" && rawAmount > 0) {
+                    amountToShow = rawAmount;
+                  } else if (typeof rate === "number" && rate > 0) {
+                    const calc = rate * (Number(qty) || 1);
+                    if (calc > 0) amountToShow = calc;
+                  }
+
                   return (
                     <tr key={index}>
                       <td className="border border-gray-300 p-2">{scheduleItem.serviceGiven || scheduleItem.serviceType || '-'}</td>
@@ -178,8 +196,8 @@ const BookingPDFTemplate = forwardRef<
                       <td className="border border-gray-300 p-2">{scheduleItem.date || '-'}</td>
                       <td className="border border-gray-300 p-2">{scheduleItem.startTime || '-'}</td>
                       <td className="border border-gray-300 p-2">{scheduleItem.endTime || '-'}</td>
-                      <td className="border border-gray-300 p-2 text-right">₹{rate}</td>
-                      <td className="border border-gray-300 p-2 text-right">₹{amount}</td>
+                      <td className="border border-gray-300 p-2 text-right">{typeof rate === 'number' && rate > 0 ? `₹${rate}` : '-'}</td>
+                      <td className="border border-gray-300 p-2 text-right">{typeof amountToShow === 'number' && amountToShow > 0 ? `₹${amountToShow}` : '-'}</td>
                       <td className="border border-gray-300 p-2 text-right">{scheduleItem.quantity ?? '-'}</td>
                       <td className="border border-gray-300 p-2">{scheduleItem.venue?.name ?? scheduleItem.venue?.address ?? '-'}</td>
                     </tr>

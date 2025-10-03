@@ -280,8 +280,26 @@ const convertToBooking = asyncHandler(async (req, res, next) => {
   
   
   const Booking = require('../models/Booking');
-  const bookingCount = await Booking.countDocuments({ branch: quotation.branch._id });
-  const bookingNumber = `BKG-${Date.now()}-${(bookingCount + 1).toString().padStart(4, '0')}`;
+  // Generate booking number with AMP/<FY>/<5-digit seq>
+  const Counter = require('../models/Counter');
+  function computeFinancialYear(date) {
+    const d = date ? new Date(date) : new Date();
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    if (month >= 4) return `${year}-${year + 1}`;
+    return `${year - 1}-${year}`;
+  }
+  const functionDate = (quotation.functionDetails && quotation.functionDetails.date) || (quotation.functionDetailsList && quotation.functionDetailsList[0] && quotation.functionDetailsList[0].date) || new Date().toISOString();
+  const fy = computeFinancialYear(functionDate);
+  const counterKey = `booking_${fy}`;
+  const counter = await Counter.findOneAndUpdate(
+    { _id: counterKey },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+  const seq = counter.seq || 1;
+  const padded = String(seq).padStart(5, '0');
+  const bookingNumber = `AMP/${fy}/${padded}`;
   
   const bookingData = {
     bookingNumber,

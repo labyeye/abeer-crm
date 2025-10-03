@@ -84,6 +84,20 @@ const getBooking = asyncHandler(async (req, res) => {
 
 
 
+const Counter = require('../models/Counter');
+
+// Helper to compute financial year string like '2024-2025' for Apr-Mar fiscal year
+function computeFinancialYear(date) {
+  const d = date ? new Date(date) : new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1; // 1-12
+  // financial year starts in April: months 4-12 -> FY = year-(year+1); months 1-3 -> FY = (year-1)-year
+  if (month >= 4) {
+    return `${year}-${year + 1}`;
+  }
+  return `${year - 1}-${year}`;
+}
+
 const createBooking = asyncHandler(async (req, res) => {
   // Extract and validate output fields
   const { videoOutput, photoOutput, rawOutput, notes } = req.body;
@@ -99,6 +113,55 @@ const createBooking = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Raw output must be a string' });
   }
   
+  // Normalize pricing fields to ensure numeric types and defaults
+  try {
+    const p = req.body.pricing || {};
+    p.discountAmount = Number(p.discountAmount) || 0;
+    p.manualTotal = !!p.manualTotal;
+    p.applyGST = !!p.applyGST;
+    p.gstRate = Number(p.gstRate) || 0;
+    p.gstAmount = Number(p.gstAmount) || 0;
+    p.subtotal = Number(p.subtotal) || 0;
+    p.totalAmount = typeof p.totalAmount === 'number' ? Number(p.totalAmount) : p.subtotal + p.gstAmount - p.discountAmount;
+    p.advanceAmount = Number(p.advanceAmount) || 0;
+    p.remainingAmount = Number(p.totalAmount) - Number(p.advanceAmount) || 0;
+    req.body.pricing = p;
+  } catch (err) {
+    // Fall back to defaults if normalization fails
+    req.body.pricing = {
+      subtotal: 0,
+      discountAmount: 0,
+      manualTotal: false,
+      applyGST: false,
+      gstRate: 0,
+      gstAmount: 0,
+      totalAmount: 0,
+      advanceAmount: 0,
+      remainingAmount: 0,
+    };
+  }
+
+  // Ensure bookingNumber follows AMP/<FY>/<5-digit seq>
+  try {
+    // Determine a date to derive financial year: prefer functionDetails.date, else now
+    const functionDate = (req.body.functionDetails && req.body.functionDetails.date) || (req.body.functionDetailsList && req.body.functionDetailsList[0] && req.body.functionDetailsList[0].date) || new Date().toISOString();
+    const fy = computeFinancialYear(functionDate);
+    const counterKey = `booking_${fy}`;
+    // Atomically increment counter for this financial year
+    const counter = await Counter.findOneAndUpdate(
+      { _id: counterKey },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    const seq = counter.seq || 1;
+    const padded = String(seq).padStart(5, '0');
+    req.body.bookingNumber = `AMP/${fy}/${padded}`;
+  } catch (err) {
+    // Fallback to timestamp-based booking number if counter fails
+    console.warn('Failed to allocate booking sequence counter, falling back to timestamp id', err && err.message);
+    req.body.bookingNumber = `AMP/${Date.now()}`;
+  }
+
   const booking = await Booking.create(req.body);
   
   await booking.populate([
@@ -190,7 +253,22 @@ const updateBooking = asyncHandler(async (req, res) => {
   const oldStatus = oldBooking.status;
   const oldPaymentStatus = oldBooking.paymentStatus;
   const oldTotalAmount = oldBooking.pricing?.totalAmount;
-  
+
+  // Normalize pricing fields in incoming update body if present
+  if (req.body.pricing) {
+    const p = req.body.pricing;
+    p.discountAmount = Number(p.discountAmount) || 0;
+    p.manualTotal = !!p.manualTotal;
+    p.applyGST = !!p.applyGST;
+    p.gstRate = Number(p.gstRate) || 0;
+    p.gstAmount = Number(p.gstAmount) || 0;
+    p.subtotal = Number(p.subtotal) || 0;
+    p.totalAmount = typeof p.totalAmount === 'number' ? Number(p.totalAmount) : p.subtotal + p.gstAmount - p.discountAmount;
+    p.advanceAmount = Number(p.advanceAmount) || 0;
+    p.remainingAmount = Number(p.totalAmount) - Number(p.advanceAmount) || 0;
+    req.body.pricing = p;
+  }
+
   const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
   
   await booking.populate([

@@ -528,8 +528,34 @@ const createStaffSalary = asyncHandler(async (req, res) => {
       // Signal to frontend so it can offer advance-for-next-month flow
       return res.status(409).json({ success: false, code: 'ALREADY_PAID', message: 'Salary already paid for this month' });
     }
-    // A salary record already exists (pending/partial) — prevent duplicate creation
-    return res.status(409).json({ success: false, code: 'ALREADY_EXISTS', message: 'Salary record already exists for this month' });
+    // Update the existing salary record with incoming payload (marking paid or updating amounts)
+    try {
+      // merge amounts
+      existingSalary.basicSalary = Number(payload.basicSalary ?? existingSalary.basicSalary ?? staff.salary ?? 0);
+      existingSalary.allowances = Number(payload.allowances ?? existingSalary.allowances ?? 0);
+      const incomingDeductions = payload.deductions || {};
+      existingSalary.deductions = {
+        loan: Number(incomingDeductions.loan ?? existingSalary.deductions?.loan ?? 0),
+        emi: Number(incomingDeductions.emi ?? existingSalary.deductions?.emi ?? 0),
+        advance: Number(incomingDeductions.advance ?? existingSalary.deductions?.advance ?? 0),
+        other: Number(incomingDeductions.other ?? existingSalary.deductions?.other ?? 0),
+        total: 0
+      };
+      existingSalary.deductions.total = Number(existingSalary.deductions.loan || 0) + Number(existingSalary.deductions.emi || 0) + Number(existingSalary.deductions.advance || 0) + Number(existingSalary.deductions.other || 0);
+      existingSalary.performance = payload.performance || existingSalary.performance || {};
+      existingSalary.netSalary = Number(existingSalary.basicSalary || 0) + Number(existingSalary.allowances || 0) - Number(existingSalary.deductions.total || 0) + Number(existingSalary.performance?.bonus || 0) - Number(existingSalary.performance?.penalty || 0);
+      existingSalary.paymentStatus = payload.paymentStatus || existingSalary.paymentStatus || 'pending';
+      existingSalary.paymentDate = payload.paymentDate ? new Date(payload.paymentDate) : (existingSalary.paymentDate || (existingSalary.paymentStatus === 'paid' ? new Date() : undefined));
+      existingSalary.advanceSchedule = payload.advanceSchedule || existingSalary.advanceSchedule || { total: 0, months: 0, monthly: 0 };
+      existingSalary.paymentMethod = payload.paymentMethod || existingSalary.paymentMethod || 'bank_transfer';
+      existingSalary.paymentReference = payload.paymentReference || existingSalary.paymentReference || '';
+      existingSalary.notes = payload.notes || existingSalary.notes || '';
+      await existingSalary.save();
+      return res.status(200).json({ success: true, data: existingSalary });
+    } catch (err) {
+      console.error('Failed to update existing salary:', err);
+      return res.status(500).json({ success: false, message: 'Failed to update existing salary', details: err.message });
+    }
   }
 
   // Basic fields
