@@ -141,6 +141,31 @@ const createBooking = asyncHandler(async (req, res) => {
     };
   }
 
+  // Normalize event fields on functionDetails and functionDetailsList (ensure strings)
+  try {
+    // Ensure top-level event is a string when provided
+    const topLevelEvent = req.body.event !== undefined ? String(req.body.event || '') : undefined;
+
+    // Ensure functionDetails exists and has an event (prefer per-item, else top-level)
+    req.body.functionDetails = req.body.functionDetails || {};
+    if (req.body.functionDetails.event !== undefined) {
+      req.body.functionDetails.event = String(req.body.functionDetails.event || '');
+    } else if (topLevelEvent !== undefined) {
+      req.body.functionDetails.event = topLevelEvent;
+    }
+
+    // Normalize each entry of functionDetailsList and ensure event is present (fallback to top-level event)
+    if (Array.isArray(req.body.functionDetailsList)) {
+      req.body.functionDetailsList = req.body.functionDetailsList.map((fd) => ({
+        ...fd,
+        // prefer per-service event; fallback to fd.event, then top-level event, else empty string
+        event: fd.event !== undefined ? String(fd.event || '') : (topLevelEvent !== undefined ? topLevelEvent : ''),
+      }));
+    }
+  } catch (err) {
+    // ignore normalization errors
+  }
+
   // Ensure bookingNumber follows AMP/<FY>/<5-digit seq>
   try {
     // Determine a date to derive financial year: prefer functionDetails.date, else now
@@ -269,6 +294,29 @@ const updateBooking = asyncHandler(async (req, res) => {
     req.body.pricing = p;
   }
 
+  // Normalize incoming event fields so they are strings
+  try {
+    const topLevelEvent = req.body.event !== undefined ? String(req.body.event || '') : undefined;
+
+    // Ensure functionDetails exists and has an event set (prefer per-item, else top-level)
+    if (!req.body.functionDetails) req.body.functionDetails = {};
+    if (req.body.functionDetails && req.body.functionDetails.event !== undefined) {
+      req.body.functionDetails.event = String(req.body.functionDetails.event || '');
+    } else if (topLevelEvent !== undefined) {
+      req.body.functionDetails.event = topLevelEvent;
+    }
+
+    if (Array.isArray(req.body.functionDetailsList)) {
+      req.body.functionDetailsList = req.body.functionDetailsList.map((fd) => ({
+        ...fd,
+        // preserve per-service event if provided; otherwise use top-level event if present
+        event: fd.event !== undefined ? String(fd.event || '') : (topLevelEvent !== undefined ? topLevelEvent : ''),
+      }));
+    }
+  } catch (err) {
+    // ignore
+  }
+
   // Prefer applying updates on the fetched document and saving so
   // Mongoose will cast array items to ObjectId and run schema hooks.
   console.log('🔁 Booking update called for id:', req.params.id);
@@ -352,7 +400,10 @@ const deleteBooking = asyncHandler(async (req, res) => {
   if (!booking || booking.isDeleted) {
     return res.status(404).json({ success: false, message: 'Booking not found' });
   }
-  // Before marking deleted, restore any inventory quantities that were allocated to this booking
+  // allow an optional hard delete: DELETE /api/bookings/:id?hard=true
+  const hardDelete = req.query && (req.query.hard === 'true' || req.query.hard === '1');
+
+  // Before marking deleted (or permanently removing), restore any inventory quantities that were allocated to this booking
   try {
     if (Array.isArray(booking.equipmentAssignment) && booking.equipmentAssignment.length) {
       for (const assign of booking.equipmentAssignment) {
@@ -373,6 +424,18 @@ const deleteBooking = asyncHandler(async (req, res) => {
     console.warn('Failed processing equipmentAssignment on booking delete', err);
   }
 
+  if (hardDelete) {
+    // Permanent removal from DB
+    try {
+      await Booking.findByIdAndDelete(booking._id);
+      return res.status(200).json({ success: true, message: 'Booking permanently deleted' });
+    } catch (err) {
+      console.error('Failed to permanently delete booking:', err);
+      return res.status(500).json({ success: false, message: 'Failed to permanently delete booking' });
+    }
+  }
+
+  // Soft-delete (default behaviour)
   booking.isDeleted = true;
   await booking.save();
   res.status(200).json({ success: true, data: {} });

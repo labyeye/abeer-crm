@@ -89,7 +89,7 @@ const ReportsAndAnalytics = () => {
         } else if (entityType === 'staff') {
           const res = await staffAPI.getStaff();
           const list = getArrayFromResponse(res);
-          setOptions(list.map((s: any) => ({ value: s._id, label: `${s.name} — ${s.designation || ''}` })));
+          setOptions(list.map((s: any) => ({ value: s._id, label: `${s.name}` })));
         }
       } catch (err: any) {
         addNotification({ type: 'error', title: 'Load failed', message: err.message || 'Could not load options' });
@@ -1009,7 +1009,7 @@ const ReportsAndAnalytics = () => {
                         <h5 className="font-medium mb-2">Staff ({branchStaff?.length || 0})</h5>
                         <ul className="text-sm text-gray-700 space-y-1">
                           {branchStaff?.map((s: any) => (
-                            <li key={s._id}>{s.name} — {s.designation}</li>
+                            <li key={s._id}>{s.name}</li>
                           ))}
                         </ul>
                       </div>
@@ -1041,7 +1041,7 @@ const ReportsAndAnalytics = () => {
                       <h4 className="font-semibold">Staff Details</h4>
                       <div className="text-sm text-gray-700">Name: {entityDetails.name}</div>
                       <div className="text-sm text-gray-700">Email: {entityDetails.email}</div>
-                      <div className="text-sm text-gray-700">Designation: {entityDetails.designation}</div>
+                      {/* designation removed */}
                       <div className="text-sm text-gray-700">Branch: {entityDetails.branch?.name || entityDetails.branch}</div>
                     </div>
 

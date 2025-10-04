@@ -370,8 +370,9 @@ export const bookingAPI = {
     const response = await api.put(`/bookings/${id}/status`, { status });
     return response.data;
   },
-  deleteBooking: async (id: string) => {
-    const response = await api.delete(`/bookings/${id}`);
+  deleteBooking: async (id: string, hard?: boolean) => {
+    const url = hard ? `/bookings/${id}?hard=true` : `/bookings/${id}`;
+    const response = await api.delete(url);
     return response.data;
   },
 };
