@@ -269,8 +269,26 @@ const updateBooking = asyncHandler(async (req, res) => {
     req.body.pricing = p;
   }
 
-  const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-  
+  // Prefer applying updates on the fetched document and saving so
+  // Mongoose will cast array items to ObjectId and run schema hooks.
+  console.log('🔁 Booking update called for id:', req.params.id);
+  console.log('🔁 Incoming assignedStaff:', req.body.assignedStaff);
+  console.log('🔁 Incoming inventorySelection:', req.body.inventorySelection);
+
+  try {
+    // Apply changes to the fetched document and save
+    oldBooking.set(req.body);
+    await oldBooking.save();
+    // Log what was actually stored
+    console.log('🔁 Booking saved. assignedStaff:', oldBooking.assignedStaff);
+    console.log('🔁 Booking saved. inventorySelection:', oldBooking.inventorySelection);
+  } catch (err) {
+    console.error('Error saving booking updates:', err);
+    return res.status(500).json({ success: false, message: 'Failed to save booking updates' });
+  }
+
+  const booking = oldBooking;
+
   await booking.populate([
     { path: 'client', select: 'name phone email' },
     { path: 'branch', select: 'name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber' },

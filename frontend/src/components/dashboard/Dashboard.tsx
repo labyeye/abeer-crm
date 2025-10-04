@@ -11,6 +11,7 @@ import {
   Package,
   Loader2,
   CheckSquare,
+  XCircle,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { inventoryAPI, bookingAPI, staffAPI } from "../../services/api";
@@ -18,11 +19,17 @@ import StatCard from "../ui/StatCard";
 
 interface BookingStat {
   _id: string;
+  bookingNumber?: string;
   createdAt: string;
   status: string;
   pricing?: {
     totalAmount: number;
   };
+  assignedStaff?: any[];
+  inventorySelection?: any[];
+  items?: any[];
+  client?: any;
+  functionDetails?: any;
 }
 
 interface StaffStat {
@@ -166,8 +173,8 @@ const Dashboard = () => {
               ? inventoryStats.overview.totalValue.toLocaleString()
               : "0"
           }`,
-    icon: IndianRupee,
-    color: "secondary" as const,
+          icon: IndianRupee,
+          color: "secondary" as const,
         },
         {
           title: "Low Stock Alert",
@@ -265,7 +272,6 @@ const Dashboard = () => {
                 : "Here's what's happening with your photography business today."}
             </p>
           </div>
-          
         </div>
       </div>
 
@@ -388,6 +394,266 @@ const Dashboard = () => {
               )}
             </div>
           </div>
+        </div>
+      </div>
+      {/* Bookings Assignment Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">
+            Recent Bookings - Assignments
+          </h2>
+          <p className="text-sm text-gray-500">
+            Shows whether staff and inventory have been assigned
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Booking ID
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Services (staff / inventory)
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {bookingStats && bookingStats.length > 0 ? (
+                [...bookingStats]
+                  .map((b) => {
+                    const rawServices = (b as any).servicesSchedule?.length
+                      ? (b as any).servicesSchedule
+                      : (b as any).services?.length
+                      ? (b as any).services
+                      : (b as any).items?.length
+                      ? (b as any).items
+                      : [];
+
+                    const services = (
+                      rawServices.length
+                        ? rawServices
+                        : [
+                            {
+                              serviceName:
+                                (b as any).functionDetails?.type ||
+                                (b as any).serviceName ||
+                                "Service",
+                            },
+                          ]
+                    ).map((s: any) => {
+                      const name =
+                        s.serviceName ||
+                        s.name ||
+                        s.service ||
+                        s.title ||
+                        "Service";
+
+                      // helper to normalize possible arrays of objects or ids to id array
+                      const normalizeIds = (arr: any) => {
+                        if (!Array.isArray(arr)) return [];
+                        return arr
+                          .map((it: any) => {
+                            if (!it && it !== 0) return it;
+                            if (typeof it === "string") return it;
+                            if (typeof it === "number") return String(it);
+                            // common shapes: {_id: '...'}, {staff: {_id:'...'}}, {equipment: {_id:'...'}}
+                            if (it._id) return it._id;
+                            if (
+                              it.staff &&
+                              (it.staff._id || typeof it.staff === "string")
+                            )
+                              return it.staff._id || it.staff;
+                            if (
+                              it.equipment &&
+                              (it.equipment._id ||
+                                typeof it.equipment === "string")
+                            )
+                              return it.equipment._id || it.equipment;
+                            return it;
+                          })
+                          .filter(Boolean);
+                      };
+
+                      // derive assigned staff ids from multiple possible places
+                      const assignedFromS = normalizeIds(
+                        s.assignedStaff || s.assignedStaff || []
+                      );
+                      const assignedFromSAssign = normalizeIds(
+                        s.staffAssignment || []
+                      );
+                      const assignedFromB = normalizeIds(
+                        (b as any).assignedStaff || []
+                      );
+                      const assignedFromBAssign = normalizeIds(
+                        (b as any).staffAssignment || []
+                      );
+                      const assignedStaff = Array.from(
+                        new Set([
+                          ...(assignedFromS || []),
+                          ...(assignedFromSAssign || []),
+                          ...(assignedFromB || []),
+                          ...(assignedFromBAssign || []),
+                        ])
+                      );
+
+                      // derive inventory ids from multiple shapes
+                      const invFromS = normalizeIds(
+                        s.inventorySelection || s.items || []
+                      );
+                      const invFromSEquip = normalizeIds(
+                        s.equipmentAssignment || []
+                      );
+                      const invFromB = normalizeIds(
+                        (b as any).inventorySelection || (b as any).items || []
+                      );
+                      const invFromBEquip = normalizeIds(
+                        (b as any).equipmentAssignment || []
+                      );
+                      const inventory = Array.from(
+                        new Set([
+                          ...(invFromS || []),
+                          ...(invFromSEquip || []),
+                          ...(invFromB || []),
+                          ...(invFromBEquip || []),
+                        ])
+                      );
+
+                      return { name, assignedStaff, inventory };
+                    });
+
+                    return { booking: b, services };
+                  })
+                  // keep only bookings where at least one service misses staff or inventory
+                  .filter(({ services }) =>
+                    services.some(
+                      (svc: any) =>
+                        !(
+                          Array.isArray(svc.assignedStaff) &&
+                          svc.assignedStaff.length > 0
+                        ) ||
+                        !(
+                          Array.isArray(svc.inventory) &&
+                          svc.inventory.length > 0
+                        )
+                    )
+                  )
+                  // prioritize bookings where any service is missing both
+                  .sort((a, b) => {
+                    const aBoth = a.services.some(
+                      (s: any) =>
+                        !(
+                          Array.isArray(s.assignedStaff) &&
+                          s.assignedStaff.length > 0
+                        ) &&
+                        !(Array.isArray(s.inventory) && s.inventory.length > 0)
+                    );
+                    const bBoth = b.services.some(
+                      (s: any) =>
+                        !(
+                          Array.isArray(s.assignedStaff) &&
+                          s.assignedStaff.length > 0
+                        ) &&
+                        !(Array.isArray(s.inventory) && s.inventory.length > 0)
+                    );
+                    if (aBoth === bBoth) return 0;
+                    return aBoth ? -1 : 1;
+                  })
+                  .slice(0, 10)
+                  .map(({ booking: b, services }) => {
+                    const bookingPriority = services.some(
+                      (s: any) =>
+                        !(
+                          Array.isArray(s.assignedStaff) &&
+                          s.assignedStaff.length > 0
+                        ) &&
+                        !(Array.isArray(s.inventory) && s.inventory.length > 0)
+                    );
+
+                    return (
+                      <tr
+                        key={b._id}
+                        className={`hover:bg-gray-50 ${
+                          bookingPriority ? "bg-amber-50" : ""
+                        }`}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {b.bookingNumber || b._id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {b.client?.name || "Unknown"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <div className="space-y-2">
+                            {services.map((svc: any, idx: number) => {
+                              const hasStaff =
+                                Array.isArray(svc.assignedStaff) &&
+                                svc.assignedStaff.length > 0;
+                              const hasInv =
+                                Array.isArray(svc.inventory) &&
+                                svc.inventory.length > 0;
+                              const svcPriority = !hasStaff && !hasInv;
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`flex items-center text-sm ${
+                                    svcPriority ? "text-red-600" : "text-red"
+                                  }`}
+                                >
+                                  <div className="w-56 truncate">
+                                    {svc.name}
+                                  </div>
+                                  <div className="ml-2 flex items-center space-x-6">
+                                    <div
+                                      className="flex items-center"
+                                      title={
+                                        hasStaff ? "Staff assigned" : "No staff"
+                                      }
+                                    >
+                                      {hasStaff ? (
+                                        <CheckCircle className="w-4 h-4 text-red" />
+                                      ) : (
+                                        <XCircle className="w-4 h-4 text-red" />
+                                      )}
+                                    </div>
+                                    <div
+                                      className="flex items-center"
+                                      title={
+                                        hasInv
+                                          ? "Inventory assigned"
+                                          : "No inventory"
+                                      }
+                                    >
+                                      {hasInv ? (
+                                        <CheckCircle className="w-4 h-4 text-red" />
+                                      ) : (
+                                        <XCircle className="w-4 h-4 text-red" />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+              ) : (
+                <tr>
+                  <td
+                    colSpan={3}
+                    className="px-6 py-4 text-center text-sm text-gray-500"
+                  >
+                    No bookings available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -182,8 +182,8 @@ const BookingManagement = () => {
         assignedStaff: [] as string[],
         inventorySelection: [] as string[],
         quantity: 1,
-  price: undefined,
-  amount: undefined,
+        price: undefined,
+        amount: undefined,
       },
     ] as Array<{
       serviceName?: string;
@@ -215,10 +215,10 @@ const BookingManagement = () => {
     gstIncluded: true, // if true -> prices already include GST; if false -> add GST on top
     gstRate: 18,
     gstAmount: 0,
-  // Discount in currency (absolute amount)
-  discountAmount: 0,
-  // whether user manually edited totalAmount
-  manualTotal: false,
+    // Discount in currency (absolute amount)
+    discountAmount: 0,
+    // whether user manually edited totalAmount
+    manualTotal: false,
     advanceAmount: 0,
     status: "enquiry",
     notes: "",
@@ -233,6 +233,8 @@ const BookingManagement = () => {
     audioOutputEnabled: false,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [debugPayload, setDebugPayload] = useState<any>(null);
+  const [showDebugPayload, setShowDebugPayload] = useState(false);
 
   const { addNotification } = useNotification();
 
@@ -373,6 +375,57 @@ const BookingManagement = () => {
     };
   }, []);
 
+  // When opening the edit modal, ensure per-service entries inherit
+  // booking-level assigned staff / inventory when their per-entry arrays
+  // are empty so the UI pickers appear pre-checked.
+  useEffect(() => {
+    if (!showEditModal) return;
+    setFormData((prev: any) => {
+      try {
+        const topAssigned = Array.isArray(prev.assignedStaff)
+          ? prev.assignedStaff
+          : [];
+        const topInventory = Array.isArray(prev.inventorySelection)
+          ? prev.inventorySelection
+          : [];
+        const seenDates = new Set<string>();
+        const ss = (prev.servicesSchedule || []).map((entry: any) => {
+          const assigned = Array.isArray(entry.assignedStaff)
+            ? entry.assignedStaff
+            : [];
+          const inv = Array.isArray(entry.inventorySelection)
+            ? entry.inventorySelection
+            : [];
+          // Determine date key (YYYY-MM-DD) for grouping
+          const dateKey = entry.date ? String(entry.date).split("T")[0] : "";
+          const shouldPrefillForDate = !seenDates.has(dateKey);
+          if (shouldPrefillForDate) seenDates.add(dateKey);
+          return {
+            ...entry,
+            // Only prefill the FIRST entry found for each date. This avoids
+            // duplicating booking-level assignments across multiple services
+            // that occur on the same date.
+            assignedStaff:
+              assigned && assigned.length > 0
+                ? assigned
+                : shouldPrefillForDate
+                ? topAssigned.slice()
+                : [],
+            inventorySelection:
+              inv && inv.length > 0
+                ? inv
+                : shouldPrefillForDate
+                ? topInventory.slice()
+                : [],
+          };
+        });
+        return { ...prev, servicesSchedule: ss };
+      } catch (err) {
+        return prev;
+      }
+    });
+  }, [showEditModal]);
+
   const resetForm = () => {
     setFormData({
       clientId: "",
@@ -407,8 +460,8 @@ const BookingManagement = () => {
       gstIncluded: true,
       gstRate: 18,
       gstAmount: 0,
-  discountAmount: 0,
-  manualTotal: false,
+      discountAmount: 0,
+      manualTotal: false,
       advanceAmount: 0,
       status: "enquiry",
       notes: "",
@@ -517,9 +570,25 @@ const BookingManagement = () => {
   ]);
 
   const handleEditBooking = async (booking: Booking) => {
+    // Fetch latest booking details from server to ensure we get populated
+    // assignedStaff and inventorySelection objects (not stale local list items).
     setSelectedBooking(booking);
     let scheduleEntries: any[] = [];
-    const b: any = booking as any;
+    let b: any = booking as any;
+    try {
+      const res: any = await bookingAPI.getBooking(booking._id);
+      // bookingAPI returns response.data (api wrapper), but some API helpers
+      // may return the booking directly; accommodate both shapes.
+      b = (res && (res.data || res)) || booking;
+      setSelectedBooking(b);
+    } catch (err) {
+      // if fetch fails, fall back to supplied booking object
+      console.warn(
+        "Could not fetch full booking details, using provided booking",
+        err
+      );
+      b = booking as any;
+    }
     if (
       Array.isArray(b.functionDetailsList) &&
       b.functionDetailsList.length > 0
@@ -550,14 +619,17 @@ const BookingManagement = () => {
             (fd.venue && fd.venue.address) ||
             b.functionDetails?.venue?.address ||
             "",
-          assignedStaff:
-            Array.isArray(fd.assignedStaff) && fd.assignedStaff.length
-              ? fd.assignedStaff.map((s: any) => (s._id ? s._id : s))
-              : b.assignedStaff?.map((s: any) => s._id) || [],
-          inventorySelection:
-            Array.isArray(fd.inventorySelection) && fd.inventorySelection.length
-              ? fd.inventorySelection.map((it: any) => (it._id ? it._id : it))
-              : b.inventorySelection?.map((i: any) => i._id) || [],
+          // Only use function-detail level assignedStaff/inventorySelection
+          // when explicitly provided. Do NOT fallback to booking-level
+          // assignedStaff/inventorySelection here because that duplicates
+          // booking-level selections into each service entry and prevents
+          // clearing assignments in the edit form.
+          assignedStaff: Array.isArray(fd.assignedStaff)
+            ? fd.assignedStaff.map((s: any) => (s._id ? s._id : s))
+            : [],
+          inventorySelection: Array.isArray(fd.inventorySelection)
+            ? fd.inventorySelection.map((it: any) => (it._id ? it._id : it))
+            : [],
           quantity: svc?.quantity ?? svc?.qty ?? 1,
           price: svc?.rate ?? svc?.price ?? 0,
           amount:
@@ -585,8 +657,8 @@ const BookingManagement = () => {
         endTime: b.functionDetails?.time?.end || "",
         venueName: b.functionDetails?.venue?.name || "",
         venueAddress: b.functionDetails?.venue?.address || "",
-        assignedStaff: b.assignedStaff?.map((s: any) => s._id) || [],
-        inventorySelection: b.inventorySelection?.map((i: any) => i._id) || [],
+        assignedStaff: [],
+        inventorySelection: [],
         quantity: svc.quantity ?? svc.qty ?? 1,
         price: svc.rate ?? svc.price ?? 0,
         amount:
@@ -607,9 +679,8 @@ const BookingManagement = () => {
           endTime: b.functionDetails?.time?.end || "",
           venueName: b.functionDetails?.venue?.name || "",
           venueAddress: b.functionDetails?.venue?.address || "",
-          assignedStaff: b.assignedStaff?.map((s: any) => s._id) || [],
-          inventorySelection:
-            b.inventorySelection?.map((i: any) => i._id) || [],
+          assignedStaff: [],
+          inventorySelection: [],
           quantity: 1,
           price: 0,
           amount: 0,
@@ -684,6 +755,25 @@ const BookingManagement = () => {
       );
     }
 
+    // Prefer structured assignment arrays from DB when available
+    const prefilledAssignedStaff =
+      Array.isArray(b.staffAssignment) && b.staffAssignment.length
+        ? b.staffAssignment.map((sa: any) =>
+            sa.staff ? sa.staff._id || sa.staff : sa
+          )
+        : Array.isArray(b.assignedStaff)
+        ? b.assignedStaff.map((s: any) => (s._id ? s._id : s))
+        : [];
+
+    const prefilledInventorySelection =
+      Array.isArray(b.equipmentAssignment) && b.equipmentAssignment.length
+        ? b.equipmentAssignment.map((ea: any) =>
+            ea.equipment ? ea.equipment._id || ea.equipment : ea
+          )
+        : Array.isArray(b.inventorySelection)
+        ? b.inventorySelection.map((it: any) => (it._id ? it._id : it))
+        : [];
+
     setFormData({
       clientId: booking.client._id,
       servicesSchedule: scheduleEntries.map((s) => ({
@@ -695,9 +785,9 @@ const BookingManagement = () => {
       venueName: booking.functionDetails.venue?.name || "",
       venueAddress: booking.functionDetails.venue?.address || "",
       serviceNeeded: booking.serviceNeeded || "",
-      inventorySelection:
-        booking.inventorySelection?.map((item) => item._id) || [],
-      assignedStaff: booking.assignedStaff?.map((staff) => staff._id) || [],
+      // Use the prefilled arrays derived from DB fields
+      inventorySelection: prefilledInventorySelection,
+      assignedStaff: prefilledAssignedStaff,
       bookingBranch:
         (booking as any).branch?._id || booking.bookingBranch?._id || "",
       services: booking.services || [],
@@ -709,7 +799,7 @@ const BookingManagement = () => {
       gstRate: (booking.pricing as any)?.gstRate || 18,
       gstAmount: (booking.pricing as any)?.gstAmount ?? 0,
       discountAmount: (booking.pricing as any)?.discountAmount ?? 0,
-      manualTotal: !!((booking.pricing as any)?.manualTotal) || false,
+      manualTotal: !!(booking.pricing as any)?.manualTotal || false,
       advanceAmount: booking.pricing.advanceAmount,
       status: booking.status || "enquiry",
       notes: (booking as any).notes || "",
@@ -735,7 +825,6 @@ const BookingManagement = () => {
     setSubmitting(true);
 
     try {
-
       // Build schedule list and calculate pricing fields from servicesSchedule amounts
       const scheduleList =
         formData.servicesSchedule && formData.servicesSchedule.length > 0
@@ -757,7 +846,9 @@ const BookingManagement = () => {
               },
             ];
       // Calculate subtotal using same logic as the form (amount if provided, otherwise price * qty)
-  const subtotal = computeSubtotalFromForm({ servicesSchedule: scheduleList } as any);
+      const subtotal = computeSubtotalFromForm({
+        servicesSchedule: scheduleList,
+      } as any);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
       const functionDetailsList = scheduleList.map((s: any, idx: number) => ({
@@ -791,18 +882,35 @@ const BookingManagement = () => {
         outsourceStaff: outsourceStaff[idx] || [],
         outsourceEquipment: outsourceEquipment[idx] || [],
       }));
-      // union assigned staff and inventory across schedule entries and global selections
-      const allAssignedStaff = Array.from(
-        new Set([
-          ...(formData.assignedStaff || []),
-          ...scheduleList.flatMap((s: any) => s.assignedStaff || []),
-        ])
+      // Prefer per-entry (servicesSchedule) selections when present. This
+      // ensures that unchecking equipment or staff from a specific service
+      // actually removes it from the update payload for that booking.
+      // Fall back to top-level (formData) selections only when no per-entry
+      // selections exist.
+      const staffFromEntries = Array.from(
+        new Set(scheduleList.flatMap((s: any) => s.assignedStaff || []))
       );
-      const allInventory = Array.from(
-        new Set([
-          ...(formData.inventorySelection || []),
-          ...scheduleList.flatMap((s: any) => s.inventorySelection || []),
-        ])
+      const inventoryFromEntries = Array.from(
+        new Set(scheduleList.flatMap((s: any) => s.inventorySelection || []))
+      );
+
+      const allAssignedStaff =
+        staffFromEntries.length > 0
+          ? staffFromEntries
+          : Array.from(new Set([...(formData.assignedStaff || [])]));
+
+      const allInventory =
+        inventoryFromEntries.length > 0
+          ? inventoryFromEntries
+          : Array.from(new Set([...(formData.inventorySelection || [])]));
+
+      // Normalize items to plain id strings (handle cases where items may be objects)
+      // we will use them to build structured assignment objects below
+      const normalizedIdsFromAssignedStaff = allAssignedStaff.map((s: any) =>
+        typeof s === "string" ? s : s?._id || s
+      );
+      const normalizedIdsFromInventory = allInventory.map((i: any) =>
+        typeof i === "string" ? i : i?._id || i
       );
 
       // Optional validation - only validate if service category is provided
@@ -864,9 +972,28 @@ const BookingManagement = () => {
           : formData.applyGST && !formData.gstIncluded
           ? Number((subtotal + computedGstAmount).toFixed(2))
           : Number(subtotal.toFixed(2));
-      const finalTotalAmount = Math.max(0, rawFinal - (formData.discountAmount || 0));
+      const finalTotalAmount = Math.max(
+        0,
+        rawFinal - (formData.discountAmount || 0)
+      );
 
-      const remainingAmount = Math.max(0, finalTotalAmount - (formData.advanceAmount || 0));
+      const remainingAmount = Math.max(
+        0,
+        finalTotalAmount - (formData.advanceAmount || 0)
+      );
+
+      const staffAssignments = normalizedIdsFromAssignedStaff.map(
+        (id: string) => ({
+          staff: id,
+          role: "Default", // Or derive role if available
+        })
+      );
+      const equipmentAssignments = normalizedIdsFromInventory.map(
+        (id: string) => ({
+          equipment: id,
+          quantity: 1, // Or derive quantity if available
+        })
+      );
 
       const bookingData = {
         client: formData.clientId,
@@ -892,8 +1019,13 @@ const BookingManagement = () => {
                 ? scheduleList[0].serviceType.join(", ")
                 : (scheduleList[0].serviceName as string) || ""))) ||
           "",
-        inventorySelection: allInventory,
-        assignedStaff: allAssignedStaff,
+
+        // Use the new assignment format
+        staffAssignment: staffAssignments,
+        equipmentAssignment: equipmentAssignments,
+
+        // Prioritize the structured assignment fields used by the backend
+
         bookingBranch: formData.bookingBranch,
         status: formData.status,
         services: servicesFromSchedule,
@@ -920,16 +1052,27 @@ const BookingManagement = () => {
         rawOutputEnabled: formData.rawOutputEnabled,
         audioOutputEnabled: formData.audioOutputEnabled,
       };
+      setDebugPayload({
+        staffAssignment: bookingData.staffAssignment,
+        equipmentAssignment: bookingData.equipmentAssignment,
+      });
 
       if (selectedBooking) {
-        await bookingAPI.updateBooking(selectedBooking._id, bookingData);
+        console.log("BookingManagement: update payload:", bookingData);
+        const res: any = await bookingAPI.updateBooking(
+          selectedBooking._id,
+          bookingData
+        );
+        console.log("BookingManagement: update response from server:", res);
         addNotification({
           type: "success",
           title: "Success",
           message: "Booking updated successfully",
         });
       } else {
-        await bookingAPI.createBooking(bookingData);
+        console.log("BookingManagement: create payload:", bookingData);
+        const res2: any = await bookingAPI.createBooking(bookingData);
+        console.log("BookingManagement: create response from server:", res2);
         addNotification({
           type: "success",
           title: "Success",
@@ -1394,7 +1537,7 @@ const BookingManagement = () => {
                       <div className="text-sm font-medium text-gray-900">
                         {booking.bookingNumber}
                       </div>
-                     
+
                       {(booking.pricing as any)?.gstAmount ? (
                         <div className="text-xs text-gray-400">
                           + GST ({(booking.pricing as any).gstRate}%): ₹
@@ -1405,7 +1548,7 @@ const BookingManagement = () => {
                       ) : null}
                     </div>
                   </td>
-                  
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
@@ -1470,13 +1613,22 @@ const BookingManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {typeof booking.pricing?.totalAmount === 'number' && booking.pricing.totalAmount > 0 ? `₹${booking.pricing.totalAmount.toLocaleString()}` : '-'}
+                    {typeof booking.pricing?.totalAmount === "number" &&
+                    booking.pricing.totalAmount > 0
+                      ? `₹${booking.pricing.totalAmount.toLocaleString()}`
+                      : "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {typeof booking.pricing?.advanceAmount === 'number' && booking.pricing.advanceAmount > 0 ? `₹${booking.pricing.advanceAmount.toLocaleString()}` : '-'}
+                    {typeof booking.pricing?.advanceAmount === "number" &&
+                    booking.pricing.advanceAmount > 0
+                      ? `₹${booking.pricing.advanceAmount.toLocaleString()}`
+                      : "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {typeof booking.pricing?.remainingAmount === 'number' && booking.pricing.remainingAmount > 0 ? `₹${booking.pricing.remainingAmount.toLocaleString()}` : '-'}
+                    {typeof booking.pricing?.remainingAmount === "number" &&
+                    booking.pricing.remainingAmount > 0
+                      ? `₹${booking.pricing.remainingAmount.toLocaleString()}`
+                      : "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -1626,6 +1778,28 @@ const BookingManagement = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              {/* Debug payload viewer (toggleable) */}
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowDebugPayload((s) => !s)}
+                  className="text-xs text-gray-500 hover:underline"
+                >
+                  {showDebugPayload
+                    ? "Hide debug payload"
+                    : "Show debug payload"}
+                </button>
+              </div>
+              {showDebugPayload && debugPayload && (
+                <div className="bg-gray-50 border border-gray-200 p-3 rounded text-xs text-gray-700">
+                  <div className="font-medium">
+                    Debug payload (will be sent)
+                  </div>
+                  <pre className="text-xs mt-2 max-h-48 overflow-auto">
+                    {JSON.stringify(debugPayload, null, 2)}
+                  </pre>
+                </div>
+              )}
               {/* Client Selection */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -1923,12 +2097,18 @@ const BookingManagement = () => {
                               <input
                                 type="number"
                                 min={0}
-                                value={typeof entry.price === 'number' ? entry.price : ''}
+                                value={
+                                  typeof entry.price === "number"
+                                    ? entry.price
+                                    : ""
+                                }
                                 onChange={(e) =>
                                   updateScheduleEntry(
                                     idx,
                                     "price",
-                                    e.target.value === "" ? undefined : Number(e.target.value)
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value)
                                   )
                                 }
                                 className="w-full px-3 py-2 border rounded"
@@ -1941,12 +2121,18 @@ const BookingManagement = () => {
                               <input
                                 type="number"
                                 min={0}
-                                value={typeof entry.amount === 'number' ? entry.amount : ''}
+                                value={
+                                  typeof entry.amount === "number"
+                                    ? entry.amount
+                                    : ""
+                                }
                                 onChange={(e) =>
                                   updateScheduleEntry(
                                     idx,
                                     "amount",
-                                    e.target.value === "" ? undefined : Number(e.target.value)
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value)
                                   )
                                 }
                                 className="w-full px-3 py-2 border rounded"
@@ -3225,13 +3411,25 @@ const BookingManagement = () => {
                               subtotal = selectedBooking.pricing.subtotal || 0;
                             }
                             const gstRate = prev.gstRate || 18;
-                            const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                            const base = computeBaseExcludingGST(
+                              prev,
+                              subtotal,
+                              gstRate
+                            );
                             const gstAmount = apply
                               ? prev.gstIncluded
-                                ? Number(((base * gstRate) / (100 + gstRate)).toFixed(2))
+                                ? Number(
+                                    (
+                                      (base * gstRate) /
+                                      (100 + gstRate)
+                                    ).toFixed(2)
+                                  )
                                 : Number((base * (gstRate / 100)).toFixed(2))
                               : 0;
-                            const total = apply && !prev.gstIncluded ? Number((base + gstAmount).toFixed(2)) : Number(base.toFixed(2));
+                            const total =
+                              apply && !prev.gstIncluded
+                                ? Number((base + gstAmount).toFixed(2))
+                                : Number(base.toFixed(2));
                             return {
                               ...prev,
                               applyGST: apply,
@@ -3259,8 +3457,16 @@ const BookingManagement = () => {
                                     selectedBooking.pricing.subtotal || 0;
                                 }
                                 const gstRate = prev.gstRate || 18;
-                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
-                                const gstAmount = Number(((base * gstRate) / (100 + gstRate)).toFixed(2));
+                                const base = computeBaseExcludingGST(
+                                  prev,
+                                  subtotal,
+                                  gstRate
+                                );
+                                const gstAmount = Number(
+                                  ((base * gstRate) / (100 + gstRate)).toFixed(
+                                    2
+                                  )
+                                );
                                 const total = Number(base.toFixed(2));
                                 return {
                                   ...prev,
@@ -3288,8 +3494,12 @@ const BookingManagement = () => {
                                 const gstRate = prev.gstRate || 18;
                                 // base is the subtotal (when prices don't include GST)
                                 const base = Number(subtotal || 0);
-                                const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
-                                const total = Number((base + gstAmount).toFixed(2));
+                                const gstAmount = Number(
+                                  (base * (gstRate / 100)).toFixed(2)
+                                );
+                                const total = Number(
+                                  (base + gstAmount).toFixed(2)
+                                );
                                 return {
                                   ...prev,
                                   applyGST: true,
@@ -3318,8 +3528,12 @@ const BookingManagement = () => {
                                 }
                                 const gstRate = prev.gstRate || 18;
                                 const base = Number(subtotal || 0);
-                                const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
-                                const total = Number((base + gstAmount).toFixed(2));
+                                const gstAmount = Number(
+                                  (base * (gstRate / 100)).toFixed(2)
+                                );
+                                const total = Number(
+                                  (base + gstAmount).toFixed(2)
+                                );
                                 return {
                                   ...prev,
                                   applyGST: true,
@@ -3357,18 +3571,18 @@ const BookingManagement = () => {
                   <div>
                     <div className="text-xs text-gray-500">Total Amount</div>
                     <div>
-                        <input
-                          type="number"
-                          value={formData.totalAmount}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              totalAmount: Number(e.target.value),
-                              manualTotal: true,
-                            }))
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
+                      <input
+                        type="number"
+                        value={formData.totalAmount}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            totalAmount: Number(e.target.value),
+                            manualTotal: true,
+                          }))
+                        }
+                        className="w-full px-2 py-1 border rounded"
+                      />
                       {formData.applyGST && !formData.gstIncluded ? (
                         <div className="text-sm text-gray-500 mt-1">
                           Computed with GST: ₹
