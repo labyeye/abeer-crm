@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo} from "react";
 import {
   Users,
   Calendar,
@@ -184,6 +184,21 @@ const Dashboard = () => {
         },
       ]
     : [];
+
+  // Build a fast lookup map from inventory id -> friendly name using the already-fetched inventoryStats
+  const inventoryIdToName = useMemo(() => {
+    if (!inventoryStats) return new Map<string, string>();
+    const arr: any[] =
+      inventoryStats.items || inventoryStats.list || inventoryStats.data || [];
+    const map = new Map<string, string>();
+    arr.forEach((it: any) => {
+      if (!it) return;
+      const id = it._id || it.id || it.inventoryId || it.itemId;
+      const name = it.name || it.itemName || it.inventoryName || it.title;
+      if (id && name) map.set(String(id), name);
+    });
+    return map;
+  }, [inventoryStats]);
 
   const today = new Date();
  
@@ -731,414 +746,102 @@ const Dashboard = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200 min-w-[1800px]">
               {bookingStats && bookingStats.length > 0 ? (
-                // expand bookings into date-grouped rows and sort by date
+                // expand bookings into per-service rows - each service gets its own row with its specific date
                 [...bookingStats]
-                  .map((b: any) => {
-                    const rawDate =
-                      b.functionDetails?.date || b.date || b.scheduledDate;
-                    const d = rawDate ? new Date(rawDate) : null;
-                    const dateKey = d
-                      ? new Date(d.getFullYear(), d.getMonth(), d.getDate())
-                      : null;
-
-                    const rawServices =
+                  .flatMap((b: any) => {
+                    // Get per-service entries (functionDetailsList is authoritative)
+                    const perServiceEntries =
                       Array.isArray(b.functionDetailsList) &&
                       b.functionDetailsList.length
                         ? b.functionDetailsList
                         : b.servicesSchedule?.length
                         ? b.servicesSchedule
                         : b.services?.length
-                        ? b.services
-                        : b.items?.length
-                        ? b.items
-                        : [];
+                        ? b.services.map((svc: any) => ({
+                            // fallback: use functionDetails date for services without individual dates
+                            date: b.functionDetails?.date || b.date || b.scheduledDate,
+                            time: b.functionDetails?.time || {},
+                            venue: b.functionDetails?.venue || {},
+                            service: svc.service || svc.serviceName || "Service",
+                            serviceType: svc.serviceType || svc.type || [],
+                            event: svc.event || b.event || "",
+                            assignedStaff: [],
+                            inventorySelection: [],
+                          }))
+                        : [
+                            {
+                              date: b.functionDetails?.date || b.date || b.scheduledDate,
+                              time: b.functionDetails?.time || {},
+                              venue: b.functionDetails?.venue || {},
+                              service: b.functionDetails?.type || b.serviceName || "Service",
+                              serviceType: [],
+                              event: b.event || "",
+                              assignedStaff: [],
+                              inventorySelection: [],
+                            },
+                          ];
 
-                    // Ensure we have an array of service objects to work with
-                    const rawServicesArr = rawServices.length
-                      ? rawServices
-                      : [
-                          {
-                            serviceName:
-                              b.functionDetails?.type || b.serviceName,
-                            type: b.functionDetails?.type,
-                          },
-                        ];
+                    // Create one row per service entry
+                    return perServiceEntries.map((serviceEntry: any) => {
+                      const rawDate = serviceEntry.date;
+                      const d = rawDate ? new Date(rawDate) : null;
 
-                    const services = rawServicesArr.map((s: any) => {
-                      const svcName =
-                        s.service ||
-                        s.serviceName ||
-                        s.name ||
-                        s.title ||
+                      // Service name for this specific entry
+                      const serviceName =
+                        serviceEntry.service ||
+                        serviceEntry.serviceName ||
+                        serviceEntry.name ||
+                        serviceEntry.title ||
                         "Service";
-                      const svcType = Array.isArray(s.serviceType)
-                        ? s.serviceType.join(", ")
-                        : s.serviceType || s.type || "";
-                      return svcType ? `${svcName} (${svcType})` : svcName;
+                      const serviceType = Array.isArray(serviceEntry.serviceType)
+                        ? serviceEntry.serviceType.join(", ")
+                        : serviceEntry.serviceType || serviceEntry.type || "";
+                      const displayService = serviceType ? `${serviceName} (${serviceType})` : serviceName;
+
+                      // Staff for this specific service entry
+                      const serviceStaffNames: string[] = [];
+                      if (Array.isArray(serviceEntry.assignedStaff)) {
+                        serviceEntry.assignedStaff.forEach((staffId: any) => {
+                          const staff = staffStats.find((s: any) => s._id === (staffId._id || staffId));
+                          if (staff) serviceStaffNames.push(staff.name);
+                        });
+                      }
+
+                      // Equipment names for this specific service entry
+                      const equipmentNames: string[] = [];
+                      if (Array.isArray(serviceEntry.inventorySelection)) {
+                        serviceEntry.inventorySelection.forEach((inv: any) => {
+                          if (typeof inv === "object" && inv.name) {
+                            equipmentNames.push(inv.name);
+                          } else if (typeof inv === "string") {
+                            const resolved = inventoryIdToName.get(inv);
+                            if (resolved) equipmentNames.push(resolved);
+                          }
+                        });
+                      }
+
+                      return {
+                        booking: b,
+                        dateObj: d,
+                        service: displayService,
+                        serviceStaffNames,
+                        equipmentNames,
+                      };
                     });
-
-                    // Build per-service staff displays (staff assigned specifically to each service)
-                    const serviceStaffDisplays: string[][] = rawServicesArr.map(
-                      (svc: any) => {
-                        const svcMap = new Map<
-                          string,
-                          { id: string; name?: string; positions: Set<string> }
-                        >();
-
-                        const pushSvcStaff = (
-                          id: string | undefined,
-                          name?: string,
-                          pos?: string
-                        ) => {
-                          if (!id) return;
-                          const sid = String(id);
-                          if (!svcMap.has(sid)) {
-                            svcMap.set(sid, {
-                              id: sid,
-                              name,
-                              positions: new Set(),
-                            });
-                          }
-                          const entry = svcMap.get(sid)!;
-                          if (name) entry.name = entry.name || name;
-                          if (pos) entry.positions.add(pos);
-                        };
-
-                        const extractSvc = (it: any, possiblePos?: string) => {
-                          if (!it && it !== 0) return;
-                          if (
-                            typeof it === "string" ||
-                            typeof it === "number"
-                          ) {
-                            pushSvcStaff(String(it), undefined, possiblePos);
-                            return;
-                          }
-                          if (it._id) {
-                            const name = it.name || it.user?.name || undefined;
-                            const pos =
-                              possiblePos ||
-                              it.position ||
-                              it.role ||
-                              it.job ||
-                              it.roleName;
-                            pushSvcStaff(it._id, name, pos);
-                            return;
-                          }
-                          if (it.staff) {
-                            const st = it.staff;
-                            if (
-                              typeof st === "string" ||
-                              typeof st === "number"
-                            ) {
-                              const pos =
-                                possiblePos ||
-                                it.designation ||
-                                it.position ||
-                                it.role;
-                              pushSvcStaff(String(st), undefined, pos);
-                            } else if (st._id) {
-                              const name =
-                                st.name || st.user?.name || undefined;
-                              const pos =
-                                possiblePos ||
-                                it.designation ||
-                                it.position ||
-                                it.role ||
-                                st.designation ||
-                                st.position;
-                              pushSvcStaff(st._id, name, pos);
-                            }
-                            return;
-                          }
-                          if (it.id) {
-                            const name = it.name || undefined;
-                            const pos =
-                              possiblePos ||
-                              it.designation ||
-                              it.position ||
-                              it.role;
-                            pushSvcStaff(it.id, name, pos);
-                            return;
-                          }
-                        };
-
-                        // assigned staff on the service object
-                        if (Array.isArray(svc.assignedStaff)) {
-                          svc.assignedStaff.forEach((x: any) => {
-                            const pos =
-                              x.role ||
-                              x.position ||
-                              x.designation ||
-                              svc.role ||
-                              svc.position;
-                            extractSvc(x, pos);
-                          });
-                        }
-
-                        if (svc.staffAssignment) {
-                          if (Array.isArray(svc.staffAssignment)) {
-                            svc.staffAssignment.forEach((x: any) => {
-                              const pos = x.role || x.position || svc.role;
-                              extractSvc(x, pos);
-                            });
-                          } else {
-                            const pos =
-                              svc.staffAssignment.designation ||
-                              svc.staffAssignment.role ||
-                              svc.staffAssignment.position ||
-                              svc.role;
-                            extractSvc(svc.staffAssignment, pos);
-                          }
-                        }
-
-                        // finally lookup names from global staffStats when missing
-                        svcMap.forEach((entry) => {
-                          if (!entry.name) {
-                            const srec = staffStats.find(
-                              (st: any) => st._id === entry.id
-                            );
-                            if (srec) entry.name = srec.name;
-                          }
-                        });
-
-                        const svcEntries = Array.from(svcMap.values()).map(
-                          (e) => ({
-                            id: e.id,
-                            name: e.name || e.id,
-                            positions: Array.from(e.positions).filter(Boolean),
-                          })
-                        );
-
-                        return svcEntries.map((e) => e.name);
-                      }
-                    );
-                    const staffMap = new Map<
-                      string,
-                      { id: string; name?: string; positions: Set<string> }
-                    >();
-
-                    const pushStaff = (
-                      id: string | undefined,
-                      name?: string,
-                      pos?: string
-                    ) => {
-                      if (!id) return;
-                      const sid = String(id);
-                      if (!staffMap.has(sid)) {
-                        staffMap.set(sid, {
-                          id: sid,
-                          name,
-                          positions: new Set(),
-                        });
-                      }
-                      const entry = staffMap.get(sid)!;
-                      if (name) entry.name = entry.name || name;
-                      if (pos) entry.positions.add(pos);
-                    };
-
-                    const extractFromPossibleItem = (
-                      it: any,
-                      possiblePos?: string
-                    ) => {
-                      if (!it && it !== 0) return;
-                      // string or number -> id only
-                      if (typeof it === "string" || typeof it === "number") {
-                        pushStaff(String(it), undefined, possiblePos);
-                        return;
-                      }
-                      // direct staff object
-                      if (it._id) {
-                        const name = it.name || it.user?.name || undefined;
-                        const pos =
-                          possiblePos ||
-                          it.designation ||
-                          it.position ||
-                          it.role ||
-                          it.job ||
-                          it.roleName;
-                        pushStaff(it._id, name, pos);
-                        return;
-                      }
-                      // nested staff property
-                      if (it.staff) {
-                        const st = it.staff;
-                        if (typeof st === "string" || typeof st === "number") {
-                          const pos =
-                            possiblePos ||
-                            it.designation ||
-                            it.position ||
-                            it.role;
-                          pushStaff(String(st), undefined, pos);
-                        } else if (st._id) {
-                          const name = st.name || st.user?.name || undefined;
-                          const pos =
-                            possiblePos ||
-                            it.designation ||
-                            it.position ||
-                            it.role ||
-                            st.designation ||
-                            st.position;
-                          pushStaff(st._id, name, pos);
-                        }
-                        return;
-                      }
-                      // fallback: object representing staff id in another prop
-                      if (it.id) {
-                        const name = it.name || undefined;
-                        const pos =
-                          possiblePos ||
-                          it.designation ||
-                          it.position ||
-                          it.role;
-                        pushStaff(it.id, name, pos);
-                        return;
-                      }
-                    };
-
-                    // booking-level assignedStaff
-                    if (Array.isArray(b.assignedStaff)) {
-                      b.assignedStaff.forEach((as: any) => {
-                        extractFromPossibleItem(as);
-                      });
-                    }
-
-                    // staffAssignment (may be structured objects)
-                    if (Array.isArray(b.staffAssignment)) {
-                      b.staffAssignment.forEach((sa: any) => {
-                        // common shapes: string id, { staff: id|obj, role/position/designation }
-                        const pos =
-                          sa.designation ||
-                          sa.position ||
-                          sa.role ||
-                          sa.job ||
-                          sa.roleName;
-                        if (typeof sa === "string" || typeof sa === "number") {
-                          pushStaff(String(sa), undefined, pos);
-                        } else {
-                          extractFromPossibleItem(sa, pos);
-                        }
-                      });
-                    }
-
-                    // per-service assigned staff in servicesSchedule or rawServices
-                    if (Array.isArray(rawServices)) {
-                      rawServices.forEach((svc: any) => {
-                        // svc.assignedStaff could be array of ids or objects
-                        if (Array.isArray(svc.assignedStaff)) {
-                          svc.assignedStaff.forEach((x: any) => {
-                            // some forms store assignment as { staff: id, role: 'Photographer' }
-                            const pos =
-                              x.role ||
-                              x.position ||
-                              x.designation ||
-                              svc.role ||
-                              svc.position;
-                            extractFromPossibleItem(x, pos);
-                          });
-                        }
-                      });
-                    }
-
-                    // finally, ensure we have a name for each staff by looking up staffStats
-                    staffMap.forEach((entry) => {
-                      if (!entry.name) {
-                        const srec = staffStats.find(
-                          (st: any) => st._id === entry.id
-                        );
-                        if (srec) entry.name = srec.name;
-                      }
-                    });
-
-                    const staffEntries = Array.from(staffMap.values()).map(
-                      (e) => ({
-                        id: e.id,
-                        name: e.name || e.id,
-                        positions: Array.from(e.positions).filter(Boolean),
-                      })
-                    );
-
-                    const staffDisplay = staffEntries.map((e) => e.name);
-
-                    // equipment names (try structured equipmentAssignment first, fall back to inventorySelection items)
-                    const equipmentNamesSet = new Set<string>();
-                    if (Array.isArray(b.equipmentAssignment)) {
-                      b.equipmentAssignment.forEach((ea: any) => {
-                        if (!ea) return;
-                        const eq = ea.equipment || ea.item || ea;
-                        if (!eq) return;
-                        if (typeof eq === "object") {
-                          if (eq.name) equipmentNamesSet.add(eq.name);
-                          // if eq is an object but has no name, do not add its raw _id to avoid showing DB ids
-                        } else if (
-                          typeof eq === "string" ||
-                          typeof eq === "number"
-                        ) {
-                          // Skip raw-looking ObjectId strings (24 hex chars) so UI doesn't display DB ids
-                          const s = String(eq);
-                          const isObjectId = /^[0-9a-fA-F]{24}$/.test(s);
-                          if (!isObjectId) equipmentNamesSet.add(s);
-                        }
-                      });
-                    }
-                    // include per-service inventorySelection (functionDetailsList or servicesSchedule)
-                    const svcInventory =
-                      Array.isArray(b.functionDetailsList) &&
-                      b.functionDetailsList.length
-                        ? b.functionDetailsList
-                        : b.servicesSchedule?.length
-                        ? b.servicesSchedule
-                        : [];
-                    if (Array.isArray(b.inventorySelection)) {
-                      b.inventorySelection.forEach((it: any) => {
-                        if (!it) return;
-                        if (typeof it === "object") {
-                          if (it.name) equipmentNamesSet.add(it.name);
-                          // skip objects without a name to avoid exposing raw ids
-                        } else if (
-                          typeof it === "string" ||
-                          typeof it === "number"
-                        ) {
-                          const s = String(it);
-                          const isObjectId = /^[0-9a-fA-F]{24}$/.test(s);
-                          if (!isObjectId) equipmentNamesSet.add(s);
-                        }
-                      });
-                    }
-                    if (Array.isArray(svcInventory)) {
-                      svcInventory.forEach((svc: any) => {
-                        if (!svc) return;
-                        const inv =
-                          svc.inventorySelection || svc.inventory || [];
-                        if (!Array.isArray(inv)) return;
-                        inv.forEach((it: any) => {
-                          if (!it) return;
-                          if (typeof it === "object") {
-                            if (it.name) equipmentNamesSet.add(it.name);
-                            // do not add raw _id when name isn't present
-                          } else if (
-                            typeof it === "string" ||
-                            typeof it === "number"
-                          ) {
-                            const s = String(it);
-                            const isObjectId = /^[0-9a-fA-F]{24}$/.test(s);
-                            if (!isObjectId) equipmentNamesSet.add(s);
-                          }
-                        });
-                      });
-                    }
-                    const equipmentNames = Array.from(equipmentNamesSet);
-
-                    return {
-                      booking: b,
-                      dateKey,
-                      dateObj: d,
-                      services,
-                      serviceStaffDisplays,
-                      staffNames: staffDisplay,
-                      equipmentNames,
-                    };
                   })
-                  .filter((row) => row.dateObj != null)
+                  .filter((row) => {
+                    if (!row.dateObj) return false;
+                    // exclude bookings dated before today (past bookings) from the Schedule
+                    const dOnly = new Date(
+                      row.dateObj.getFullYear(),
+                      row.dateObj.getMonth(),
+                      row.dateObj.getDate()
+                    ).getTime();
+                    if (dOnly < startOfToday) return false;
+                    // exclude enquiry bookings from schedule display
+                    if ((row.booking?.status || "").toLowerCase() === "enquiry") return false;
+                    return true;
+                  })
                   .sort((a, b) => {
                     // put today's bookings first
                     const aIsToday =
@@ -1180,7 +883,7 @@ const Dashboard = () => {
                       ).getTime();
                     return (
                       <tr
-                        key={row.booking._id}
+                        key={`${row.booking._id}-${row.service}`}
                         className={`${isToday ? "bg-amber-50" : ""}`}
                       >
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
@@ -1193,34 +896,15 @@ const Dashboard = () => {
                           {row.booking.client?.name || "Unknown"}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 min-w-[360px] border border-gray-200">
-                          {row.services && row.services.length > 0 ? (
-                            row.services.map((s: string, i: number) => (
-                              <div key={i} className="leading-snug">
-                                {s}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-neutral-400">—</div>
-                          )}
+                          <div className="leading-snug">
+                            {row.service || "—"}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 max-w-[200px] border border-gray-200">
-                          {/* Prefer per-service staff displays aligned with services; fallback to booking-level staffNames */}
-                          {row.serviceStaffDisplays && row.serviceStaffDisplays.length > 0 ? (
-                            row.serviceStaffDisplays.map((svcList: string[], idx: number) => (
-                              <div key={idx} className="leading-snug">
-                                {Array.isArray(svcList) && svcList.length > 0 ? (
-                                  svcList.map((name: string, j: number) => (
-                                    <div key={j}>{name}</div>
-                                  ))
-                                ) : (
-                                  <div className="text-neutral-400">—</div>
-                                )}
-                              </div>
-                            ))
-                          ) : row.staffNames && row.staffNames.length > 0 ? (
-                            row.staffNames.map((s: string, i: number) => (
+                          {row.serviceStaffNames && row.serviceStaffNames.length > 0 ? (
+                            row.serviceStaffNames.map((name: string, i: number) => (
                               <div key={i} className="leading-snug">
-                                {s}
+                                {name}
                               </div>
                             ))
                           ) : (
@@ -1228,8 +912,7 @@ const Dashboard = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 max-w-[220px]">
-                          {row.equipmentNames &&
-                          row.equipmentNames.length > 0 ? (
+                          {row.equipmentNames && row.equipmentNames.length > 0 ? (
                             row.equipmentNames.map((e: string, i: number) => (
                               <div key={i} className="leading-snug">
                                 {e}
