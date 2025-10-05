@@ -18,11 +18,14 @@ const bookingSchema = new mongoose.Schema(
       unique: true,
     },
     functionDetails: {
-      type: {
-        type: String,
-        required: true,
-      },
+
       event: String,
+      service: String,
+      serviceType: [String],
+      serviceCategory: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ServiceCategory'
+      },
       startDate: {
         type: Date,
         required: false,
@@ -50,11 +53,13 @@ const bookingSchema = new mongoose.Schema(
 
     functionDetailsList: [
       {
-        type: {
-          type: String,
-          required: true,
-        },
         event: String,
+        service: String,
+        serviceType: [String],
+        serviceCategory: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'ServiceCategory'
+        },
         startDate: {
           type: Date,
           required: false,
@@ -127,18 +132,8 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    inventorySelection: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Inventory",
-      },
-    ],
-    assignedStaff: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Staff",
-      },
-    ],
+    // Note: per-service assignedStaff and inventorySelection live inside functionDetailsList
+    // Top-level `inventorySelection` and `assignedStaff` removed to avoid duplication and confusion.
     bookingBranch: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Branch",
@@ -294,5 +289,9 @@ bookingSchema.index({ client: 1 });
 bookingSchema.index({ bookingNumber: 1 });
 bookingSchema.index({ "functionDetails.date": 1 });
 bookingSchema.index({ status: 1 });
+// Index dates inside functionDetailsList array for faster range queries
+bookingSchema.index({ "functionDetailsList.date": 1 });
+// Index service names inside services array to accelerate service-based lookups
+bookingSchema.index({ "services.service": 1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);

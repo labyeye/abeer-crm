@@ -41,7 +41,6 @@ exports.getInventory = asyncHandler(async (req, res, next) => {
     }
   }
   
-  console.log('Final inventory query:', JSON.stringify(query));
 
   if (search) {
     query.$text = { $search: search };

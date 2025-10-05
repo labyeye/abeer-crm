@@ -795,6 +795,14 @@ const BookingManagement = () => {
         },
         // preserve any per-service event (falls back to the global form event)
         event: s.event || formData.event || "",
+  // include service metadata so backend can persist per-service info
+  service: s.serviceName || (categories.find((c: any) => c._id === s.serviceCategoryId)?.name) || formData.serviceNeeded || "",
+  serviceType: Array.isArray(s.serviceType) ? s.serviceType : (s.serviceType ? [s.serviceType] : []),
+  serviceCategory: s.serviceCategoryId || s.serviceCategory || "",
+  // carry price/quantity/amount into per-service details as well
+  quantity: s.quantity ?? 1,
+  rate: s.price ?? s.rate ?? 0,
+  amount: s.amount ?? ((s.quantity ?? 1) * (s.price ?? s.rate ?? 0)),
         // Add outsource data (optional)
         outsourceStaff: outsourceStaff[idx] || [],
         outsourceEquipment: outsourceEquipment[idx] || [],
@@ -804,25 +812,8 @@ const BookingManagement = () => {
           ? s.inventorySelection
           : [],
       }));
-      // For creating a new booking, keep union of global + per-service selections.
-      // For editing an existing booking, DO NOT merge per-service selections across services:
-      // keep top-level assignedStaff/inventorySelection equal to global selections only.
-      const allAssignedStaff = selectedBooking
-        ? Array.from(new Set(formData.assignedStaff || []))
-        : Array.from(
-            new Set([
-              ...(formData.assignedStaff || []),
-              ...scheduleList.flatMap((s: any) => s.assignedStaff || []),
-            ])
-          );
-      const allInventory = selectedBooking
-        ? Array.from(new Set(formData.inventorySelection || []))
-        : Array.from(
-            new Set([
-              ...(formData.inventorySelection || []),
-              ...scheduleList.flatMap((s: any) => s.inventorySelection || []),
-            ])
-          );
+      // We persist per-service assignedStaff and inventorySelection inside functionDetailsList only.
+      // Do not send or maintain top-level `assignedStaff` or `inventorySelection` to avoid duplication/confusion.
 
       // Optional validation - only validate if service category is provided
       const invalidEntry = (scheduleList || []).find(
@@ -853,6 +844,8 @@ const BookingManagement = () => {
               ? s.serviceType
               : [],
           serviceCategory: s.serviceCategoryId || "",
+          // carry per-service event into services array for compatibility
+          event: s.event || formData.event || "",
           quantity: s.quantity ?? 1,
           rate: s.price ?? 0,
           amount: s.amount ?? (s.quantity ?? 1) * (s.price ?? 0),
@@ -913,9 +906,7 @@ const BookingManagement = () => {
                 ? scheduleList[0].serviceType.join(", ")
                 : (scheduleList[0].serviceName as string) || ""))) ||
           "",
-  // keep top-level/global selections and keep per-service assignments inside functionDetailsList
-  inventorySelection: allInventory,
-  assignedStaff: allAssignedStaff,
+    // per-service assignedStaff and inventorySelection live inside functionDetailsList
         bookingBranch: formData.bookingBranch,
         status: formData.status,
         services: servicesFromSchedule,

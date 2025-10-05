@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Clock,
   CheckCircle,
+  XCircle,
   AlertTriangle,
   Package,
   Loader2,
@@ -185,32 +186,7 @@ const Dashboard = () => {
     : [];
 
   const today = new Date();
-  const todayTasks = bookingStats
-    ? bookingStats
-        .filter((b: any) => {
-          const raw = b.functionDetails?.date || b.date || b.scheduledDate;
-          const d = raw ? new Date(raw) : null;
-          if (!d) return false;
-          return (
-            new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() ===
-            new Date(
-              today.getFullYear(),
-              today.getMonth(),
-              today.getDate()
-            ).getTime()
-          );
-        })
-        .map((b: any) => ({
-          id: b._id,
-          title:
-            b.functionDetails?.type + (b.client ? ` - ${b.client.name}` : ""),
-          time: b.functionDetails?.time?.start || "",
-          status: b.status,
-          location: b.functionDetails?.venue?.name || "",
-        }))
-    : [];
-
-  // Upcoming next 7 days (excluding today) - compute flat list then group by date
+ 
   const msPerDay = 24 * 60 * 60 * 1000;
   const startOfToday = new Date(
     today.getFullYear(),
@@ -325,37 +301,6 @@ const Dashboard = () => {
     );
     return groups.length > 0 ? [groups[0]] : [];
   })();
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
-        return CheckCircle;
-      case "in_progress":
-        return Clock;
-      case "confirmed":
-        return TrendingUp;
-      case "scheduled":
-        return Calendar;
-      default:
-        return AlertTriangle;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "text-emerald-600 bg-emerald-50";
-      case "in_progress":
-        return "text-blue-600 bg-blue-50";
-      case "confirmed":
-        return "text-indigo-600 bg-indigo-50";
-      case "scheduled":
-        return "text-amber-600 bg-amber-50";
-      default:
-        return "text-gray-600 bg-gray-50";
-    }
-  };
-
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -374,56 +319,97 @@ const Dashboard = () => {
   // Helpers to determine assignment completeness
   const hasStaffAssigned = (b: any) => {
     if (!b) return false;
-    if (Array.isArray(b.assignedStaff) && b.assignedStaff.length > 0) return true;
-    if (Array.isArray(b.staffAssignment) && b.staffAssignment.length > 0) return true;
+    if (Array.isArray(b.assignedStaff) && b.assignedStaff.length > 0)
+      return true;
+    if (Array.isArray(b.staffAssignment) && b.staffAssignment.length > 0)
+      return true;
     // prefer functionDetailsList (per-service entries), then servicesSchedule, then services/items
-    const svcArr = Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
-      ? b.functionDetailsList
-      : b.servicesSchedule?.length
-      ? b.servicesSchedule
-      : b.services?.length
-      ? b.services
-      : b.items?.length
-      ? b.items
-      : [];
-    if (Array.isArray(svcArr) && svcArr.some((s: any) => Array.isArray(s.assignedStaff) && s.assignedStaff.length > 0)) return true;
-    if (Array.isArray(svcArr) && svcArr.some((s: any) => Array.isArray(s.staffAssignment) && s.staffAssignment.length > 0)) return true;
+    const svcArr =
+      Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
+        ? b.functionDetailsList
+        : b.servicesSchedule?.length
+        ? b.servicesSchedule
+        : b.services?.length
+        ? b.services
+        : b.items?.length
+        ? b.items
+        : [];
+    if (
+      Array.isArray(svcArr) &&
+      svcArr.some(
+        (s: any) => Array.isArray(s.assignedStaff) && s.assignedStaff.length > 0
+      )
+    )
+      return true;
+    if (
+      Array.isArray(svcArr) &&
+      svcArr.some(
+        (s: any) =>
+          Array.isArray(s.staffAssignment) && s.staffAssignment.length > 0
+      )
+    )
+      return true;
     return false;
   };
 
   const hasInventoryAssigned = (b: any) => {
     if (!b) return false;
-    if (Array.isArray(b.equipmentAssignment) && b.equipmentAssignment.length > 0) return true;
-    if (Array.isArray(b.inventorySelection) && b.inventorySelection.length > 0) return true;
+    if (
+      Array.isArray(b.equipmentAssignment) &&
+      b.equipmentAssignment.length > 0
+    )
+      return true;
+    if (Array.isArray(b.inventorySelection) && b.inventorySelection.length > 0)
+      return true;
     // check per-service inventory selection (functionDetailsList or servicesSchedule)
-    const svcArrInv = Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
-      ? b.functionDetailsList
-      : b.servicesSchedule?.length
-      ? b.servicesSchedule
-      : b.services?.length
-      ? b.services
-      : b.items?.length
-      ? b.items
-      : [];
-    if (Array.isArray(svcArrInv) && svcArrInv.some((s: any) => Array.isArray(s.inventorySelection) && s.inventorySelection.length > 0)) return true;
+    const svcArrInv =
+      Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
+        ? b.functionDetailsList
+        : b.servicesSchedule?.length
+        ? b.servicesSchedule
+        : b.services?.length
+        ? b.services
+        : b.items?.length
+        ? b.items
+        : [];
+    if (
+      Array.isArray(svcArrInv) &&
+      svcArrInv.some(
+        (s: any) =>
+          Array.isArray(s.inventorySelection) && s.inventorySelection.length > 0
+      )
+    )
+      return true;
     return false;
   };
 
   const extractServiceNames = (b: any) => {
-    const rawServices = Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
-      ? b.functionDetailsList
-      : b.servicesSchedule?.length
-      ? b.servicesSchedule
-      : b.services?.length
-      ? b.services
-      : b.items?.length
-      ? b.items
-      : [];
+    const rawServices =
+      Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
+        ? b.functionDetailsList
+        : b.servicesSchedule?.length
+        ? b.servicesSchedule
+        : b.services?.length
+        ? b.services
+        : b.items?.length
+        ? b.items
+        : [];
     if (!rawServices || rawServices.length === 0) {
-      const fallback = b.functionDetails?.type || b.serviceName || "Service";
+      const fallback = b.functionDetails?.type || b.serviceName;
       return [fallback];
     }
-    return rawServices.map((s: any) => s.serviceName || s.name || s.service || s.title || (s.type ? `${s.type}` : "Service"));
+    return rawServices.map((s: any) => {
+      const name =
+        s.service ||
+        s.serviceName ||
+        s.name ||
+        s.title ||
+        (s.type ? `${s.type}` : "Service");
+      const type = Array.isArray(s.serviceType)
+        ? s.serviceType.join(", ")
+        : s.serviceType || s.type || "";
+      return type ? `${name} (${type})` : name;
+    });
   };
 
   if (loading) {
@@ -508,61 +494,201 @@ const Dashboard = () => {
       {/* Incomplete Assignments: bookings missing staff or inventory (shows only those) */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Incomplete Assignments</h2>
-          <p className="text-sm text-gray-500">Bookings missing staff and/or inventory assignment</p>
+          <h2 className="text-lg font-bold text-gray-900">
+            Incomplete Assignments
+          </h2>
+          <p className="text-sm text-gray-500">
+            Bookings missing staff and/or inventory assignment
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-[1000px] w-full divide-y divide-gray-200 border-collapse">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[360px]">Services</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Staff</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Booking
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[360px]">
+                  Services
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Staff
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Inventory
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {bookingStats && bookingStats.length > 0 ? (
                 bookingStats
                   .filter((b: any) => {
+                    const servicesArr =
+                      Array.isArray(b.services) && b.services.length
+                        ? b.services
+                        : b.servicesSchedule?.length
+                        ? b.servicesSchedule
+                        : b.items?.length
+                        ? b.items
+                        : [];
+
+                    const fdList = Array.isArray(b.functionDetailsList)
+                      ? b.functionDetailsList
+                      : [];
+
+                    if (servicesArr.length) {
+                      return servicesArr.some((svc: any, idx: number) => {
+                        const fd = fdList[idx] || {};
+                        const hasStaff =
+                          (Array.isArray(fd.assignedStaff) &&
+                            fd.assignedStaff.length > 0) ||
+                          (Array.isArray(fd.staffAssignment) &&
+                            fd.staffAssignment.length > 0) ||
+                          (Array.isArray(svc.assignedStaff) &&
+                            svc.assignedStaff.length > 0) ||
+                          (Array.isArray(svc.staffAssignment) &&
+                            svc.staffAssignment.length > 0);
+                        const hasInv =
+                          (Array.isArray(fd.inventorySelection) &&
+                            fd.inventorySelection.length > 0) ||
+                          (Array.isArray(fd.inventory) &&
+                            fd.inventory.length > 0) ||
+                          (Array.isArray(svc.inventorySelection) &&
+                            svc.inventorySelection.length > 0) ||
+                          (Array.isArray(svc.inventory) &&
+                            svc.inventory.length > 0);
+                        return !hasStaff || !hasInv;
+                      });
+                    }
+
                     const staffOk = hasStaffAssigned(b);
                     const invOk = hasInventoryAssigned(b);
                     return !staffOk || !invOk;
                   })
                   .map((b: any) => {
-                    const services = extractServiceNames(b);
-                    const staffOk = hasStaffAssigned(b);
-                    const invOk = hasInventoryAssigned(b);
+                    // Determine per-service source: prefer functionDetailsList, then servicesSchedule, then services, then items
+                    const perServiceSource =
+                      Array.isArray(b.functionDetailsList) &&
+                      b.functionDetailsList.length
+                        ? b.functionDetailsList
+                        : b.servicesSchedule?.length
+                        ? b.servicesSchedule
+                        : b.services?.length
+                        ? b.services
+                        : b.items?.length
+                        ? b.items
+                        : [];
+
+                    // If we have any per-service entries, use them to compute per-service names and flags.
+                    // Only when no per-service source exists do we fallback to booking-level name list and flags.
+                    const services = perServiceSource.length
+                      ? perServiceSource.map((s: any) => {
+                          const name =
+                            s.service ||
+                            s.serviceName ||
+                            s.name ||
+                            s.title ||
+                            "Service";
+                          const type = Array.isArray(s.serviceType)
+                            ? s.serviceType.join(", ")
+                            : s.serviceType || s.type || "";
+                          return type ? `${name} (${type})` : name;
+                        })
+                      : extractServiceNames(b);
+
+                    const perServiceFlags = perServiceSource.length
+                      ? perServiceSource.map((svc: any) => {
+                          const hasStaff =
+                            (Array.isArray(svc.assignedStaff) &&
+                              svc.assignedStaff.length > 0) ||
+                            (Array.isArray(svc.staffAssignment) &&
+                              svc.staffAssignment.length > 0);
+                          const hasInv =
+                            (Array.isArray(svc.inventorySelection) &&
+                              svc.inventorySelection.length > 0) ||
+                            (Array.isArray(svc.inventory) &&
+                              svc.inventory.length > 0);
+                          return { hasStaff: !!hasStaff, hasInv: !!hasInv };
+                        })
+                      : [];
+
+                    // booking-level flags (used only when perServiceSource is empty)
+                    const bookingStaffOk = hasStaffAssigned(b);
+                    const bookingInvOk = hasInventoryAssigned(b);
                     return (
                       <tr key={b._id}>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{b.bookingNumber || b._id}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{b.client?.name || "Unknown"}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                          {b.bookingNumber || b._id}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {b.client?.name || "Unknown"}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-700 min-w-[360px]">
-                          {services.map((s: string, i: number) => (
-                            <div key={i} className="leading-snug">{s}</div>
-                          ))}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          {staffOk ? (
-                            <span className="text-green-600 text-xl">⭕</span>
-                          ) : (
-                            <span className="text-red-600 text-xl">✕</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          {invOk ? (
-                            <span className="text-green-600 text-xl">⭕</span>
-                          ) : (
-                            <span className="text-red-600 text-xl">✕</span>
-                          )}
+                          {services.map((s: string, i: number) => {
+                            const flags = perServiceFlags[i];
+                            // if no per-service flags, show booking-level icon instead
+                            const staffOkDisplay = flags
+                              ? flags.hasStaff
+                              : bookingStaffOk;
+                            const invOkDisplay = flags
+                              ? flags.hasInv
+                              : bookingInvOk;
+                            return (
+                              <div
+                                key={i}
+                                className="leading-snug flex items-center gap-3"
+                              >
+                                <div className="flex-1">{s}</div>
+                                <div className="flex items-center gap-2">
+                                  {staffOkDisplay ? (
+                                    <span
+                                      title="Staff assigned"
+                                      aria-label="Staff assigned"
+                                    >
+                                      <CheckCircle className="text-green-600" />
+                                    </span>
+                                  ) : (
+                                    <span
+                                      title="No staff assigned"
+                                      aria-label="No staff assigned"
+                                    >
+                                      <XCircle className="text-red-600" />
+                                    </span>
+                                  )}
+                                  {invOkDisplay ? (
+                                    <span
+                                      title="Inventory assigned"
+                                      aria-label="Inventory assigned"
+                                    >
+                                      <Package className="text-green-600" />
+                                    </span>
+                                  ) : (
+                                    <span
+                                      title="No inventory assigned"
+                                      aria-label="No inventory assigned"
+                                    >
+                                      <XCircle className="text-red-600" />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </td>
                       </tr>
                     );
                   })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">No bookings to show</td>
+                  <td
+                    colSpan={5}
+                    className="px-6 py-4 text-center text-sm text-gray-500"
+                  >
+                    No bookings to show
+                  </td>
                 </tr>
               )}
             </tbody>
@@ -615,15 +741,17 @@ const Dashboard = () => {
                       ? new Date(d.getFullYear(), d.getMonth(), d.getDate())
                       : null;
 
-                    const rawServices = Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
-                      ? b.functionDetailsList
-                      : b.servicesSchedule?.length
-                      ? b.servicesSchedule
-                      : b.services?.length
-                      ? b.services
-                      : b.items?.length
-                      ? b.items
-                      : [];
+                    const rawServices =
+                      Array.isArray(b.functionDetailsList) &&
+                      b.functionDetailsList.length
+                        ? b.functionDetailsList
+                        : b.servicesSchedule?.length
+                        ? b.servicesSchedule
+                        : b.services?.length
+                        ? b.services
+                        : b.items?.length
+                        ? b.items
+                        : [];
 
                     // Ensure we have an array of service objects to work with
                     const rawServicesArr = rawServices.length
@@ -631,21 +759,21 @@ const Dashboard = () => {
                       : [
                           {
                             serviceName:
-                              b.functionDetails?.type ||
-                              b.serviceName ||
-                              "Service",
+                              b.functionDetails?.type || b.serviceName,
                             type: b.functionDetails?.type,
                           },
                         ];
 
                     const services = rawServicesArr.map((s: any) => {
                       const svcName =
+                        s.service ||
                         s.serviceName ||
                         s.name ||
-                        s.service ||
                         s.title ||
                         "Service";
-                      const svcType = s.type || s.serviceType || "";
+                      const svcType = Array.isArray(s.serviceType)
+                        ? s.serviceType.join(", ")
+                        : s.serviceType || s.type || "";
                       return svcType ? `${svcName} (${svcType})` : svcName;
                     });
 
@@ -940,47 +1068,60 @@ const Dashboard = () => {
                         if (!eq) return;
                         if (typeof eq === "object") {
                           if (eq.name) equipmentNamesSet.add(eq.name);
-                          else if (eq._id) equipmentNamesSet.add(eq._id);
+                          // if eq is an object but has no name, do not add its raw _id to avoid showing DB ids
                         } else if (
                           typeof eq === "string" ||
                           typeof eq === "number"
                         ) {
-                          equipmentNamesSet.add(String(eq));
+                          // Skip raw-looking ObjectId strings (24 hex chars) so UI doesn't display DB ids
+                          const s = String(eq);
+                          const isObjectId = /^[0-9a-fA-F]{24}$/.test(s);
+                          if (!isObjectId) equipmentNamesSet.add(s);
                         }
                       });
                     }
                     // include per-service inventorySelection (functionDetailsList or servicesSchedule)
-                    const svcInventory = Array.isArray(b.functionDetailsList) && b.functionDetailsList.length
-                      ? b.functionDetailsList
-                      : b.servicesSchedule?.length
-                      ? b.servicesSchedule
-                      : [];
+                    const svcInventory =
+                      Array.isArray(b.functionDetailsList) &&
+                      b.functionDetailsList.length
+                        ? b.functionDetailsList
+                        : b.servicesSchedule?.length
+                        ? b.servicesSchedule
+                        : [];
                     if (Array.isArray(b.inventorySelection)) {
                       b.inventorySelection.forEach((it: any) => {
                         if (!it) return;
                         if (typeof it === "object") {
                           if (it.name) equipmentNamesSet.add(it.name);
-                          else if (it._id) equipmentNamesSet.add(it._id);
+                          // skip objects without a name to avoid exposing raw ids
                         } else if (
                           typeof it === "string" ||
                           typeof it === "number"
                         ) {
-                          equipmentNamesSet.add(String(it));
+                          const s = String(it);
+                          const isObjectId = /^[0-9a-fA-F]{24}$/.test(s);
+                          if (!isObjectId) equipmentNamesSet.add(s);
                         }
                       });
                     }
                     if (Array.isArray(svcInventory)) {
                       svcInventory.forEach((svc: any) => {
                         if (!svc) return;
-                        const inv = svc.inventorySelection || svc.inventory || [];
+                        const inv =
+                          svc.inventorySelection || svc.inventory || [];
                         if (!Array.isArray(inv)) return;
                         inv.forEach((it: any) => {
                           if (!it) return;
                           if (typeof it === "object") {
                             if (it.name) equipmentNamesSet.add(it.name);
-                            else if (it._id) equipmentNamesSet.add(it._id);
-                          } else if (typeof it === "string" || typeof it === "number") {
-                            equipmentNamesSet.add(String(it));
+                            // do not add raw _id when name isn't present
+                          } else if (
+                            typeof it === "string" ||
+                            typeof it === "number"
+                          ) {
+                            const s = String(it);
+                            const isObjectId = /^[0-9a-fA-F]{24}$/.test(s);
+                            if (!isObjectId) equipmentNamesSet.add(s);
                           }
                         });
                       });
@@ -1063,7 +1204,20 @@ const Dashboard = () => {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 max-w-[200px] border border-gray-200">
-                          {row.staffNames && row.staffNames.length > 0 ? (
+                          {/* Prefer per-service staff displays aligned with services; fallback to booking-level staffNames */}
+                          {row.serviceStaffDisplays && row.serviceStaffDisplays.length > 0 ? (
+                            row.serviceStaffDisplays.map((svcList: string[], idx: number) => (
+                              <div key={idx} className="leading-snug">
+                                {Array.isArray(svcList) && svcList.length > 0 ? (
+                                  svcList.map((name: string, j: number) => (
+                                    <div key={j}>{name}</div>
+                                  ))
+                                ) : (
+                                  <div className="text-neutral-400">—</div>
+                                )}
+                              </div>
+                            ))
+                          ) : row.staffNames && row.staffNames.length > 0 ? (
                             row.staffNames.map((s: string, i: number) => (
                               <div key={i} className="leading-snug">
                                 {s}

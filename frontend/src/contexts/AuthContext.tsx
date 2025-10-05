@@ -1,13 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../services/api';
-import { mapBackendRoleToFrontend, extractErrorMessage } from './authUtils';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { authAPI } from "../services/api";
+import { mapBackendRoleToFrontend, extractErrorMessage } from "./authUtils";
 
 interface User {
   id: string;
   name: string;
   email: string;
-  role: 'chairman' | 'admin' | 'staff' | 'client';
+  role: "chairman" | "admin" | "staff" | "client";
   companyId?: string;
   branchId?: string;
   avatar?: string;
@@ -26,36 +26,34 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
 
-
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('token');
-      const savedUser = localStorage.getItem('user');
-      
+      const token = localStorage.getItem("token");
+      const savedUser = localStorage.getItem("user");
+
       if (token && savedUser) {
         try {
-          
           const response = await authAPI.getMe();
-              const mappedUser = {
-                ...response.user,
-                role: mapBackendRoleToFrontend(response.user.role)
-              } as User;
+          const mappedUser = {
+            ...response.user,
+            role: mapBackendRoleToFrontend(response.user.role),
+          } as User;
           setUser(mappedUser);
         } catch (error) {
-          
-          console.error('Token verification failed:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          console.error("Token verification failed:", error);
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
         }
       }
       setLoading(false);
@@ -65,28 +63,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
-    console.log('🔐 AuthContext: Starting login process for:', email);
     setLoading(true);
-    
+
     try {
-      console.log('📡 AuthContext: Calling authAPI.login...');
       const response = await authAPI.login(email, password);
-      console.log('📨 AuthContext: Login response:', response);
-      
-      
-      localStorage.setItem('token', response.token);
+
+      localStorage.setItem("token", response.token);
       const mappedUser = {
         ...response.user,
-        role: mapBackendRoleToFrontend(response.user.role)
+        role: mapBackendRoleToFrontend(response.user.role),
       };
-      console.log('👤 AuthContext: Mapped user:', mappedUser);
-      localStorage.setItem('user', JSON.stringify(mappedUser));
-      
+      localStorage.setItem("user", JSON.stringify(mappedUser));
+
       setUser(mappedUser);
-      console.log('✅ AuthContext: User state set successfully');
     } catch (error: unknown) {
-      console.error('❌ AuthContext: Login failed:', error);
-      const message = extractErrorMessage(error) || 'Login failed';
+      console.error("❌ AuthContext: Login failed:", error);
+      const message = extractErrorMessage(error) || "Login failed";
       throw new Error(message);
     } finally {
       setLoading(false);
@@ -95,35 +87,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
   };
 
   const hasPermission = (permission: string) => {
     if (!user) return false;
-    
+
     const rolePermissions = {
-      chairman: ['all'],
-        admin: ['company_manage', 'branch_manage', 'staff_manage', 'reports'],
-        // branch-level manager maps to admin in the canonical role set
-        // keep branch-specific permissions if needed under 'admin'
-        // branch_head: ['branch_manage', 'staff_manage', 'bookings'],
-      staff: ['own_tasks', 'attendance'],
-      client: ['own_bookings', 'payments']
+      chairman: ["all"],
+      admin: ["company_manage", "branch_manage", "staff_manage", "reports"],
+      staff: ["own_tasks", "attendance"],
+      client: ["own_bookings", "payments"],
     };
 
     const userPermissions = rolePermissions[user.role] || [];
-    return userPermissions.includes('all') || userPermissions.includes(permission);
+    return (
+      userPermissions.includes("all") || userPermissions.includes(permission)
+    );
   };
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      loading,
-      login,
-      logout,
-      hasPermission
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        hasPermission,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
