@@ -1,11 +1,6 @@
 const mongoose = require('mongoose');
 
 const taskSchema = new mongoose.Schema({
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
-  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
@@ -16,11 +11,7 @@ const taskSchema = new mongoose.Schema({
     ref: 'Booking',
     required: true
   },
-  title: {
-    type: String,
-    required: true
-  },
-  description: String,
+  // title/description removed per request (tasks are tied to bookings/services)
   assignedTo: [{
     staff: {
       type: mongoose.Schema.Types.ObjectId,
@@ -28,28 +19,23 @@ const taskSchema = new mongoose.Schema({
       required: true
     },
     role: String,
+    // indicate whether this assignment is from branch staff or a vendor's staff
+    source: {
+      type: String,
+      enum: ['branch', 'vendor'],
+      default: 'branch'
+    },
     assignedDate: {
       type: Date,
       default: Date.now
     }
   }],
-  scheduledDate: {
-    type: Date,
-    required: true
-  },
-  scheduledTime: {
-    start: String,
-    end: String
-  },
-  location: {
-    address: String,
-    city: String,
-    state: String,
-    coordinates: {
-      latitude: Number,
-      longitude: Number
-    }
-  },
+  // When a task is tied to a booking service, store the service name for quick reference
+  bookingService: String,
+  // Work window (start and end) - optionally span multiple dates
+  workStartDate: Date,
+  workEndDate: Date,
+  // scheduledDate/scheduledTime/location removed (use workStartDate/workEndDate instead)
   priority: {
     type: String,
     enum: ['low', 'medium', 'high', 'urgent'],
@@ -60,15 +46,7 @@ const taskSchema = new mongoose.Schema({
     enum: ['pending', 'assigned', 'in_progress', 'completed', 'cancelled', 'rescheduled', 'skipped'],
     default: 'pending'
   },
-  type: {
-    type: String,
-    enum: ['equipment_prep', 'travel', 'main_function', 'data_backup', 'manual', 'other'],
-    default: 'manual'
-  },
-  estimatedDuration: {
-    type: Number, 
-    default: 240
-  },
+  // estimatedDuration removed per request
   actualStartTime: Date,
   actualEndTime: Date,
   completedAt: Date,
@@ -134,10 +112,9 @@ const taskSchema = new mongoose.Schema({
 });
 
 
-taskSchema.index({ company: 1, branch: 1 });
+taskSchema.index({ branch: 1 });
 taskSchema.index({ booking: 1 });
 taskSchema.index({ 'assignedTo.staff': 1 });
-taskSchema.index({ scheduledDate: 1 });
 taskSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

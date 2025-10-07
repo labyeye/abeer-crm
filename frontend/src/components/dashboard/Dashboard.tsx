@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo} from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Users,
   Calendar,
@@ -14,7 +14,14 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { inventoryAPI, bookingAPI, staffAPI } from "../../services/api";
+import {
+  inventoryAPI,
+  bookingAPI,
+  staffAPI,
+  paymentAPI,
+  expenseAPI,
+  dailyExpensesAPI,
+} from "../../services/api";
 import StatCard from "../ui/StatCard";
 
 interface BookingStat {
@@ -43,7 +50,19 @@ const Dashboard = () => {
   const [inventoryStats, setInventoryStats] = useState<any>(null);
   const [bookingStats, setBookingStats] = useState<BookingStat[]>([]);
   const [staffStats, setStaffStats] = useState<StaffStat[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [expensesAnalytics, setExpensesAnalytics] = useState<any>(null);
+  const [dailyExpenses, setDailyExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // today's date helpers: declare early so functions that run on mount can use them
+  const today = new Date();
+  const startOfToday = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  ).getTime();
 
   useEffect(() => {
     fetchDashboardStats();
@@ -52,14 +71,66 @@ const Dashboard = () => {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      const [inventoryRes, bookingRes, staffRes] = await Promise.all([
+      const monthStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+      ).toISOString();
+      const monthEnd = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0,
+        23,
+        59,
+        59
+      ).toISOString();
+
+      const [
+        inventoryRes,
+        bookingRes,
+        staffRes,
+        paymentsRes,
+        expensesRes,
+        expensesAnalyticsRes,
+        dailyExpensesRes,
+      ] = await Promise.all([
         inventoryAPI.getInventoryStats(),
         bookingAPI.getBookings({ limit: 100 }),
         staffAPI.getStaff(),
+        paymentAPI.getPayments({ limit: 50 }),
+        // fetch expenses for current month
+        expenseAPI.getExpenses({ startDate: monthStart, endDate: monthEnd }),
+        // analytics aggregated by branch for current month (useful for chairman)
+        expenseAPI.getFinanceAnalytics({
+          startDate: monthStart,
+          endDate: monthEnd,
+        }),
+        // fetch daily expenses for current month
+        dailyExpensesAPI.getExpenses({ startDate: monthStart, endDate: monthEnd }),
       ]);
       setInventoryStats(inventoryRes.data);
       setBookingStats(bookingRes.data);
       setStaffStats(staffRes.data);
+      // normalize payments response (some APIs return { data: [...] }, some return [...] )
+      const paymentsData = paymentsRes?.data ?? paymentsRes ?? [];
+      setPayments(Array.isArray(paymentsData) ? paymentsData : []);
+      const expensesData = expensesRes?.data ?? expensesRes ?? [];
+      setExpenses(Array.isArray(expensesData) ? expensesData : []);
+      const analyticsData =
+        expensesAnalyticsRes?.data ?? expensesAnalyticsRes ?? null;
+      setExpensesAnalytics(analyticsData);
+      const dailyData = dailyExpensesRes?.data ?? dailyExpensesRes ?? [];
+      setDailyExpenses(Array.isArray(dailyData) ? dailyData : []);
+      // Debug: log counts and sums so it's easy to verify in browser console
+      try {
+        const expCount = Array.isArray(expensesData) ? expensesData.length : 0;
+        const dailyCount = Array.isArray(dailyData) ? dailyData.length : 0;
+        const expSum = (Array.isArray(expensesData) ? expensesData : []).reduce((s: number, x: any) => s + (Number(x.amount) || 0), 0);
+        const dailySumVal = (Array.isArray(dailyData) ? dailyData : []).reduce((s: number, x: any) => s + (Number(x.amount) || 0), 0);
+        console.debug('[Dashboard] fetched expenses:', { expCount, expSum, dailyCount, dailySumVal, monthStart, monthEnd });
+      } catch (e) {
+        console.debug('[Dashboard] debug log failed', e);
+      }
     } catch (error) {
       console.error("Failed to fetch dashboard stats:", error);
     } finally {
@@ -152,6 +223,116 @@ const Dashboard = () => {
 
   const stats = getStatsByRole();
 
+  // compute monthly income (current month) from received payments
+  const monthlyIncome = useMemo(() => {
+    if (!payments || payments.length === 0) return 0;
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    return payments.reduce((sum: number, p: any) => {
+      const d = p.date ? new Date(p.date) : null;
+      if (!d) return sum;
+      if (d.getMonth() === month && d.getFullYear() === year)
+        return sum + (Number(p.amount) || 0);
+      return sum;
+    }, 0);
+  }, [payments]);
+
+  // if user is management, show monthly income card
+  const statsWithPayments = useMemo(() => {
+    const base = stats.slice();
+    if (
+      ["chairman", "company_admin", "branch_head"].includes(user?.role || "")
+    ) {
+      base.splice(2, 0, {
+        title: "Monthly Income",
+        value: `₹${monthlyIncome.toLocaleString()}`,
+        icon: IndianRupee,
+        color: "secondary" as const,
+      });
+    }
+    return base;
+  }, [stats, monthlyIncome, user?.role]);
+
+  // Expense computations
+  const monthlyExpenseTotal = useMemo(() => {
+    const expSum = (Array.isArray(expenses) ? expenses : []).reduce(
+      (sum: number, e: any) => sum + (Number(e.amount) || 0),
+      0
+    );
+    const dailySum = (Array.isArray(dailyExpenses) ? dailyExpenses : []).reduce(
+      (sum: number, d: any) => sum + (Number(d.amount) || 0),
+      0
+    );
+    return expSum + dailySum;
+  }, [expenses, dailyExpenses]);
+
+  const inventoryPurchasesThisMonth = useMemo(() => {
+    if (!expenses || expenses.length === 0) return 0;
+    const categories = ["equipment", "office_supplies"];
+    return expenses
+      .filter((e: any) => categories.includes((e.category || "").toLowerCase()))
+      .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  }, [expenses]);
+
+  const todaysExpenses = useMemo(() => {
+    const result: any[] = [];
+  (Array.isArray(expenses) ? expenses : []).forEach((e: any) => {
+      const raw = e.expenseDate || e.date || e.createdAt;
+      if (!raw) return;
+      const d = new Date(raw);
+      if (
+        d.getFullYear() === today.getFullYear() &&
+        d.getMonth() === today.getMonth() &&
+        d.getDate() === today.getDate()
+      ) {
+        result.push({
+          id: e._id,
+          time: d,
+          title: e.title || e.purpose || 'Expense',
+          category: e.category || 'expense',
+          amount: Number(e.amount) || 0,
+        });
+      }
+    });
+    (Array.isArray(dailyExpenses) ? dailyExpenses : []).forEach((d: any) => {
+      const raw = d.date || d.createdAt;
+      if (!raw) return;
+      const dt = new Date(raw);
+      if (
+        dt.getFullYear() === today.getFullYear() &&
+        dt.getMonth() === today.getMonth() &&
+        dt.getDate() === today.getDate()
+      ) {
+        result.push({
+          id: d._id,
+          time: dt,
+          title: d.purpose || d.title || 'Daily Expense',
+          category: d.category || 'daily',
+          amount: Number(d.amount) || 0,
+        });
+      }
+    });
+    return result;
+  }, [expenses, dailyExpenses]);
+
+
+  const totalExpensesAcrossBranches = useMemo(() => {
+    if (!expensesAnalytics) return 0;
+    // expensesAnalytics may be returned as { expenses: [...], revenue: [...] } or wrapped differently
+    const arr =
+      expensesAnalytics?.expenses ||
+      expensesAnalytics?.data?.expenses ||
+      expensesAnalytics?.data ||
+      expensesAnalytics ||
+      [];
+    if (!Array.isArray(arr)) return 0;
+    return arr.reduce(
+      (s: number, x: any) => s + (Number(x.totalExpenses || x.total || 0) || 0),
+      0
+    );
+  }, [expensesAnalytics]);
+
   const inventoryStatsCards = inventoryStats
     ? [
         {
@@ -200,122 +381,12 @@ const Dashboard = () => {
     return map;
   }, [inventoryStats]);
 
-  const today = new Date();
- 
-  const msPerDay = 24 * 60 * 60 * 1000;
-  const startOfToday = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate()
-  ).getTime();
-  const endOfWindow = startOfToday + 7 * msPerDay;
+  // (today and startOfToday are declared earlier)
+  // week window helper removed — not used
 
-  const upcomingTasksFlat = bookingStats
-    ? bookingStats
-        .filter((b: any) => {
-          const raw = b.functionDetails?.date || b.date || b.scheduledDate;
-          const d = raw ? new Date(raw) : null;
-          if (!d) return false;
-          const dOnly = new Date(
-            d.getFullYear(),
-            d.getMonth(),
-            d.getDate()
-          ).getTime();
-          return dOnly > startOfToday && dOnly <= endOfWindow;
-        })
-        .sort((a: any, b: any) => {
-          const da = new Date(
-            a.functionDetails?.date || a.date || a.scheduledDate
-          ).getTime();
-          const db = new Date(
-            b.functionDetails?.date || b.date || b.scheduledDate
-          ).getTime();
-          return da - db;
-        })
-        .map((b: any) => ({
-          id: b._id,
-          title:
-            (b.functionDetails?.type || b.serviceName || "Booking") +
-            (b.client ? ` - ${b.client.name}` : ""),
-          date: b.functionDetails?.date || b.date || b.scheduledDate,
-          time: b.functionDetails?.time?.start || "",
-          status: b.status,
-          location: b.functionDetails?.venue?.name || "",
-        }))
-    : [];
+  // upcoming tasks flattened helper removed — not used
 
-  // Group upcoming tasks by date (only include dates that have tasks)
-  const groupedUpcoming = (() => {
-    if (!upcomingTasksFlat || upcomingTasksFlat.length === 0) return [];
-    const map = new Map<string, { dateObj: Date; tasks: any[] }>();
-    upcomingTasksFlat.forEach((t: any) => {
-      const d = new Date(t.date);
-      const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const key = dOnly.toDateString();
-      if (!map.has(key)) map.set(key, { dateObj: dOnly, tasks: [] });
-      map.get(key)!.tasks.push(t);
-    });
-    return Array.from(map.values()).sort(
-      (a, b) => a.dateObj.getTime() - b.dateObj.getTime()
-    );
-  })();
-
-  // If there are no bookings in the next 7 days, look ahead up to 14 days
-  // and show the nearest non-empty day (so if days 1..13 are empty and day 14
-  // has bookings, we'll show day 14).
-  const groupedUpcomingDisplay = (() => {
-    if (groupedUpcoming.length > 0) return groupedUpcoming;
-
-    const endOfWindow14 = startOfToday + 14 * msPerDay;
-    const future14 = bookingStats
-      ? bookingStats
-          .filter((b: any) => {
-            const raw = b.functionDetails?.date || b.date || b.scheduledDate;
-            const d = raw ? new Date(raw) : null;
-            if (!d) return false;
-            const dOnly = new Date(
-              d.getFullYear(),
-              d.getMonth(),
-              d.getDate()
-            ).getTime();
-            return dOnly > startOfToday && dOnly <= endOfWindow14;
-          })
-          .sort((a: any, b: any) => {
-            const da = new Date(
-              a.functionDetails?.date || a.date || a.scheduledDate
-            ).getTime();
-            const db = new Date(
-              b.functionDetails?.date || b.date || b.scheduledDate
-            ).getTime();
-            return da - db;
-          })
-          .map((b: any) => ({
-            id: b._id,
-            title:
-              (b.functionDetails?.type || b.serviceName || "Booking") +
-              (b.client ? ` - ${b.client.name}` : ""),
-            date: b.functionDetails?.date || b.date || b.scheduledDate,
-            time: b.functionDetails?.time?.start || "",
-            status: b.status,
-            location: b.functionDetails?.venue?.name || "",
-          }))
-      : [];
-
-    if (!future14 || future14.length === 0) return [];
-
-    const map = new Map<string, { dateObj: Date; tasks: any[] }>();
-    future14.forEach((t: any) => {
-      const d = new Date(t.date);
-      const dOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const key = dOnly.toDateString();
-      if (!map.has(key)) map.set(key, { dateObj: dOnly, tasks: [] });
-      map.get(key)!.tasks.push(t);
-    });
-    const groups = Array.from(map.values()).sort(
-      (a, b) => a.dateObj.getTime() - b.dateObj.getTime()
-    );
-    return groups.length > 0 ? [groups[0]] : [];
-  })();
+  // upcoming tasks grouping removed — not used in current dashboard UI
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "completed":
@@ -453,13 +524,38 @@ const Dashboard = () => {
             </p>
           </div>
         </div>
+        {/* Today's Expenses */}
       </div>
 
       {/* Business Stats Grid */}
       <div className="dashboard-grid">
-        {stats.map((stat, index) => (
+        {statsWithPayments.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
+        {/* Combined Expense + Inventory card for management */}
+        {["chairman", "company_admin", "branch_head"].includes(
+          user?.role || ""
+        ) && (
+          <StatCard
+            title={
+              user?.role === "chairman"
+                ? "Monthly Expenses"
+                : "Monthly Expenses"
+            }
+            value={`₹${(user?.role === "chairman"
+              ? totalExpensesAcrossBranches
+              : monthlyExpenseTotal
+            ).toLocaleString()}`}
+            icon={TrendingUp}
+            color="error"
+            change={
+              inventoryPurchasesThisMonth > 0
+                ? `Inventory: ₹${inventoryPurchasesThisMonth.toLocaleString()}`
+                : undefined
+            }
+            changeType="neutral"
+          />
+        )}
       </div>
 
       {/* Inventory Overview - Only show for management roles */}
@@ -759,10 +855,14 @@ const Dashboard = () => {
                         : b.services?.length
                         ? b.services.map((svc: any) => ({
                             // fallback: use functionDetails date for services without individual dates
-                            date: b.functionDetails?.date || b.date || b.scheduledDate,
+                            date:
+                              b.functionDetails?.date ||
+                              b.date ||
+                              b.scheduledDate,
                             time: b.functionDetails?.time || {},
                             venue: b.functionDetails?.venue || {},
-                            service: svc.service || svc.serviceName || "Service",
+                            service:
+                              svc.service || svc.serviceName || "Service",
                             serviceType: svc.serviceType || svc.type || [],
                             event: svc.event || b.event || "",
                             assignedStaff: [],
@@ -770,10 +870,16 @@ const Dashboard = () => {
                           }))
                         : [
                             {
-                              date: b.functionDetails?.date || b.date || b.scheduledDate,
+                              date:
+                                b.functionDetails?.date ||
+                                b.date ||
+                                b.scheduledDate,
                               time: b.functionDetails?.time || {},
                               venue: b.functionDetails?.venue || {},
-                              service: b.functionDetails?.type || b.serviceName || "Service",
+                              service:
+                                b.functionDetails?.type ||
+                                b.serviceName ||
+                                "Service",
                               serviceType: [],
                               event: b.event || "",
                               assignedStaff: [],
@@ -793,16 +899,22 @@ const Dashboard = () => {
                         serviceEntry.name ||
                         serviceEntry.title ||
                         "Service";
-                      const serviceType = Array.isArray(serviceEntry.serviceType)
+                      const serviceType = Array.isArray(
+                        serviceEntry.serviceType
+                      )
                         ? serviceEntry.serviceType.join(", ")
                         : serviceEntry.serviceType || serviceEntry.type || "";
-                      const displayService = serviceType ? `${serviceName} (${serviceType})` : serviceName;
+                      const displayService = serviceType
+                        ? `${serviceName} (${serviceType})`
+                        : serviceName;
 
                       // Staff for this specific service entry
                       const serviceStaffNames: string[] = [];
                       if (Array.isArray(serviceEntry.assignedStaff)) {
                         serviceEntry.assignedStaff.forEach((staffId: any) => {
-                          const staff = staffStats.find((s: any) => s._id === (staffId._id || staffId));
+                          const staff = staffStats.find(
+                            (s: any) => s._id === (staffId._id || staffId)
+                          );
                           if (staff) serviceStaffNames.push(staff.name);
                         });
                       }
@@ -839,7 +951,8 @@ const Dashboard = () => {
                     ).getTime();
                     if (dOnly < startOfToday) return false;
                     // exclude enquiry bookings from schedule display
-                    if ((row.booking?.status || "").toLowerCase() === "enquiry") return false;
+                    if ((row.booking?.status || "").toLowerCase() === "enquiry")
+                      return false;
                     return true;
                   })
                   .sort((a, b) => {
@@ -901,18 +1014,22 @@ const Dashboard = () => {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 max-w-[200px] border border-gray-200">
-                          {row.serviceStaffNames && row.serviceStaffNames.length > 0 ? (
-                            row.serviceStaffNames.map((name: string, i: number) => (
-                              <div key={i} className="leading-snug">
-                                {name}
-                              </div>
-                            ))
+                          {row.serviceStaffNames &&
+                          row.serviceStaffNames.length > 0 ? (
+                            row.serviceStaffNames.map(
+                              (name: string, i: number) => (
+                                <div key={i} className="leading-snug">
+                                  {name}
+                                </div>
+                              )
+                            )
                           ) : (
                             <div className="text-neutral-400">—</div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 max-w-[220px]">
-                          {row.equipmentNames && row.equipmentNames.length > 0 ? (
+                          {row.equipmentNames &&
+                          row.equipmentNames.length > 0 ? (
                             row.equipmentNames.map((e: string, i: number) => (
                               <div key={i} className="leading-snug">
                                 {e}
@@ -941,6 +1058,76 @@ const Dashboard = () => {
                     className="px-6 py-4 text-center text-sm text-gray-500"
                   >
                     No bookings available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Payments Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Recent Payments</h2>
+          <p className="text-sm text-gray-500">
+            Payments received (latest {payments ? payments.length : 0})
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[800px] w-full divide-y divide-gray-200 border-collapse [&_th]:border [&_td]:border [&_th]:border-gray-200 [&_td]:border-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Client
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Booking
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {payments && payments.length > 0 ? (
+                payments
+                  .slice()
+                  .sort(
+                    (a: any, b: any) =>
+                      new Date(b.date).getTime() - new Date(a.date).getTime()
+                  )
+                  .map((p: any) => (
+                    <tr key={p._id || `${p.date}-${p.amount}`}>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                        {p.date ? new Date(p.date).toDateString() : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {p.client?.name || p.clientName || "Unknown"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700">
+                        {p.booking?.bookingNumber ||
+                          p.booking ||
+                          (p.bookings && p.bookings.length === 1
+                            ? p.bookings[0]
+                            : p.bookings
+                            ? `${p.bookings.length} bookings`
+                            : "—")}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900">
+                        ₹{(Number(p.amount) || 0).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-6 py-4 text-center text-sm text-gray-500"
+                  >
+                    No payments recorded
                   </td>
                 </tr>
               )}

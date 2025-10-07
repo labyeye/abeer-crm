@@ -1,4 +1,5 @@
 const Expense = require('../models/Expense');
+const DailyExpense = require('../models/DailyExpense');
 const Booking = require('../models/Booking');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -30,6 +31,41 @@ exports.getFinanceAnalytics = asyncHandler(async (req, res) => {
     { $group: { _id: '$branch', totalExpenses: { $sum: '$amount' } } }
   ]);
 
+  // also aggregate DailyExpense (small daily expenses) by branch for the same date window
+  // Note: DailyExpense schema does not use isDeleted/company fields like Expense, so avoid those filters.
+  const dailyMatch = {};
+  // If a date window is provided, filter by DailyExpense.date
+  if (startDate && endDate) dailyMatch.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+  // If a company-level filter was provided, we don't map it directly for DailyExpense (no company field).
+  // Branch scoping is handled later when merging (Expense._id and DailyExpense._id correspond to branch ids).
+
+  const dailyAgg = await DailyExpense.aggregate([
+    { $match: dailyMatch },
+    { $group: { _id: '$branch', totalDailyExpenses: { $sum: '$amount' } } }
+  ]);
+
+  // Merge expensesAgg and dailyAgg into a single per-branch total
+  const mergedMap = new Map();
+  (expensesAgg || []).forEach((e) => {
+    const key = e._id ? String(e._id) : 'null';
+    mergedMap.set(key, { _id: e._id, totalExpenses: Number(e.totalExpenses || 0), totalDailyExpenses: 0 });
+  });
+  (dailyAgg || []).forEach((d) => {
+    const key = d._id ? String(d._id) : 'null';
+    const existing = mergedMap.get(key);
+    if (existing) {
+      existing.totalDailyExpenses = Number(d.totalDailyExpenses || 0);
+    } else {
+      mergedMap.set(key, { _id: d._id, totalExpenses: 0, totalDailyExpenses: Number(d.totalDailyExpenses || 0) });
+    }
+  });
+
+  const combinedExpensesAgg = Array.from(mergedMap.values()).map((v) => ({
+    _id: v._id,
+    totalExpenses: Number(v.totalExpenses || 0) + Number(v.totalDailyExpenses || 0),
+    breakdown: { expenses: Number(v.totalExpenses || 0), dailyExpenses: Number(v.totalDailyExpenses || 0) }
+  }));
+
   
   const bookingMatch = { isDeleted: false };
   if (company) bookingMatch.company = company;
@@ -46,5 +82,5 @@ exports.getFinanceAnalytics = asyncHandler(async (req, res) => {
 
   const bookingsAgg = await Booking.aggregate(pipeline);
 
-  res.status(200).json({ success: true, data: { expenses: expensesAgg, revenue: bookingsAgg } });
+  res.status(200).json({ success: true, data: { expenses: combinedExpensesAgg, revenue: bookingsAgg } });
 });

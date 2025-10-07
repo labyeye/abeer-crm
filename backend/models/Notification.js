@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
-    required: true
+    // company made optional
   },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
@@ -220,7 +220,7 @@ const notificationSchema = new mongoose.Schema({
 });
 
 
-notificationSchema.index({ company: 1, branch: 1 });
+notificationSchema.index({ branch: 1 });
 notificationSchema.index({ 'recipient.user': 1 });
 notificationSchema.index({ 'recipient.client': 1 });
 notificationSchema.index({ 'recipient.staff': 1 });

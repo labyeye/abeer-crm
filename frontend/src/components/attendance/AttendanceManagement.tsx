@@ -29,9 +29,19 @@ interface AttendanceRecord {
   checkOutTime?: string;
   checkIn?: {
     time: string;
+    location?: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+    };
   };
   checkOut?: {
     time: string;
+    location?: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+    };
   };
   workingHours?: string;
 }
@@ -44,9 +54,19 @@ interface AttendanceDetailsRecord {
   checkOutTime?: string;
   checkIn?: {
     time: string;
+    location?: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+    };
   };
   checkOut?: {
     time: string;
+    location?: {
+      latitude?: number;
+      longitude?: number;
+      address?: string;
+    };
   };
   workingHours?: string;
 }
@@ -66,6 +86,18 @@ const AttendanceManagement = () => {
   const [attendanceDetailsLoading, setAttendanceDetailsLoading] = useState(false);
   const [myAttendanceHistory, setMyAttendanceHistory] = useState<AttendanceRecord[]>([]);
   const [myAttendanceLoading, setMyAttendanceLoading] = useState(false);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [leaveType, setLeaveType] = useState<'normal' | 'emergency'>('normal');
+  const [emergencyStaffId, setEmergencyStaffId] = useState<string | null>(null);
+  const [emergencyPurpose, setEmergencyPurpose] = useState<string>('');
+  const [emergencyFrom, setEmergencyFrom] = useState<string>('');
+  const [emergencyTo, setEmergencyTo] = useState<string>('');
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
+  const [emergencyLeaves, setEmergencyLeaves] = useState<AttendanceRecord[]>([]);
+  const [editingGroup, setEditingGroup] = useState<any | null>(null);
+  const [editToDate, setEditToDate] = useState<string>('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [editNotes, setEditNotes] = useState<string>('');
   const { addNotification } = useNotification();
   const { user } = useAuth();
 
@@ -74,8 +106,85 @@ const AttendanceManagement = () => {
       fetchMyAttendance();
     } else {
       fetchStaff();
+      fetchEmergencyLeaves();
     }
   }, []);
+
+  const fetchEmergencyLeaves = async (params?: any) => {
+    try {
+      const p: any = { status: 'leave' };
+      if (params?.startDate) p.startDate = params.startDate;
+      if (params?.endDate) p.endDate = params.endDate;
+      const res = await attendanceAPI.getAttendance(p);
+      // API returns data in res.data or res.data.data depending on response style
+      const data = res.data?.data || res.data || res;
+      setEmergencyLeaves(data || []);
+    } catch (err) {
+      setEmergencyLeaves([]);
+    }
+  };
+
+  // Group raw per-day leave records into ranges: { staffId, staffName, notes, branch, from: Date, to: Date }
+  const groupEmergencyLeaves = (leaves: any[]) => {
+    if (!leaves || leaves.length === 0) return [];
+
+    // Normalize items
+    const items = leaves.map(l => ({
+      _id: l._id,
+      staffId: l.staff && l.staff._id ? l.staff._id : (typeof l.staff === 'string' ? l.staff : null),
+      staffName: l.staff && l.staff.name ? l.staff.name : (l.staff?.name || ''),
+      notes: l.notes || l.notes || '',
+      branch: l.branch && l.branch.name ? l.branch.name : (l.branch?.name || ''),
+      dateObj: new Date(l.date)
+    }));
+
+    // sort by staff then date
+    items.sort((a, b) => {
+      if (a.staffId !== b.staffId) return (a.staffName || '').localeCompare(b.staffName || '');
+      return a.dateObj.getTime() - b.dateObj.getTime();
+    });
+
+    const groups: any[] = [];
+
+    for (const it of items) {
+      const last = groups.length ? groups[groups.length - 1] : null;
+      if (!last || last.staffId !== it.staffId || (last.notes || '') !== (it.notes || '') || (last.branch || '') !== (it.branch || '')) {
+        groups.push({
+          staffId: it.staffId,
+          staffName: it.staffName,
+          notes: it.notes,
+          branch: it.branch,
+          from: it.dateObj,
+          to: it.dateObj,
+          count: 1,
+          ids: [it._id]
+        });
+      } else {
+        // check contiguous day
+        const prevTo = new Date(last.to);
+        prevTo.setDate(prevTo.getDate() + 1);
+        const curDate = it.dateObj;
+        if (prevTo.getFullYear() === curDate.getFullYear() && prevTo.getMonth() === curDate.getMonth() && prevTo.getDate() === curDate.getDate()) {
+          last.to = curDate;
+          last.count = (last.count || 1) + 1;
+          last.ids.push(it._id);
+        } else {
+          groups.push({
+            staffId: it.staffId,
+            staffName: it.staffName,
+            notes: it.notes,
+            branch: it.branch,
+            from: it.dateObj,
+            to: it.dateObj,
+            count: 1,
+            ids: [it._id]
+          });
+        }
+      }
+    }
+
+    return groups;
+  };
 
   const fetchStaff = async () => {
     try {
@@ -108,7 +217,8 @@ const AttendanceManagement = () => {
   const handleCheckIn = async (staffId: string) => {
     setAttendanceLoading(true);
     try {
-      await attendanceAPI.checkIn({ staffId });
+      const location = await getCurrentLocation();
+      await attendanceAPI.checkIn({ staffId, location });
       addNotification({
         type: "success",
         title: "Check In",
@@ -132,7 +242,8 @@ const AttendanceManagement = () => {
   const handleCheckOut = async (staffId: string) => {
     setAttendanceLoading(true);
     try {
-      await attendanceAPI.checkOut({ staffId });
+      const location = await getCurrentLocation();
+      await attendanceAPI.checkOut({ staffId, location });
       addNotification({
         type: "success",
         title: "Check Out",
@@ -150,6 +261,157 @@ const AttendanceManagement = () => {
     } finally {
       setAttendanceLoading(false);
       setShowCheckOutModal(false);
+    }
+  };
+
+  // Helper to get browser geolocation (wrapped in a promise)
+  const getCurrentLocation = (): Promise<{ latitude: number; longitude: number } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        addNotification({ type: 'error', title: 'Location', message: 'Geolocation is not supported by your browser.' });
+        return resolve(null);
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = pos.coords;
+          resolve({ latitude: coords.latitude, longitude: coords.longitude });
+        },
+        (err) => {
+          // Permission denied or other error
+          if (err.code === err.PERMISSION_DENIED) {
+            addNotification({ type: 'error', title: 'Location', message: 'Location permission denied. Attendance will be recorded without location.' });
+          } else {
+            addNotification({ type: 'error', title: 'Location', message: 'Failed to get location: ' + err.message });
+          }
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+  };
+
+  // Emergency Leave helpers (inside component scope)
+  const datesBetween = (start: string, end: string) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const dates: string[] = [];
+    for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+      // push a yyyy-mm-dd string so backend creates correct day
+      const copy = new Date(d);
+      copy.setHours(0,0,0,0);
+      dates.push(copy.toISOString());
+    }
+    return dates;
+  };
+
+  const handleSaveEmergencyLeave = async () => {
+    if (!emergencyStaffId) {
+      addNotification({ type: 'error', title: 'Emergency Leave', message: 'Please select a staff member.' });
+      return;
+    }
+    if (!emergencyFrom || !emergencyTo) {
+      addNotification({ type: 'error', title: 'Emergency Leave', message: 'Please select from and to dates.' });
+      return;
+    }
+
+    setEmergencyLoading(true);
+    const dates = datesBetween(emergencyFrom, emergencyTo);
+    try {
+      const prefix = leaveType === 'emergency' ? 'EMERGENCY: ' : 'NORMAL: ';
+      const notesToSave = (emergencyPurpose && emergencyPurpose.trim()) ? `${prefix}${emergencyPurpose.trim()}` : `${prefix}${leaveType === 'emergency' ? 'Emergency Leave' : 'Normal Leave'}`;
+      const promises = dates.map(dateStr => {
+        return attendanceAPI.markAttendanceManually({
+          staffId: emergencyStaffId,
+          date: dateStr,
+          status: 'leave',
+          notes: notesToSave
+        });
+      });
+
+      const results = await Promise.allSettled(promises);
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        addNotification({ type: 'error', title: 'Emergency Leave', message: `Some dates could not be saved (${failed.length} failures).` });
+      } else {
+        addNotification({ type: 'success', title: 'Emergency Leave', message: 'Emergency leave saved.' });
+      }
+      // refresh
+      fetchEmergencyLeaves();
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Emergency Leave', message: 'Failed to save emergency leave.' });
+    } finally {
+      setEmergencyLoading(false);
+      setShowEmergencyModal(false);
+      setEmergencyPurpose('');
+      setEmergencyFrom('');
+      setEmergencyTo('');
+      setEmergencyStaffId(null);
+    }
+  };
+
+  // Edit existing grouped leave: allow changing 'to' date (trim future days) and update notes
+  const handleSaveEdit = async () => {
+    if (!editingGroup) return;
+    if (!editToDate) {
+      addNotification({ type: 'error', title: 'Edit Leave', message: 'Please select a new To date.' });
+      return;
+    }
+
+    setEditLoading(true);
+    try {
+      const newTo = new Date(editToDate);
+      newTo.setHours(0,0,0,0);
+
+      // editingGroup.ids contains attendance IDs for the original grouped days
+      const ids: string[] = editingGroup.ids || [];
+      // fetch each attendance record to know its date (we assume ids are valid)
+      const records: any[] = [];
+      for (const id of ids) {
+        try {
+          const res = await attendanceAPI.getAttendanceRecord(id);
+          const rec = res.data?.data || res.data || res;
+          records.push(rec);
+        } catch (err) {
+          // ignore missing
+        }
+      }
+
+      // For records whose date > newTo, delete them. For records <= newTo, update notes if changed.
+      const prefix = editingGroup.notes && typeof editingGroup.notes === 'string' && editingGroup.notes.startsWith('EMERGENCY:') ? 'EMERGENCY: ' : 'NORMAL: ';
+      const newNotes = (editNotes && editNotes.trim()) ? `${prefix}${editNotes.trim()}` : editingGroup.notes;
+
+      const ops: Promise<any>[] = [];
+      for (const r of records) {
+        const rDate = new Date(r.date);
+        rDate.setHours(0,0,0,0);
+        if (rDate.getTime() > newTo.getTime()) {
+          ops.push(attendanceAPI.deleteAttendance(r._id));
+        } else {
+          // update notes if different
+          if ((r.notes || '') !== newNotes) {
+            ops.push(attendanceAPI.updateAttendance(r._id, { notes: newNotes }));
+          }
+        }
+      }
+
+      const results = await Promise.allSettled(ops);
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        addNotification({ type: 'error', title: 'Edit Leave', message: `Some operations failed (${failed.length}).` });
+      } else {
+        addNotification({ type: 'success', title: 'Edit Leave', message: 'Leave updated.' });
+      }
+
+      // refresh list
+      fetchEmergencyLeaves();
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Edit Leave', message: 'Failed to edit leave.' });
+    } finally {
+      setEditLoading(false);
+      setEditingGroup(null);
+      setEditToDate('');
+      setEditNotes('');
     }
   };
 
@@ -313,6 +575,27 @@ const AttendanceManagement = () => {
                           <p className="text-sm font-medium text-blue-600">{record.workingHours}h worked</p>
                         )}
                       </div>
+                        <div className="text-right mt-2">
+                          {/* Show check-in location if available */}
+                          {record.checkIn?.location ? (
+                            record.checkIn.location.address ? (
+                              <p className="text-sm text-gray-600">In: {record.checkIn.location.address}</p>
+                            ) : (
+                              <a className="text-sm text-blue-600" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${record.checkIn.location.latitude},${record.checkIn.location.longitude}`}>
+                                View check-in location
+                              </a>
+                            )
+                          ) : null}
+                          {record.checkOut?.location ? (
+                            record.checkOut.location.address ? (
+                              <p className="text-sm text-gray-600">Out: {record.checkOut.location.address}</p>
+                            ) : (
+                              <a className="text-sm text-blue-600" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${record.checkOut.location.latitude},${record.checkOut.location.longitude}`}>
+                                View check-out location
+                              </a>
+                            )
+                          ) : null}
+                        </div>
                     </div>
                   );
                 })}
@@ -436,6 +719,12 @@ const AttendanceManagement = () => {
         >
           Mark Check Out
         </button>
+        <button
+          className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+          onClick={() => setShowEmergencyModal(true)}
+        >
+          Leave
+        </button>
       </div>
       <div className="mb-4">
         <input
@@ -555,6 +844,36 @@ const AttendanceManagement = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Leave modal */}
+      {editingGroup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Leave - {editingGroup.staffName}</h2>
+              <button onClick={() => setEditingGroup(null)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6"/></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm block mb-1">From</label>
+                <input type="date" className="w-full border p-2 rounded" value={editingGroup.from ? new Date(editingGroup.from).toISOString().slice(0,10) : ''} disabled />
+              </div>
+              <div>
+                <label className="text-sm block mb-1">To</label>
+                <input type="date" className="w-full border p-2 rounded" value={editToDate} onChange={(e) => setEditToDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm block mb-1">Purpose</label>
+                <input className="w-full border p-2 rounded" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setEditingGroup(null)} className="px-4 py-2 border rounded">Cancel</button>
+                <button onClick={handleSaveEdit} disabled={editLoading} className="px-4 py-2 bg-blue-600 text-white rounded">{editLoading ? 'Saving...' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {}
       {showCheckOutModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -655,6 +974,7 @@ const AttendanceManagement = () => {
                       <th className="p-2">Marked At</th>
                       <th className="p-2">Check In</th>
                       <th className="p-2">Check Out</th>
+                      <th className="p-2">Location</th>
                       <th className="p-2">Working Hours</th>
                     </tr>
                   </thead>
@@ -687,6 +1007,25 @@ const AttendanceManagement = () => {
                             {att.checkOut?.time
                               ? new Date(att.checkOut.time).toLocaleTimeString()
                               : "-"}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
+                            {att.checkIn?.location ? (
+                              att.checkIn.location.address ? (
+                                att.checkIn.location.address
+                              ) : (
+                                <a target="_blank" rel="noreferrer" className="text-blue-600" href={`https://www.google.com/maps?q=${att.checkIn.location.latitude},${att.checkIn.location.longitude}`}>View</a>
+                              )
+                            ) : (
+                              att.checkOut?.location ? (
+                                att.checkOut.location.address ? (
+                                  att.checkOut.location.address
+                                ) : (
+                                  <a target="_blank" rel="noreferrer" className="text-blue-600" href={`https://www.google.com/maps?q=${att.checkOut.location.latitude},${att.checkOut.location.longitude}`}>View</a>
+                                )
+                              ) : (
+                                "-"
+                              )
+                            )}
                           </td>
                           <td className="p-2 whitespace-nowrap">
                             {att.workingHours ?? "-"}
@@ -733,6 +1072,7 @@ const AttendanceManagement = () => {
                       <th className="p-2">Status</th>
                       <th className="p-2">Check In</th>
                       <th className="p-2">Check Out</th>
+                      <th className="p-2">Location</th>
                       <th className="p-2">Working Hours</th>
                     </tr>
                   </thead>
@@ -762,6 +1102,25 @@ const AttendanceManagement = () => {
                               : "-"}
                           </td>
                           <td className="p-2 whitespace-nowrap">
+                            {att.checkIn?.location ? (
+                              att.checkIn.location.address ? (
+                                att.checkIn.location.address
+                              ) : (
+                                <a target="_blank" rel="noreferrer" className="text-blue-600" href={`https://www.google.com/maps?q=${att.checkIn.location.latitude},${att.checkIn.location.longitude}`}>View</a>
+                              )
+                            ) : (
+                              att.checkOut?.location ? (
+                                att.checkOut.location.address ? (
+                                  att.checkOut.location.address
+                                ) : (
+                                  <a target="_blank" rel="noreferrer" className="text-blue-600" href={`https://www.google.com/maps?q=${att.checkOut.location.latitude},${att.checkOut.location.longitude}`}>View</a>
+                                )
+                              ) : (
+                                "-"
+                              )
+                            )}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">
                             {att.workingHours ?? "-"}
                           </td>
                         </tr>
@@ -774,6 +1133,120 @@ const AttendanceManagement = () => {
           </div>
         </div>
       )}
+
+      {/* Emergency Leave modal */}
+      {showEmergencyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Emergency Leave</h2>
+              <button onClick={() => setShowEmergencyModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6"/></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm block mb-1">Type</label>
+                <div className="flex gap-2 mb-2">
+                  <button type="button" onClick={() => setLeaveType('normal')} className={`px-3 py-1 rounded ${leaveType === 'normal' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>Normal</button>
+                  <button type="button" onClick={() => setLeaveType('emergency')} className={`px-3 py-1 rounded ${leaveType === 'emergency' ? 'bg-red-600 text-white' : 'bg-gray-100'}`}>Emergency</button>
+                </div>
+                <label className="text-sm block mb-1">Staff</label>
+                <select className="w-full border p-2 rounded" value={emergencyStaffId ?? ''} onChange={(e) => setEmergencyStaffId(e.target.value || null)}>
+                  <option value="">Select staff</option>
+                  {staffList.map(s => (
+                    <option key={s._id} value={s._id}>{s.name} {s.employeeId ? `(${s.employeeId})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm block mb-1">Purpose</label>
+                <input className="w-full border p-2 rounded" value={emergencyPurpose} onChange={(e) => setEmergencyPurpose(e.target.value)} placeholder="Reason for leave" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-sm block mb-1">From</label>
+                  <input type="date" className="w-full border p-2 rounded" value={emergencyFrom} onChange={(e) => setEmergencyFrom(e.target.value)} />
+                </div>
+                <div className="flex-1">
+                  <label className="text-sm block mb-1">To</label>
+                  <input type="date" className="w-full border p-2 rounded" value={emergencyTo} onChange={(e) => setEmergencyTo(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setShowEmergencyModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+                <button onClick={handleSaveEmergencyLeave} disabled={emergencyLoading} className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700">
+                  {emergencyLoading ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Leaves list */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Leaves</h2>
+          <div className="text-sm text-gray-600">Showing leave ranges</div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm border">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="p-2">From</th>
+                <th className="p-2">To</th>
+                <th className="p-2">Staff</th>
+                <th className="p-2">Purpose</th>
+                <th className="p-2">Branch</th>
+              </tr>
+            </thead>
+            <tbody>
+              {emergencyLeaves.length === 0 ? (
+                <tr><td colSpan={5} className="p-4 text-center text-gray-600">No emergency leave records found.</td></tr>
+              ) : (
+                groupEmergencyLeaves(emergencyLeaves).map((g: any, idx: number) => {
+                  const isEmergency = typeof g.notes === 'string' && g.notes.startsWith('EMERGENCY:');
+                  const displayNotes = typeof g.notes === 'string' ? g.notes.replace(/^EMERGENCY:\s*|^NORMAL:\s*/i, '') : g.notes;
+                  return (
+                  <tr key={idx} className="border-b">
+                    <td className="p-2 whitespace-nowrap">{g.from ? new Date(g.from).toLocaleDateString() : '-'}</td>
+                    <td className="p-2 whitespace-nowrap">{g.to ? new Date(g.to).toLocaleDateString() : '-'}</td>
+                    <td className="p-2 whitespace-nowrap">{g.staffName || '-'}</td>
+                    <td className="p-2">
+                      <span className={`inline-block px-2 py-1 rounded text-white text-xs mr-2 ${isEmergency ? 'bg-red-600' : 'bg-green-600'}`}>{isEmergency ? 'Emergency' : 'Normal'}</span>
+                      {displayNotes || '-'}
+                    </td>
+                    <td className="p-2 whitespace-nowrap">{g.branch || '-'}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      <button className="px-2 py-1 bg-blue-600 text-white rounded text-sm" onClick={() => {
+                        // open edit modal
+                        setEditingGroup(g);
+                        setEditToDate(g.to ? new Date(g.to).toISOString().slice(0,10) : '');
+                        setEditNotes(displayNotes || '');
+                      }}>Edit</button>
+                      <button
+                        className="ml-2 px-2 py-1 bg-red-600 text-white rounded text-sm"
+                        onClick={async () => {
+                          if (!confirm('Are you sure you want to delete this leave range? This will remove all underlying days.')) return;
+                          try {
+                            // cancel each attendance record in the group
+                            const ops = (g.ids || []).map((id: string) => attendanceAPI.cancelLeave(id));
+                            await Promise.allSettled(ops);
+                            addNotification({ type: 'success', title: 'Delete Leave', message: 'Leave range deleted.' });
+                            fetchEmergencyLeaves();
+                          } catch (err) {
+                            addNotification({ type: 'error', title: 'Delete Leave', message: 'Failed to delete leave range.' });
+                          }
+                        }}
+                      >Delete</button>
+                    </td>
+                  </tr>
+                )})
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   );
 };

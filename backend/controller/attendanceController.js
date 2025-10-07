@@ -228,6 +228,71 @@ const checkIn = asyncHandler(async (req, res) => {
 });
 
 
+// Staff can request a leave for a date or range. If type is 'emergency' it is auto-approved.
+const requestLeave = asyncHandler(async (req, res, next) => {
+  const { staffId, fromDate, toDate, type, purpose } = req.body;
+
+  // derive staff if not provided and requester is staff
+  let targetStaffId = staffId;
+  if (!targetStaffId && req.user.role === 'staff') {
+    const staff = await Staff.findOne({ user: req.user._id });
+    if (!staff) return next(new ErrorResponse('Staff record not found', 404));
+    targetStaffId = staff._id;
+  }
+
+  if (!targetStaffId) return next(new ErrorResponse('staffId required', 400));
+  if (!fromDate || !toDate) return next(new ErrorResponse('fromDate and toDate required', 400));
+
+  const start = new Date(fromDate);
+  const end = new Date(toDate);
+  start.setHours(0,0,0,0);
+  end.setHours(0,0,0,0);
+
+  const created = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+    const dateISO = new Date(d).toISOString();
+    const notesPrefix = (type === 'emergency') ? 'EMERGENCY: ' : 'NORMAL: ';
+    const notes = (purpose && purpose.trim()) ? `${notesPrefix}${purpose.trim()}` : `${notesPrefix}${type === 'emergency' ? 'Emergency Leave' : 'Normal Leave'}`;
+
+    const attendanceData = {
+      staff: targetStaffId,
+      branch: (await Staff.findById(targetStaffId)).branch,
+      date: dateISO,
+      status: 'leave',
+      notes,
+      requestedBy: req.user._id,
+      approved: type === 'emergency' ? true : false
+    };
+
+    try {
+      const rec = await Attendance.create(attendanceData);
+      created.push(rec);
+    } catch (err) {
+      // skip duplicates or errors
+    }
+  }
+
+  res.status(201).json({ success: true, created });
+});
+
+const cancelLeave = asyncHandler(async (req, res, next) => {
+  const id = req.params.id;
+  const attendance = await Attendance.findById(id);
+  if (!attendance || attendance.isDeleted) return next(new ErrorResponse('Attendance record not found', 404));
+
+  // only requester or admin/chairman can cancel
+  if (req.user.role === 'staff') {
+    if (!attendance.requestedBy || attendance.requestedBy.toString() !== req.user._id.toString()) {
+      return next(new ErrorResponse('Not authorized to cancel this leave', 403));
+    }
+  }
+
+  attendance.isDeleted = true;
+  await attendance.save();
+  res.status(200).json({ success: true });
+});
+
+
 
 
 const checkOut = asyncHandler(async (req, res) => {
@@ -451,5 +516,7 @@ module.exports = {
   markAttendanceManually,
   updateAttendance,
   deleteAttendance,
+  requestLeave,
+  cancelLeave,
   getAttendanceSummary
 };

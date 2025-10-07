@@ -9,6 +9,8 @@ const {
   markAttendanceManually,
   updateAttendance,
   deleteAttendance,
+  requestLeave,
+  cancelLeave,
   getAttendanceSummary
 } = require('../controller/attendanceController');
 const { protect, authorize } = require('../middleware/auth');
@@ -31,6 +33,12 @@ router.route('/checkin')
 
 router.route('/checkout')
   .post(authorize('chairman', 'admin', 'manager'), checkOut);
+
+router.route('/request')
+  .post(authorize('staff', 'chairman', 'admin', 'manager'), requestLeave);
+
+router.route('/:id/cancel')
+  .post(authorize('staff', 'chairman', 'admin', 'manager'), cancelLeave);
 
 router.route('/manual')
   .post(authorize('chairman', 'admin', 'manager'), markAttendanceManually);

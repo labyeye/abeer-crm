@@ -13,10 +13,9 @@ const getAllTasks = asyncHandler(async (req, res, next) => {
   const { 
     company, 
     branch, 
-    staff, 
     booking, 
+    staff,
     status, 
-    type, 
     date, 
     startDate, 
     endDate 
@@ -29,7 +28,6 @@ const getAllTasks = asyncHandler(async (req, res, next) => {
     query['assignedTo.staff'] = req.user.staffId;
   } else {
     if (company) query.company = company;
-    if (branch) query.branch = branch;
     if (req.user.role !== 'chairman' && req.user.branchId) {
       query.branch = req.user.branchId;
     }
@@ -38,18 +36,18 @@ const getAllTasks = asyncHandler(async (req, res, next) => {
   if (staff) query['assignedTo.staff'] = staff;
   if (booking) query.booking = booking;
   if (status) query.status = status;
-  if (type) query.type = type;
-  
+
+  // Filter by workStartDate/date range if provided
   if (date) {
     const searchDate = new Date(date);
-    query.scheduledDate = {
+    query.workStartDate = {
       $gte: new Date(searchDate.setHours(0, 0, 0, 0)),
       $lt: new Date(searchDate.setHours(23, 59, 59, 999))
     };
   }
-  
+
   if (startDate && endDate) {
-    query.scheduledDate = {
+    query.workStartDate = {
       $gte: new Date(startDate),
       $lte: new Date(endDate)
     };
@@ -57,10 +55,9 @@ const getAllTasks = asyncHandler(async (req, res, next) => {
   
   const tasks = await Task.find(query)
     .populate('booking', 'bookingNumber functionDetails client')
-    .populate('assignedTo.staff', 'employeeId designation')
-    .populate('company', 'name')
+    .populate({ path: 'assignedTo.staff', select: 'employeeId designation name', populate: { path: 'user', select: 'name' } })
     .populate('branch', 'name')
-    .sort({ scheduledDate: 1, 'scheduledTime.start': 1 });
+  .sort({ workStartDate: 1 });
   
   res.status(200).json({
     success: true,
@@ -76,7 +73,6 @@ const getTask = asyncHandler(async (req, res, next) => {
   const task = await Task.findById(req.params.id)
     .populate('booking')
     .populate('assignedTo.staff')
-    .populate('company')
     .populate('branch')
     .populate('createdBy', 'name email');
   
@@ -95,38 +91,31 @@ const getTask = asyncHandler(async (req, res, next) => {
 
 const createTask = asyncHandler(async (req, res, next) => {
   const {
-    title,
-    description,
-    type,
     bookingId,
-    scheduledDate,
-    scheduledTime,
-    location,
+    bookingService,
+    workStartDate,
+    workEndDate,
     priority = 'medium',
-    estimatedDuration,
+    // estimatedDuration removed
     requirements,
-    assignedStaff = []
+    assignedStaff = [],
+    
   } = req.body;
   
   
-  const booking = await Booking.findById(bookingId);
+  const booking = await Booking.findById(bookingId).populate('branch').populate('client');
   if (!booking) {
     return next(new ErrorResponse('Booking not found', 404));
   }
   
   const taskData = {
-    title,
-    description,
-    type: type || 'manual',
     booking: bookingId,
-    company: req.user.companyId,
-    branch: req.user.branchId,
-    scheduledDate,
-    scheduledTime,
-    location,
+    branch: booking.branch || req.user.branchId,
     priority,
-    estimatedDuration,
     requirements,
+    bookingService: bookingService || undefined,
+    workStartDate: workStartDate || undefined,
+    workEndDate: workEndDate || undefined,
     createdBy: req.user.id,
     status: 'pending'
   };
@@ -135,9 +124,11 @@ const createTask = asyncHandler(async (req, res, next) => {
   
   
   if (assignedStaff.length > 0) {
-    const assignmentData = assignedStaff.map(staffId => ({
-      staff: staffId,
-      role: 'staff',
+    // assignedStaff can be an array of { staffId, role?, source? }
+    const assignmentData = assignedStaff.map((a) => ({
+      staff: a.staffId || a,
+      role: a.role || 'staff',
+      source: a.source || 'branch',
       assignedDate: new Date()
     }));
     
@@ -146,14 +137,47 @@ const createTask = asyncHandler(async (req, res, next) => {
     await task.save();
     
     
-    const staffMembers = await Staff.find({ _id: { $in: assignedStaff } });
+  const staffIds = assignedStaff.map(a => (a && a.staffId ? a.staffId : a));
+    const staffMembers = await Staff.find({ _id: { $in: staffIds } }).populate('user');
     await automatedMessaging.sendTaskAssigned({
       staff: staffMembers,
       task: task,
       booking: booking,
-      company: booking.company,
+      company: { _id: req.user.companyId },
       branch: booking.branch
     });
+  }
+
+  // If no assigned staff provided, try to auto-populate from booking assignedStaff or functionDetailsList
+  if (assignedStaff.length === 0) {
+    // Look for assigned staff inside booking.functionDetailsList (if provided) or booking.staffAssignment
+    const autoStaffIds = [];
+    if (booking.functionDetailsList && booking.functionDetailsList.length) {
+      for (const fd of booking.functionDetailsList) {
+        if (fd.assignedStaff && fd.assignedStaff.length) {
+          autoStaffIds.push(...fd.assignedStaff.map(s => s.toString()));
+        }
+      }
+    }
+    if (autoStaffIds.length === 0 && booking.staffAssignment && booking.staffAssignment.length) {
+      autoStaffIds.push(...booking.staffAssignment.map(s => s.staff.toString()));
+    }
+
+    if (autoStaffIds.length > 0) {
+      const assignmentData = autoStaffIds.map(id => ({ staff: id, role: 'staff', source: 'branch', assignedDate: new Date() }));
+      task.assignedTo = assignmentData;
+      task.status = 'assigned';
+      await task.save();
+
+      const staffMembers = await Staff.find({ _id: { $in: autoStaffIds } }).populate('user');
+      await automatedMessaging.sendTaskAssigned({
+        staff: staffMembers,
+        task: task,
+        booking: booking,
+        company: { _id: req.user.companyId },
+        branch: booking.branch
+      });
+    }
   }
   
   res.status(201).json({
@@ -364,15 +388,14 @@ const getMyTasks = asyncHandler(async (req, res, next) => {
   
   if (date) {
     const searchDate = new Date(date);
-    query.scheduledDate = {
+    query.workStartDate = {
       $gte: new Date(searchDate.setHours(0, 0, 0, 0)),
       $lt: new Date(searchDate.setHours(23, 59, 59, 999))
     };
   } else {
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    query.scheduledDate = { $gte: today };
+    query.workStartDate = { $gte: today };
   }
   
   const tasks = await Task.find(query)

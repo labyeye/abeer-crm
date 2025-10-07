@@ -15,15 +15,25 @@ router.get(
   authorize(["chairman", "company_admin", "branch_head", "branch_staff"]),
   async (req, res) => {
     try {
-        
         const query = {};
+        // branch scoping: non-chairman users see only their branch; chairman can pass branch in query
         if (!(req.user && req.user.role === 'chairman')) {
           if (req.user.branchId) query.branch = req.user.branchId;
         } else if (req.query.branch) {
           query.branch = req.query.branch;
         }
 
-        const expenses = await DailyExpense.find(query).populate('paidBy', 'name').populate('branch', 'name code');
+        // optional date range filtering (frontend sends startDate/endDate for month views)
+        const { startDate, endDate } = req.query || {};
+        if (startDate && endDate) {
+          // use the DailyExpense.date field for filtering
+          query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+        }
+
+        const expenses = await DailyExpense.find(query)
+          .populate('paidBy', 'name')
+          .populate('branch', 'name code')
+          .sort({ date: -1 });
 
         res.status(200).json({ success: true, data: expenses });
       } catch (error) {

@@ -13,7 +13,6 @@ import BranchManagement from '../branch/BranchManagement';
 import EntityReport from '../reports/EntityReport';
 import ProfilePage from '../profile/ProfilePage';
 import TaskManagement from '../tasks/TaskManagement';
-import VendorManagement from '../vendors/VendorManagement';
 import SalaryManagement from '../staff/SalaryManagement';
 import AdvancedAnalytics from '../analytics/AdvancedAnalytics';
 import CategoryManagement from '../catalog/CategoryManagement';
@@ -51,8 +50,6 @@ const DashboardLayout = () => {
         return <TaskManagement />;
       case 'production':
         return <DailyExpenses />; 
-      case 'vendors':
-        return <VendorManagement />;
       case 'analytics':
         return <AdvancedAnalytics />;
       case 'categories':

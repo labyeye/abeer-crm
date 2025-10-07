@@ -238,6 +238,8 @@ export const staffAPI = {
   },
 };
 
+// expenseAPI is defined later in the file (kept there to avoid duplicates)
+
 export const advanceAPI = {
   createAdvanceForStaff: async (staffId: string, advanceData?: QueryParams) => {
     const response = await api.post(`/advances/staff/${staffId}`, advanceData);
@@ -288,6 +290,11 @@ export const attendanceAPI = {
 
   deleteAttendance: async (id: string) => {
     const response = await api.delete(`/attendance/${id}`);
+    return response.data;
+  },
+  // cancel leave (soft-delete) - POST /attendance/:id/cancel
+  cancelLeave: async (id: string) => {
+    const response = await api.post(`/attendance/${id}/cancel`);
     return response.data;
   },
   

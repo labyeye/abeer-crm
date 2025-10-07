@@ -126,14 +126,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       color: 'error'
     },
     {
-      id: 'vendors',
-      name: 'Vendor Management',
-      icon: Truck,
-      permission: 'vendors',
-      roles: ['chairman', 'company_admin', 'branch_head'],
-      color: 'teal'
-    },
-    {
       id: 'categories',
       name: 'Category Management',
       icon: Star,
