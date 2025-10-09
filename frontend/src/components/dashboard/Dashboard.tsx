@@ -21,6 +21,7 @@ import {
   paymentAPI,
   expenseAPI,
   dailyExpensesAPI,
+  fixedExpenseAPI,
 } from "../../services/api";
 import StatCard from "../ui/StatCard";
 
@@ -54,6 +55,9 @@ const Dashboard = () => {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [expensesAnalytics, setExpensesAnalytics] = useState<any>(null);
   const [dailyExpenses, setDailyExpenses] = useState<any[]>([]);
+  const [fixedExpenseTotal, setFixedExpenseTotal] = useState<number>(0);
+  const [fixedPaidTotal, setFixedPaidTotal] = useState<number>(0);
+  const [fixedUnpaidTotal, setFixedUnpaidTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   // today's date helpers: declare early so functions that run on mount can use them
@@ -93,6 +97,8 @@ const Dashboard = () => {
         expensesRes,
         expensesAnalyticsRes,
         dailyExpensesRes,
+        fixedExpenseRes,
+        fixedExpenseStatusRes,
       ] = await Promise.all([
         inventoryAPI.getInventoryStats(),
         bookingAPI.getBookings({ limit: 100 }),
@@ -106,7 +112,14 @@ const Dashboard = () => {
           endDate: monthEnd,
         }),
         // fetch daily expenses for current month
-        dailyExpensesAPI.getExpenses({ startDate: monthStart, endDate: monthEnd }),
+        dailyExpensesAPI.getExpenses({
+          startDate: monthStart,
+          endDate: monthEnd,
+        }),
+        // fetch this month's fixed expense total
+        fixedExpenseAPI.getMonthlyTotal(),
+        // fetch this month's paid/unpaid status totals
+        fixedExpenseAPI.getMonthlyStatus(),
       ]);
       setInventoryStats(inventoryRes.data);
       setBookingStats(bookingRes.data);
@@ -121,15 +134,47 @@ const Dashboard = () => {
       setExpensesAnalytics(analyticsData);
       const dailyData = dailyExpensesRes?.data ?? dailyExpensesRes ?? [];
       setDailyExpenses(Array.isArray(dailyData) ? dailyData : []);
+      // set fixed expense total (normalize response shape)
+      try {
+        const fixedData = fixedExpenseRes?.data ??
+          fixedExpenseRes ?? { total: 0 };
+        setFixedExpenseTotal(
+          Number((fixedData && (fixedData.total ?? fixedData)) || 0)
+        );
+      } catch (e) {
+        console.debug("[Dashboard] failed to parse fixed expense total", e);
+      }
+
+      try {
+        const statusData = fixedExpenseStatusRes?.data ??
+          fixedExpenseStatusRes ?? { paidTotal: 0, unpaidTotal: 0 };
+        setFixedPaidTotal(Number(statusData.paidTotal || 0));
+        setFixedUnpaidTotal(Number(statusData.unpaidTotal || 0));
+      } catch (e) {
+        console.debug("[Dashboard] failed to parse fixed expense status", e);
+      }
       // Debug: log counts and sums so it's easy to verify in browser console
       try {
         const expCount = Array.isArray(expensesData) ? expensesData.length : 0;
         const dailyCount = Array.isArray(dailyData) ? dailyData.length : 0;
-        const expSum = (Array.isArray(expensesData) ? expensesData : []).reduce((s: number, x: any) => s + (Number(x.amount) || 0), 0);
-        const dailySumVal = (Array.isArray(dailyData) ? dailyData : []).reduce((s: number, x: any) => s + (Number(x.amount) || 0), 0);
-        console.debug('[Dashboard] fetched expenses:', { expCount, expSum, dailyCount, dailySumVal, monthStart, monthEnd });
+        const expSum = (Array.isArray(expensesData) ? expensesData : []).reduce(
+          (s: number, x: any) => s + (Number(x.amount) || 0),
+          0
+        );
+        const dailySumVal = (Array.isArray(dailyData) ? dailyData : []).reduce(
+          (s: number, x: any) => s + (Number(x.amount) || 0),
+          0
+        );
+        console.debug("[Dashboard] fetched expenses:", {
+          expCount,
+          expSum,
+          dailyCount,
+          dailySumVal,
+          monthStart,
+          monthEnd,
+        });
       } catch (e) {
-        console.debug('[Dashboard] debug log failed', e);
+        console.debug("[Dashboard] debug log failed", e);
       }
     } catch (error) {
       console.error("Failed to fetch dashboard stats:", error);
@@ -264,8 +309,10 @@ const Dashboard = () => {
       (sum: number, d: any) => sum + (Number(d.amount) || 0),
       0
     );
-    return expSum + dailySum;
-  }, [expenses, dailyExpenses]);
+    // include only paid fixed expenses for the month (unpaid obligations shouldn't count as realized expense)
+    const fixedTotal = Number(fixedPaidTotal || 0) || 0;
+    return expSum + dailySum + fixedTotal;
+  }, [expenses, dailyExpenses, fixedPaidTotal, fixedUnpaidTotal]);
 
   const inventoryPurchasesThisMonth = useMemo(() => {
     if (!expenses || expenses.length === 0) return 0;
@@ -275,47 +322,7 @@ const Dashboard = () => {
       .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
   }, [expenses]);
 
-  const todaysExpenses = useMemo(() => {
-    const result: any[] = [];
-  (Array.isArray(expenses) ? expenses : []).forEach((e: any) => {
-      const raw = e.expenseDate || e.date || e.createdAt;
-      if (!raw) return;
-      const d = new Date(raw);
-      if (
-        d.getFullYear() === today.getFullYear() &&
-        d.getMonth() === today.getMonth() &&
-        d.getDate() === today.getDate()
-      ) {
-        result.push({
-          id: e._id,
-          time: d,
-          title: e.title || e.purpose || 'Expense',
-          category: e.category || 'expense',
-          amount: Number(e.amount) || 0,
-        });
-      }
-    });
-    (Array.isArray(dailyExpenses) ? dailyExpenses : []).forEach((d: any) => {
-      const raw = d.date || d.createdAt;
-      if (!raw) return;
-      const dt = new Date(raw);
-      if (
-        dt.getFullYear() === today.getFullYear() &&
-        dt.getMonth() === today.getMonth() &&
-        dt.getDate() === today.getDate()
-      ) {
-        result.push({
-          id: d._id,
-          time: dt,
-          title: d.purpose || d.title || 'Daily Expense',
-          category: d.category || 'daily',
-          amount: Number(d.amount) || 0,
-        });
-      }
-    });
-    return result;
-  }, [expenses, dailyExpenses]);
-
+  // todaysExpenses memo removed (unused)
 
   const totalExpensesAcrossBranches = useMemo(() => {
     if (!expensesAnalytics) return 0;
@@ -532,19 +539,33 @@ const Dashboard = () => {
         {statsWithPayments.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
+        {/* Fixed expense paid/unpaid summary */}
+        {["chairman", "company_admin", "branch_head"].includes(
+          user?.role || ""
+        ) && (
+          <>
+            <StatCard
+              title="Fixed Paid (This Month)"
+              value={`₹${fixedPaidTotal.toLocaleString()}`}
+              icon={CheckCircle}
+              color="success"
+            />
+            <StatCard
+              title="Fixed Unpaid (This Month)"
+              value={`₹${fixedUnpaidTotal.toLocaleString()}`}
+              icon={XCircle}
+              color="warning"
+            />
+          </>
+        )}
         {/* Combined Expense + Inventory card for management */}
         {["chairman", "company_admin", "branch_head"].includes(
           user?.role || ""
         ) && (
           <StatCard
-            title={
-              user?.role === "chairman"
-                ? "Monthly Expenses"
-                : "Monthly Expenses"
-            }
-            value={`₹${(user?.role === "chairman"
-              ? totalExpensesAcrossBranches
-              : monthlyExpenseTotal
+            title={user?.role === "chairman" ? "Monthly Expenses" : "Monthly Expenses"}
+            value={`₹${(
+              (user?.role === "chairman" ? totalExpensesAcrossBranches : monthlyExpenseTotal) + Number(fixedPaidTotal || 0)
             ).toLocaleString()}`}
             icon={TrendingUp}
             color="error"
@@ -554,6 +575,17 @@ const Dashboard = () => {
                 : undefined
             }
             changeType="neutral"
+          />
+        )}
+        {/* This Month Fixed Expenses */}
+        {["chairman", "company_admin", "branch_head"].includes(
+          user?.role || ""
+        ) && (
+          <StatCard
+            title={"This Month Fixed"}
+            value={`₹${fixedExpenseTotal.toLocaleString()}`}
+            icon={IndianRupee}
+            color="warning"
           />
         )}
       </div>

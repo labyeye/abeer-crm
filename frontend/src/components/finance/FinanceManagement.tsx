@@ -17,6 +17,7 @@ import {
   Receipt,
 } from "lucide-react";
 import ReceivePayment from './ReceivePayment';
+import FixedExpenses from './FixedExpenses';
 import { useNotification } from "../../contexts/NotificationContext";
 
 const FinanceManagement = () => {
@@ -45,6 +46,7 @@ const FinanceManagement = () => {
   >({});
   const [inventoryByBranch, setInventoryByBranch] = useState<Record<string, number>>({});
   const [showReceivePayment, setShowReceivePayment] = useState(false);
+  const [showFixedExpenses, setShowFixedExpenses] = useState(false);
 
   const financialStats = {
     totalRevenue: totals.revenue || 0,
@@ -515,6 +517,9 @@ const FinanceManagement = () => {
             <Download className="w-4 h-4 mr-2" />
             Export Report
           </button>
+          <button onClick={() => setShowFixedExpenses(s => !s)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center">
+            <Receipt className="w-4 h-4 mr-2" /> Fixed Expenses
+          </button>
         </div>
       </div>
 
@@ -594,6 +599,11 @@ const FinanceManagement = () => {
           </div>
         </div>
       </div>
+      {showFixedExpenses && (
+        <div className="bg-white p-4 rounded mt-4">
+          <FixedExpenses onClose={() => setShowFixedExpenses(false)} />
+        </div>
+      )}
 
       {}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">

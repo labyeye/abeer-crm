@@ -665,6 +665,41 @@ export const expenseAPI = {
   }
 };
 
+export const fixedExpenseAPI = {
+  getFixedExpenses: async (params?: QueryParams) => {
+    const response = await api.get('/fixed-expenses', { params });
+    return response.data;
+  },
+  createFixedExpense: async (data: APIData) => {
+    const response = await api.post('/fixed-expenses', data);
+    return response.data;
+  },
+  createFromInventory: async (inventoryId: string) => {
+    const response = await api.post(`/fixed-expenses/from-inventory/${inventoryId}`);
+    return response.data;
+  },
+  getMonthlyTotal: async () => {
+    const response = await api.get('/fixed-expenses/monthly/total');
+    return response.data;
+  },
+  getMonthlyStatus: async () => {
+    const response = await api.get('/fixed-expenses/monthly/status');
+    return response.data;
+  },
+  markPayment: async (id: string, payload: APIData) => {
+    const response = await api.post(`/fixed-expenses/${id}/payment`, payload);
+    return response.data;
+  },
+  updateFixedExpense: async (id: string, data: APIData) => {
+    const response = await api.put(`/fixed-expenses/${id}`, data);
+    return response.data;
+  },
+  deleteFixedExpense: async (id: string) => {
+    const response = await api.delete(`/fixed-expenses/${id}`);
+    return response.data;
+  }
+};
+
 
 export const aiAPI = {
   getInsights: async (params?: QueryParams) => {

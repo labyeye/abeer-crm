@@ -1,5 +1,6 @@
 const Inventory = require("../models/Inventory");
 const asyncHandler = require("../utils/asyncHandler");
+const fixedExpenseHelper = require('./fixedExpenseController');
 
 
 
@@ -143,6 +144,16 @@ exports.createInventoryItem = asyncHandler(async (req, res, next) => {
   }
 
   const inventory = await Inventory.create(req.body);
+
+  // If this inventory was purchased on EMI, ensure a fixed expense exists
+  try {
+    if (inventory && inventory.buyingMethod === 'emi') {
+      // createFromInventoryIfEMI returns the fixed expense or null
+      await fixedExpenseHelper.createFromInventoryIfEMI(inventory._id);
+    }
+  } catch (err) {
+    console.warn('Failed to auto-create fixed expense from inventory EMI', err && err.message ? err.message : err);
+  }
 
   res.status(201).json({
     success: true,

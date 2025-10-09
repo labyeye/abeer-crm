@@ -3,6 +3,7 @@ import { Plus, Edit, Trash, DollarSign } from "lucide-react";
 import { dailyExpensesAPI, branchAPI } from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNotification } from "../../contexts/NotificationContext";
+import FixedExpenses from "../finance/FixedExpenses";
 
 const DailyExpenses = () => {
   const { addNotification } = useNotification();
@@ -17,6 +18,7 @@ const DailyExpenses = () => {
   });
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [showFixedExpenses, setShowFixedExpenses] = useState(false);
   const [purposes, setPurposes] = useState<any[]>([]);
   const [showAddPurpose, setShowAddPurpose] = useState(false);
   const [newPurposeName, setNewPurposeName] = useState("");
@@ -161,12 +163,19 @@ const DailyExpenses = () => {
         <h2 className="text-xl font-semibold flex items-center">
           <DollarSign className="w-5 h-5 mr-2" /> Daily Expenses
         </h2>
-        <div>
+        <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowForm(true)}
             className="px-3 py-1 bg-green-600 text-white rounded flex items-center"
           >
             <Plus className="w-4 h-4 mr-2" /> Add Expense
+          </button>
+          <button
+            onClick={() => setShowFixedExpenses(s => !s)}
+            className="px-3 py-1 bg-blue-600 text-white rounded flex items-center"
+            title="Fixed Expenses"
+          >
+            Fixed Expenses
           </button>
         </div>
       </div>
@@ -361,6 +370,12 @@ const DailyExpenses = () => {
               Save
             </button>
           </div>
+        </div>
+      )}
+
+      {showFixedExpenses && (
+        <div className="mt-4">
+          <FixedExpenses onClose={() => setShowFixedExpenses(false)} />
         </div>
       )}
 
