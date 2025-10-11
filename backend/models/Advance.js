@@ -18,11 +18,22 @@ const advanceSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  // remaining amount outstanding (decreases when repayments happen)
+  remaining: {
+    type: Number,
+    required: true
+  },
   date: {
     type: Date,
     default: Date.now
   },
   notes: String,
+  // repayment status for this advance
+  repaymentStatus: {
+    type: String,
+    enum: ['not_repaid', 'partial', 'paid'],
+    default: 'not_repaid'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

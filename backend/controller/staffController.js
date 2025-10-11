@@ -617,6 +617,212 @@ const createStaffSalary = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: salaryDoc });
 });
 
+// Mark specific bookings as paid for a per_task staff member.
+// Payload: { bookings: [bookingId], month, year, paymentMethod, paymentDate }
+const markBookingsPaid = asyncHandler(async (req, res) => {
+  const staffId = req.params.id;
+  const { bookings, month, year, paymentMethod, paymentDate } = req.body;
+  if (!Array.isArray(bookings) || bookings.length === 0) return res.status(400).json({ success: false, message: 'bookings array required' });
+  const Staff = require('../models/Staff');
+  const Booking = require('../models/Booking');
+  const Advance = require('../models/Advance');
+  const staff = await Staff.findById(staffId);
+  if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
+
+  // compute total amount from bookings by counting assigned tasks for this staff
+  let totalAmount = 0;
+  const processedBookings = [];
+  for (const bId of bookings) {
+    // allow passing booking _id or bookingNumber
+    let b = null;
+    if (mongoose.Types.ObjectId.isValid(bId)) {
+      b = await Booking.findById(bId);
+    }
+    if (!b) {
+      // try bookingNumber lookup
+      b = await Booking.findOne({ bookingNumber: bId });
+    }
+    if (!b) continue;
+    let count = 0;
+    if (Array.isArray(b.functionDetailsList)) {
+      b.functionDetailsList.forEach(fd => {
+        if (Array.isArray(fd.assignedStaff)) {
+          fd.assignedStaff.forEach(as => {
+            const id = as && (as._id || (as && as.toString && as.toString()));
+            if (id && id.toString() === staffId.toString()) count += 1;
+          });
+        }
+      });
+    }
+    // fallback top-level assignment
+    if (count === 0 && Array.isArray(b.staffAssignment)) {
+      b.staffAssignment.forEach(sa => { if (sa.staff && sa.staff.toString() === staffId.toString()) count += 1; });
+    }
+    const rate = Number((staff.salary && typeof staff.salary === 'number') ? staff.salary : (staff.rate || 0));
+    const amt = count * rate;
+    if (amt > 0) {
+      totalAmount += amt;
+      processedBookings.push({ bookingId: b._id, bookingNumber: b.bookingNumber, count, amount: amt });
+    }
+  }
+
+  // Now apply advances: fetch advances ordered oldest first, reduce remaining and mark repaymentStatus
+  let remainingToPay = totalAmount;
+  const advs = await Advance.find({ staff: staffId, isDeleted: false }).sort({ createdAt: 1 });
+  const advanceUpdates = [];
+  for (const a of advs) {
+    if (remainingToPay <= 0) break;
+    if (a.remaining <= 0) continue;
+    const take = Math.min(a.remaining, remainingToPay);
+    a.remaining = Number(a.remaining) - Number(take);
+    remainingToPay -= take;
+    if (a.remaining <= 0) a.repaymentStatus = 'paid';
+    else a.repaymentStatus = 'partial';
+    advanceUpdates.push({ id: a._id, remaining: a.remaining, repaymentStatus: a.repaymentStatus, taken: take });
+    await a.save();
+  }
+
+  // Create a salary record representing this per-task payment (month/year required)
+  const Salary = require('../models/Salary');
+  // compute advanceConsumed and create salary doc where basicSalary equals totalAmount
+  const advanceConsumed = advanceUpdates.reduce((s, u) => s + Number(u.taken || 0), 0);
+  const deductions = { advance: advanceConsumed, loan: 0, emi: 0, other: 0, total: advanceConsumed };
+
+  // Amount actually paid to staff now = totalAmount - advanceConsumed (advances reduce immediate cash outflow)
+  const amountPaidNow = Math.max(0, totalAmount - advanceConsumed);
+
+  const sal = await Salary.create({
+    company: req.user.company || req.user.companyId,
+    branch: staff.branch,
+    staff: staffId,
+    month: Number(month) || (new Date().getMonth() + 1),
+    year: Number(year) || new Date().getFullYear(),
+    basicSalary: totalAmount,
+    allowances: 0,
+    deductions,
+    netSalary: Number(totalAmount) - Number(deductions.total || 0),
+    paymentStatus: remainingToPay > 0 ? 'partial' : 'paid',
+    paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+    paymentMethod: paymentMethod || 'cash',
+    period: `${new Date(Number(year||new Date().getFullYear()), Number(month||new Date().getMonth()+1)-1).toLocaleString('default', { month: 'long' })} ${year||new Date().getFullYear()}`,
+    notes: `Per-task payment for bookings: ${processedBookings.map(p=>p.bookingNumber||p.bookingId).join(', ')}`
+  });
+
+  // For each processed booking, record payment entry on the Booking.document with amount paid proportionally to booking amount
+  for (const pb of processedBookings) {
+    const bdoc = await Booking.findById(pb.bookingId || pb.bookingNumber);
+    if (!bdoc) continue;
+    // calculate paid portion for this booking: if advanceConsumed covered only part of total, we record the cash paid now
+    // Distribute the advanceConsumed proportionally across bookings by their amount
+    const advanceShare = advanceConsumed > 0 ? (Number(pb.amount) / Number(totalAmount || 1)) * advanceConsumed : 0;
+    const paidNowForBooking = Number(pb.amount) - advanceShare;
+    bdoc.staffPayments = bdoc.staffPayments || [];
+    bdoc.staffPayments.push({ staff: staffId, amount: paidNowForBooking, date: new Date(), note: `Per-task payment (salaryId:${sal._id})` });
+    // If advance fully covered this booking (paidNowForBooking <= 0) then amount recorded is 0 and booking remains as 'paid' in terms of advance logic
+    await bdoc.save();
+  }
+
+  // Return details of what was paid and advance adjustments
+  res.status(200).json({ success: true, data: { totalAmount, processedBookings, advanceUpdates, salary: sal } });
+});
+
+// Return unpaid bookings for a staff member (bookings where staff hasn't been fully paid for assigned tasks)
+const getUnpaidBookingsForStaff = asyncHandler(async (req, res) => {
+  const staffId = req.params.id;
+  const Booking = require('../models/Booking');
+  const staff = await Staff.findById(staffId);
+  if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
+
+  // Find bookings that include this staff in functionDetailsList assignedStaff or staffAssignment
+  const bookings = await Booking.find({ isDeleted: false }).sort({ 'functionDetailsList.date': -1 });
+
+  const unpaid = [];
+  for (const b of bookings) {
+    // compute expected count for this staff in booking
+    let count = 0;
+    if (Array.isArray(b.functionDetailsList)) {
+      b.functionDetailsList.forEach(fd => {
+        if (Array.isArray(fd.assignedStaff)) {
+          fd.assignedStaff.forEach(as => {
+            const id = as && (as._id || (as && as.toString && as.toString()));
+            if (id && id.toString() === staffId.toString()) count += 1;
+          });
+        }
+      });
+    }
+    if (count === 0 && Array.isArray(b.staffAssignment)) {
+      b.staffAssignment.forEach(sa => { if (sa.staff && sa.staff.toString() === staffId.toString()) count += 1; });
+    }
+    if (count === 0) continue;
+
+    // expected amount for this booking for staff
+    const rate = Number((staff.salary && typeof staff.salary === 'number') ? staff.salary : (staff.rate || 0));
+    const expected = count * rate;
+
+    // compute already paid amount in booking.staffPayments for this staff
+    const alreadyPaid = (Array.isArray(b.staffPayments) ? b.staffPayments.filter(sp => sp.staff && sp.staff.toString() === staffId.toString()).reduce((s, p) => s + Number(p.amount || 0), 0) : 0);
+
+    if (alreadyPaid < expected) {
+      unpaid.push({ bookingId: b._id, bookingNumber: b.bookingNumber, date: b.functionDetailsList?.[0]?.date || b.createdAt, expected, alreadyPaid, remaining: expected - alreadyPaid });
+    }
+  }
+
+  res.status(200).json({ success: true, count: unpaid.length, data: unpaid });
+});
+
+// Return a quick payment summary for a staff member used for the 4 cards
+const getStaffPaymentSummary = asyncHandler(async (req, res) => {
+  const staffId = req.params.id;
+  const Advance = require('../models/Advance');
+  const Booking = require('../models/Booking');
+  const Salary = require('../models/Salary');
+
+  const staff = await Staff.findById(staffId);
+  if (!staff) return res.status(404).json({ success: false, message: 'Staff not found' });
+
+  // Total assigned amount across unpaid bookings (compute here to avoid calling controller which writes to res)
+  const bookings = await Booking.find({ isDeleted: false }).sort({ 'functionDetailsList.date': -1 });
+  const unpaidList = [];
+  for (const b of bookings) {
+    let count = 0;
+    if (Array.isArray(b.functionDetailsList)) {
+      b.functionDetailsList.forEach(fd => {
+        if (Array.isArray(fd.assignedStaff)) {
+          fd.assignedStaff.forEach(as => {
+            const id = as && (as._id || (as && as.toString && as.toString()));
+            if (id && id.toString() === staffId.toString()) count += 1;
+          });
+        }
+      });
+    }
+    if (count === 0 && Array.isArray(b.staffAssignment)) {
+      b.staffAssignment.forEach(sa => { if (sa.staff && sa.staff.toString() === staffId.toString()) count += 1; });
+    }
+    if (count === 0) continue;
+    const rate = Number((staff.salary && typeof staff.salary === 'number') ? staff.salary : (staff.rate || 0));
+    const expected = count * rate;
+    const alreadyPaid = (Array.isArray(b.staffPayments) ? b.staffPayments.filter(sp => sp.staff && sp.staff.toString() === staffId.toString()).reduce((s, p) => s + Number(p.amount || 0), 0) : 0);
+    if (alreadyPaid < expected) {
+      unpaidList.push({ bookingId: b._id, bookingNumber: b.bookingNumber, date: b.functionDetailsList?.[0]?.date || b.createdAt, expected, alreadyPaid, remaining: expected - alreadyPaid });
+    }
+  }
+
+  const totalAssigned = unpaidList.reduce((s, b) => s + Number(b.expected || 0), 0);
+
+  // total given: sum of Salary records already paid for per-task (we'll consider Salary.basicSalary with notes containing 'Per-task')
+  const salaries = await Salary.find({ staff: staffId, isDeleted: false });
+  const totalGiven = salaries.reduce((s, sal) => s + Number(sal.netSalary || 0), 0);
+
+  // total advance taken and remaining
+  const advs = await Advance.find({ staff: staffId, isDeleted: false });
+  const totalAdvanceTaken = advs.reduce((s, a) => s + Number(a.amount || 0), 0);
+  const totalAdvanceRemaining = advs.reduce((s, a) => s + Number(a.remaining || 0), 0);
+
+  const toPayNow = Math.max(0, totalAssigned - totalAdvanceRemaining);
+
+  res.status(200).json({ success: true, data: { totalAssigned, totalGiven, totalAdvanceTaken, totalAdvanceRemaining, toPayNow } });
+});
+
 module.exports = {
   getAllStaff,
   getStaff,
@@ -628,4 +834,9 @@ module.exports = {
   updateStaffPerformance,
   getStaffSalary,
   createStaffSalary
+  ,
+  markBookingsPaid
+  ,
+  getUnpaidBookingsForStaff,
+  getStaffPaymentSummary
 }; 

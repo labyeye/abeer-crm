@@ -19,14 +19,20 @@ const createAdvance = asyncHandler(async (req, res) => {
     branch: staff.branch,
     staff: staffId,
     amount,
+    remaining: amount,
     notes: req.body.notes || '',
     createdBy: req.user.id
   });
 
   // Optionally apply the advance to a salary for a given month/year
-  const applyTo = req.body.applyToSalary; // boolean
+  // For safety: do NOT create or modify Salary records by default when an advance is recorded.
+  // Older behavior auto-applied advance to salary when `applyToSalary` was truthy. That caused
+  // advances to appear in salary history immediately. To avoid that, we only apply to a salary
+  // when the caller explicitly passes `createSalary: true` alongside `applyToSalary`.
+  const applyTo = req.body.applyToSalary;
+  const createSalary = req.body.createSalary === true || req.body.createSalary === 'true';
   let appliedSalary = null;
-  if (applyTo) {
+  if (applyTo && createSalary) {
     const targetMonth = Number(req.body.targetMonth || (new Date().getMonth() + 1));
     const targetYear = Number(req.body.targetYear || new Date().getFullYear());
 

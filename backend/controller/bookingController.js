@@ -101,16 +101,14 @@ const getBookings = asyncHandler(async (req, res) => {
     .limit(limit)
     .lean();
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      count: bookings.length,
-      total,
-      page,
-      limit,
-      data: bookings,
-    });
+  res.status(200).json({
+    success: true,
+    count: bookings.length,
+    total,
+    page,
+    limit,
+    data: bookings,
+  });
 });
 
 const getBooking = asyncHandler(async (req, res) => {
@@ -118,8 +116,14 @@ const getBooking = asyncHandler(async (req, res) => {
     .populate("branch", "name code")
     .populate("client", "name phone email")
     // populate nested per-service assigned staff and inventorySelection
-    .populate("functionDetailsList.assignedStaff", "name designation employeeId")
-    .populate("functionDetailsList.inventorySelection", "name category quantity")
+    .populate(
+      "functionDetailsList.assignedStaff",
+      "name designation employeeId"
+    )
+    .populate(
+      "functionDetailsList.inventorySelection",
+      "name category quantity"
+    )
     .populate("staffAssignment.staff", "user designation department")
     .populate("equipmentAssignment.equipment", "name sku category")
     .populate("invoice");
@@ -298,8 +302,14 @@ const createBooking = asyncHandler(async (req, res) => {
         "name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber",
     },
     // populate nested per-service refs for edit response as well
-    { path: "functionDetailsList.assignedStaff", select: "name designation employeeId" },
-    { path: "functionDetailsList.inventorySelection", select: "name category quantity" },
+    {
+      path: "functionDetailsList.assignedStaff",
+      select: "name designation employeeId",
+    },
+    {
+      path: "functionDetailsList.inventorySelection",
+      select: "name category quantity",
+    },
   ]);
 
   // If the booking includes equipment assignments, decrement inventory quantities and mark status
@@ -491,8 +501,15 @@ const updateBooking = asyncHandler(async (req, res) => {
       select:
         "name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber",
     },
-    { path: "assignedStaff", select: "name designation employeeId" },
-    { path: "inventorySelection", select: "name category quantity" },
+    // populate nested per-service assigned staff and inventory selection
+    {
+      path: "functionDetailsList.assignedStaff",
+      select: "name designation employeeId",
+    },
+    {
+      path: "functionDetailsList.inventorySelection",
+      select: "name category quantity",
+    },
   ]);
 
   let shouldUpdateStats = false;
@@ -662,7 +679,18 @@ const assignInventory = asyncHandler(async (req, res) => {
 
 const getBookingsForStaff = asyncHandler(async (req, res) => {
   const Staff = require("../models/Staff");
-  const staff = await Staff.findOne({ user: req.params.staffId });
+  // Accept either a Staff _id or a User id in the param. Try Staff.findById first, then fallback to Staff.findOne({ user: param })
+  let staff = null;
+  if (req.params.staffId) {
+    try {
+      staff = await Staff.findById(req.params.staffId);
+    } catch (e) {
+      staff = null;
+    }
+    if (!staff) {
+      staff = await Staff.findOne({ user: req.params.staffId });
+    }
+  }
 
   let bookings = [];
 
@@ -671,6 +699,7 @@ const getBookingsForStaff = asyncHandler(async (req, res) => {
       $or: [
         { assignedStaff: staff._id },
         { "staffAssignment.staff": staff._id },
+        { "functionDetailsList.assignedStaff": staff._id },
       ],
       isDeleted: false,
     })
@@ -679,9 +708,15 @@ const getBookingsForStaff = asyncHandler(async (req, res) => {
         "branch",
         "name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber"
       )
-        // populate per-service nested refs
-        .populate("functionDetailsList.assignedStaff", "name designation employeeId")
-        .populate("functionDetailsList.inventorySelection", "name category quantity")
+      // populate per-service nested refs
+      .populate(
+        "functionDetailsList.assignedStaff",
+        "name designation employeeId"
+      )
+      .populate(
+        "functionDetailsList.inventorySelection",
+        "name category quantity"
+      )
       .populate("staffAssignment.staff", "user designation department")
       .populate("equipmentAssignment.equipment", "name sku category")
       .populate("invoice")
@@ -707,7 +742,11 @@ const getMyBookings = asyncHandler(async (req, res) => {
 
   // Reuse the same query logic as getBookingsForStaff
   const bookings = await Booking.find({
-    $or: [{ assignedStaff: staff._id }, { "staffAssignment.staff": staff._id }],
+    $or: [
+      { assignedStaff: staff._id },
+      { "staffAssignment.staff": staff._id },
+      { "functionDetailsList.assignedStaff": staff._id },
+    ],
     isDeleted: false,
   })
     .populate("client", "name phone email")
@@ -715,8 +754,14 @@ const getMyBookings = asyncHandler(async (req, res) => {
       "branch",
       "name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber"
     )
-    .populate("functionDetailsList.assignedStaff", "name designation employeeId")
-    .populate("functionDetailsList.inventorySelection", "name category quantity")
+    .populate(
+      "functionDetailsList.assignedStaff",
+      "name designation employeeId"
+    )
+    .populate(
+      "functionDetailsList.inventorySelection",
+      "name category quantity"
+    )
     .populate("staffAssignment.staff", "user designation department")
     .populate("equipmentAssignment.equipment", "name sku category")
 
@@ -738,7 +783,10 @@ const getBookingsForInventory = asyncHandler(async (req, res) => {
       "branch",
       "name code companyName companyPhone companyEmail companyWebsite companyDescription gstNumber"
     )
-    .populate("functionDetailsList.assignedStaff", "name designation employeeId");
+    .populate(
+      "functionDetailsList.assignedStaff",
+      "name designation employeeId"
+    );
   res
     .status(200)
     .json({ success: true, count: bookings.length, data: bookings });

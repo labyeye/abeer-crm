@@ -210,6 +210,24 @@ const bookingSchema = new mongoose.Schema(
         },
       },
     ],
+    // record payments made to staff for per-task payroll so we can filter paid bookings
+    staffPayments: [
+      {
+        staff: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Staff",
+        },
+        amount: {
+          type: Number,
+          default: 0,
+        },
+        date: {
+          type: Date,
+          default: Date.now,
+        },
+        note: String,
+      },
+    ],
     travelDetails: {
       method: {
         type: String,

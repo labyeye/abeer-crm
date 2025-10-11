@@ -8,12 +8,29 @@ const asyncHandler = require('../utils/asyncHandler');
 // Create a payment
 router.post('/', asyncHandler(async (req, res) => {
   const { client, booking, bookings, allocations, invoice, amount, date, method, reference, notes, branch, company } = req.body;
+  // Defensive parsing: sometimes clients send stringified arrays (e.g., bookings or allocations)
+  let parsedBookings = bookings;
+  let parsedAllocations = allocations;
+  if (typeof parsedBookings === 'string') {
+    try {
+      parsedBookings = JSON.parse(parsedBookings);
+    } catch (e) {
+      // leave as-is; downstream normalization will handle
+    }
+  }
+  if (typeof parsedAllocations === 'string') {
+    try {
+      parsedAllocations = JSON.parse(parsedAllocations);
+    } catch (e) {
+      // ignore
+    }
+  }
   if (!client || !amount || !date) {
     return res.status(400).json({ message: 'client, amount and date are required' });
   }
 
   // Normalize bookings: allow single booking or array
-  const bookingArray = Array.isArray(bookings) ? bookings : (booking ? [booking] : []);
+  const bookingArray = Array.isArray(parsedBookings) ? parsedBookings : (booking ? [booking] : []);
 
   // Create payment record with bookings and optional allocations
   const paymentData = { client, booking: bookingArray.length === 1 ? bookingArray[0] : undefined, bookings: bookingArray, allocations, invoice, amount, date, method, reference, notes, branch, company, createdBy: req.user && req.user._id };
@@ -22,7 +39,7 @@ router.post('/', asyncHandler(async (req, res) => {
   // Apply allocations if provided, otherwise split amount equally across bookings
   try {
     if (bookingArray && bookingArray.length > 0) {
-      let allocs = allocations || [];
+  let allocs = parsedAllocations || allocations || [];
       if (!allocs || !allocs.length) {
         const share = Number(amount || 0) / bookingArray.length;
         allocs = bookingArray.map(bId => ({ booking: bId, amount: share }));

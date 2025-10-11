@@ -236,6 +236,19 @@ export const staffAPI = {
     const response = await api.post(`/staff/${id}/salary`, salaryData);
     return response.data;
   },
+  payBookings: async (id: string, payload?: QueryParams) => {
+    const response = await api.post(`/staff/${id}/pay-bookings`, payload);
+    return response.data;
+  },
+  getUnpaidBookings: async (id: string, params?: QueryParams) => {
+    const response = await api.get(`/staff/${id}/unpaid-bookings`, { params });
+    return response.data;
+  },
+  getPaymentSummary: async (id: string, params?: QueryParams) => {
+    const response = await api.get(`/staff/${id}/payment-summary`, { params });
+    return response.data;
+  },
+  // addSalaryToFixed removed: salary is not created as fixed expense anymore
 };
 
 // expenseAPI is defined later in the file (kept there to avoid duplicates)
@@ -247,6 +260,12 @@ export const advanceAPI = {
   },
   listAdvancesForStaff: async (staffId: string) => {
     const response = await api.get(`/advances/staff/${staffId}`);
+    return response.data;
+  }
+  ,
+  // update advance remaining/repayment status
+  updateAdvance: async (advanceId: string, data?: QueryParams) => {
+    const response = await api.put(`/advances/${advanceId}`, data);
     return response.data;
   }
 };
@@ -382,6 +401,33 @@ export const bookingAPI = {
     const response = await api.delete(url);
     return response.data;
   },
+};
+
+export const loanAPI = {
+  listLoans: async (params?: QueryParams) => {
+    const response = await api.get('/loans', { params });
+    return response.data;
+  },
+  createLoan: async (loanData?: QueryParams) => {
+    const response = await api.post('/loans', loanData);
+    return response.data;
+  },
+  repayLoan: async (id: string, data?: QueryParams) => {
+    const response = await api.post(`/loans/${id}/repay`, data);
+    return response.data;
+  },
+  updateLoan: async (id: string, data?: QueryParams) => {
+    const response = await api.put(`/loans/${id}`, data);
+    return response.data;
+  },
+  deleteLoan: async (id: string) => {
+    const response = await api.delete(`/loans/${id}`);
+    return response.data;
+  },
+  getSummary: async (params?: QueryParams) => {
+    const response = await api.get('/loans/summary', { params });
+    return response.data;
+  }
 };
 
 export const paymentAPI = {

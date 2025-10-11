@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { fixedExpenseAPI, inventoryAPI } from '../../services/api';
+import { useEffect, useState, useMemo } from 'react';
+import { fixedExpenseAPI, inventoryAPI, staffAPI } from '../../services/api';
 import { Plus, Trash } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
 
@@ -10,10 +10,26 @@ const FixedExpenses = ({ onClose }: { onClose?: () => void }) => {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>({ title: '', amount: '', recurrence: 'monthly', startDate: '' });
   const [inventoryList, setInventoryList] = useState<any[]>([]);
+  const [staffList, setStaffList] = useState<any[]>([]);
+
+  const staffById = useMemo(() => {
+    const m: Record<string, any> = {};
+    staffList.forEach((s: any) => {
+      const id = s._id || s.id;
+      if (id) m[id] = s;
+    });
+    return m;
+  }, [staffList]);
+
+  const formatStaffType = (t?: string) => {
+    if (!t) return '';
+    return t.replace('_', ' ').replace(/(^|\s)\S/g, (l) => l.toUpperCase());
+  };
 
   useEffect(() => {
     fetchList();
     fetchInventory();
+    fetchStaff();
   }, []);
 
   const fetchList = async () => {
@@ -47,6 +63,16 @@ const FixedExpenses = ({ onClose }: { onClose?: () => void }) => {
       console.warn('Failed to fetch inventory for FixedExpenses', err);
       // non-fatal, but show subtle notification so user knows
       addNotification({ type: 'warning', title: 'Inventory', message: 'Could not load inventory for EMI scan' });
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const res = await staffAPI.getStaff();
+      const list = (res && (res.data || res)) || [];
+      setStaffList(Array.isArray(list) ? list : []);
+    } catch (err) {
+      // non-fatal
     }
   };
 
@@ -85,11 +111,16 @@ const FixedExpenses = ({ onClose }: { onClose?: () => void }) => {
       // use current month start
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      await fixedExpenseAPI.markPayment(fxId, { month: monthStart, paid });
+      // include amount where possible (send fx amount to help backend record exact value)
+      const fx = list.find(l => l._id === fxId) || {};
+      const amountToSend = Number(fx.amount || fx.emiDetails?.monthlyAmount || 0) || undefined;
+      await fixedExpenseAPI.markPayment(fxId, { month: monthStart, paid, amount: amountToSend });
       addNotification({ type: 'success', title: 'Updated', message: `Marked as ${paid ? 'paid' : 'unpaid'}` });
       await fetchList();
-    } catch (err) {
-      addNotification({ type: 'error', title: 'Error', message: 'Failed to update payment status' });
+    } catch (rawErr) {
+      const err: any = rawErr || {};
+      const msg = (err.response && err.response.data && err.response.data.message) || err.message || 'Failed to update payment status';
+      addNotification({ type: 'error', title: 'Error', message: msg });
     }
   };
 
@@ -159,6 +190,19 @@ const FixedExpenses = ({ onClose }: { onClose?: () => void }) => {
           ))}
         </div>
 
+        <div className="mb-2 text-sm text-gray-600">Staff Salaries (Monthly)</div>
+        <div className="grid grid-cols-1 gap-2 mb-4">
+          {staffList.filter(s => (s.staffType || '').toString() === 'monthly').map((s) => (
+            <div key={s._id} className="p-2 border rounded flex justify-between items-center">
+              <div>
+                <div className="font-medium">{s.name}</div>
+                <div className="text-xs text-gray-500">Salary: ₹{typeof s.salary === 'object' ? s.salary.basic || 0 : s.salary || 0} {s.staffType ? `· ${formatStaffType(s.staffType)}` : ''}</div>
+              </div>
+              
+            </div>
+          ))}
+        </div>
+
         <div>
           <h4 className="font-medium mb-2">Active Fixed Expenses</h4>
           {loading ? <div>Loading...</div> : (
@@ -167,7 +211,7 @@ const FixedExpenses = ({ onClose }: { onClose?: () => void }) => {
                 <div key={f._id} className="p-2 border rounded flex justify-between items-center">
                   <div>
                     <div className="font-medium">{f.title}</div>
-                    <div className="text-xs text-gray-500">₹{f.amount} · {f.recurrence} · {f.source}</div>
+                    <div className="text-xs text-gray-500">₹{f.amount} · {f.recurrence} · {f.source}{f.source === 'salary' ? ` (${formatStaffType(staffById[f.staff]?.staffType) || 'Salary'})` : ''}</div>
                   </div>
                     <div className="flex items-center space-x-2">
                       <button onClick={() => handleDelete(f._id)} className="text-red-600 p-1"><Trash className="w-4 h-4"/></button>

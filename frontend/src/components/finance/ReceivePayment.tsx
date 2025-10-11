@@ -12,6 +12,8 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [selectedBooking, setSelectedBooking] = useState<string | null>(null);
   const [multiSelectMode, setMultiSelectMode] = useState<boolean>(false);
   const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
+  // map bookingId -> amount entered for that booking when in multi-select mode
+  const [bookingRowAmounts, setBookingRowAmounts] = useState<Record<string, number>>({});
   const [bookingPayments, setBookingPayments] = useState<any[]>([]);
   const [bookingPaymentsLoading, setBookingPaymentsLoading] = useState<boolean>(false);
   const [allPayments, setAllPayments] = useState<any[]>([]);
@@ -82,9 +84,43 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     if (!selectedBooking) return;
     const b = bookings.find(x => x._id === selectedBooking);
     if (b) {
-      setAmount(b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount || b.pricing?.remainingAmount || '');
+      // prefer remainingAmount, fall back to other pricing fields
+      const pref = b.pricing?.remainingAmount ?? b.pricing?.finalAmount ?? b.pricing?.totalAmount ?? b.amount ?? '';
+      setAmount(pref);
     }
   }, [selectedBooking, bookings, multiSelectMode]);
+
+  // initialize bookingRowAmounts when bookings change
+  useEffect(() => {
+    if (!bookings || bookings.length === 0) {
+      setBookingRowAmounts({});
+      return;
+    }
+    // keep existing amounts and default others to 0
+    setBookingRowAmounts(prev => {
+      const next: Record<string, number> = { ...prev };
+      bookings.forEach(b => {
+        if (!(b._id in next)) {
+          // prefer remainingAmount if available, but default input should be 0
+          next[b._id] = 0;
+        }
+      });
+      // remove keys for bookings no longer present
+      Object.keys(next).forEach(k => { if (!bookings.find(b => b._id === k)) delete next[k]; });
+      return next;
+    });
+  }, [bookings]);
+
+  // compute total of entered amounts in multi-select mode
+  const totalSelectedAmount = Object.values(bookingRowAmounts).reduce((s, v) => s + Number(v || 0), 0);
+
+  // when in multi-select mode, keep the top-level amount synced to per-row total
+  useEffect(() => {
+    if (multiSelectMode) {
+      setAmount(totalSelectedAmount);
+    }
+    // when leaving multi-select mode we don't overwrite user's manual amount
+  }, [multiSelectMode, totalSelectedAmount]);
 
   // fetch payments for the selected booking
   useEffect(() => {
@@ -132,7 +168,12 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
       
       // Add booking info based on mode
       if (multiSelectMode && selectedBookings.length > 0) {
-        payload.bookings = selectedBookings;
+        // build allocations array of { booking: id, amount } and send booking ids separately
+        const allocationsPayload = selectedBookings.map(id => ({ booking: id, amount: Number(bookingRowAmounts[id] || 0) }));
+        payload.allocations = allocationsPayload; // backend will apply these amounts to bookings
+        payload.bookings = selectedBookings; // send booking IDs so payment.bookings remains array of ids
+        // set top-level amount as total entered
+        payload.amount = Number(totalSelectedAmount);
       } else if (selectedBooking) {
         payload.booking = selectedBooking;
       }
@@ -165,7 +206,13 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
           const list2 = Array.isArray(res2) ? res2 : (res2 && res2.data) ? res2.data : res2 || [];
           // update amount field to remaining if available
           const b = bookings.find(x => x._id === selectedBooking);
-          const remaining = b?.pricing?.remainingAmount ?? b?.pricing?.totalAmount ?? null;
+          // prefer remainingAmount from refreshed booking data if backend returns updated bookings
+          let remaining = b?.pricing?.remainingAmount ?? b?.pricing?.totalAmount ?? null;
+          // try to find updated booking from refreshed list2 earlier (if payments endpoint includes booking snapshot)
+          const refreshedBooking = bookings.find(x => x._id === selectedBooking) || (bookings || []).find(x => x._id === selectedBooking);
+          if (refreshedBooking && refreshedBooking.pricing && refreshedBooking.pricing.remainingAmount != null) {
+            remaining = refreshedBooking.pricing.remainingAmount;
+          }
           if (remaining != null) setAmount(remaining);
           // ensure created payment appears at the top of the list if backend didn't include it
           let finalList = list2 || [];
@@ -178,8 +225,9 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
           console.error('Failed to refresh booking payments after payment', e);
         }
       } else if (multiSelectMode) {
-        // For multi-booking payments, clear selections and reset amount
+        // For multi-booking payments, clear selections and reset amounts
         setSelectedBookings([]);
+        setBookingRowAmounts({});
         setAmount('');
       }
 
@@ -203,14 +251,33 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     setSelectedClient(p.client?._id || p.client || selectedClient);
     
     // Handle multi-booking vs single booking
-    if (p.bookings && Array.isArray(p.bookings) && p.bookings.length > 0) {
+    if ((p.allocations && Array.isArray(p.allocations) && p.allocations.length > 0) || (p.bookings && Array.isArray(p.bookings) && p.bookings.length > 0)) {
       setMultiSelectMode(true);
-      setSelectedBookings(p.bookings.map((b: any) => b._id || b));
+      // prefer explicit allocations (booking+amount pairs)
+      const allocs = Array.isArray(p.allocations) && p.allocations.length > 0 ? p.allocations : [];
+      const idsFromBookings = Array.isArray(p.bookings) ? p.bookings.map((b: any) => (typeof b === 'string' ? b : (b.booking || b._id || b))) : [];
+      const ids = allocs.length > 0 ? allocs.map((a: any) => (a.booking || a._id || a)) : idsFromBookings;
+      setSelectedBookings(ids);
+      // populate amounts map from allocations if present, otherwise try bookings array
+      const map: Record<string, number> = {};
+      if (allocs.length > 0) {
+        allocs.forEach((a: any) => {
+          const bid = a.booking || a._id || a;
+          map[bid] = Number(a.amount || 0);
+        });
+      } else if (Array.isArray(p.bookings)) {
+        p.bookings.forEach((b: any) => {
+          if (b.booking) map[b.booking] = Number(b.amount || 0);
+          else if (b._id && b.amount != null) map[b._id] = Number(b.amount || 0);
+        });
+      }
+      setBookingRowAmounts(map);
       setSelectedBooking(null);
     } else {
       setMultiSelectMode(false);
       setSelectedBooking(p.booking?._id || p.booking || null);
       setSelectedBookings([]);
+      setBookingRowAmounts({});
     }
     
     setDate(p.date ? new Date(p.date).toISOString().slice(0,10) : new Date().toISOString().slice(0,10));
@@ -417,24 +484,65 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                         </>
                       ) : (
                         <div className="bg-white border border-gray-200 rounded p-3 max-h-56 overflow-y-auto">
-                          {bookings.map(b => {
-                            const title = b.serviceName || b.title || b.bookingNumber || b._id;
-                            const amt = b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount;
-                            const dateLabel = b.functionDetails?.date ? new Date(b.functionDetails.date).toLocaleDateString() : '';
-                            const checked = selectedBookings.includes(b._id);
-                            return (
-                              <label key={b._id} className="flex items-center justify-between py-2 border-b border-gray-100">
-                                <div>
-                                  <div className="text-sm font-medium">{title} {dateLabel ? <span className="text-xs text-gray-500">• {dateLabel}</span> : null}</div>
-                                  <div className="text-xs text-gray-500">{amt ? `₹${Number(amt).toLocaleString()}` : '—'}</div>
-                                </div>
-                                <input type="checkbox" checked={checked} onChange={e => {
-                                  if (e.target.checked) setSelectedBookings(s => [...s, b._id]);
-                                  else setSelectedBookings(s => s.filter(id => id !== b._id));
-                                }} />
-                              </label>
-                            );
-                          })}
+                          <table className="w-full text-sm table-auto">
+                            <thead>
+                              <tr className="text-left text-gray-600">
+                                <th className="px-3 py-2">Select</th>
+                                <th className="px-3 py-2">Booking</th>
+                                <th className="px-3 py-2">Total (₹)</th>
+                                <th className="px-3 py-2">Remaining (₹)</th>
+                                <th className="px-3 py-2">Enter Amount (₹)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bookings.map(b => {
+                                const title = b.serviceName || b.title || b.bookingNumber || b._id;
+                                const totalAmt = b.amount || b.pricing?.finalAmount || b.pricing?.totalAmount || 0;
+                                const remainingAmt = (b.pricing?.remainingAmount ?? (totalAmt - (b.paidAmount || 0))) || 0;
+                                const checked = selectedBookings.includes(b._id);
+                                const rowValue = bookingRowAmounts[b._id] || 0;
+                                return (
+                                  <tr key={b._id} className="border-t border-gray-100">
+                                    <td className="px-3 py-2 align-middle">
+                                      <input type="checkbox" checked={checked} onChange={e => {
+                                        if (e.target.checked) setSelectedBookings(s => [...s, b._id]);
+                                        else {
+                                          setSelectedBookings(s => s.filter(id => id !== b._id));
+                                          setBookingRowAmounts(prev => { const n = { ...prev }; delete n[b._id]; return n; });
+                                        }
+                                      }} />
+                                    </td>
+                                    <td className="px-3 py-2 align-middle">
+                                      <div className="text-sm font-medium">{title}</div>
+                                      <div className="text-xs text-gray-500">{b.functionDetails?.date ? new Date(b.functionDetails.date).toLocaleDateString() : ''}</div>
+                                    </td>
+                                    <td className="px-3 py-2 align-middle">₹{Number(totalAmt).toLocaleString()}</td>
+                                    <td className="px-3 py-2 align-middle">₹{Number(remainingAmt).toLocaleString()}</td>
+                                    <td className="px-3 py-2 align-middle">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={selectedBookings.includes(b._id) ? rowValue : ''}
+                                        onChange={e => {
+                                          const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                          setBookingRowAmounts(prev => ({ ...prev, [b._id]: val }));
+                                          // ensure it's selected when user types
+                                          if (!selectedBookings.includes(b._id)) setSelectedBookings(s => [...s, b._id]);
+                                        }}
+                                        className="w-32 px-2 py-1 border border-gray-300 rounded"
+                                        placeholder="0"
+                                      />
+                                      <div className="text-xs text-gray-400 mt-1">Left: ₹{Number((remainingAmt - (rowValue || 0)) || 0).toLocaleString()}</div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          <div className="mt-3 flex items-center justify-between">
+                            <div className="text-sm text-gray-600">Selected bookings: {selectedBookings.length}</div>
+                            <div className="text-sm font-semibold">Total Entered: ₹{Number(totalSelectedAmount).toLocaleString()}</div>
+                          </div>
                         </div>
                       )}
                       {bookingsLoading && (
@@ -473,37 +581,14 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                         onChange={e => setAmount(e.target.value === '' ? '' : Number(e.target.value))} 
                         className="w-full pl-10 pr-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors duration-200 text-lg font-semibold"
                         placeholder="0.00"
+                        disabled={multiSelectMode}
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">Enter the amount received in Indian Rupees</p>
+                    <p className="text-xs text-gray-500 mt-2">{multiSelectMode ? 'Amount is auto-calculated from selected bookings above.' : 'Enter the amount received in Indian Rupees'}</p>
                   </div>
 
                   <div>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (multiSelectMode && selectedBookings.length > 0) {
-                          // Calculate total remaining amount for selected bookings
-                          const total = selectedBookings.reduce((sum, id) => {
-                            const b = bookings.find(x => x._id === id);
-                            const amt = b?.pricing?.remainingAmount ?? b?.amount ?? b?.pricing?.finalAmount ?? b?.pricing?.totalAmount ?? 0;
-                            return sum + Number(amt || 0);
-                          }, 0);
-                          if (total > 0) setAmount(total);
-                        } else if (selectedBooking) {
-                          const b = bookings.find(x => x._id === selectedBooking);
-                          const amt = b?.pricing?.remainingAmount ?? b?.amount ?? b?.pricing?.finalAmount ?? b?.pricing?.totalAmount;
-                          if (amt) setAmount(Number(amt));
-                        }
-                      }} 
-                      disabled={!(selectedBooking || (multiSelectMode && selectedBookings.length > 0))}
-                      className="px-6 py-4 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Auto-fill
-                    </button>
+                    
                   </div>
                 </div>
                 {/* Remaining and History */}

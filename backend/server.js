@@ -30,6 +30,7 @@ const analytics = require('./routes/analyticsRoutes');
 const expenses = require('./routes/expenseRoutes');
 const serviceCategories = require('./routes/serviceCategoryRoutes');
 const fixedExpenses = require('./routes/fixedExpenseRoutes');
+const loans = require('./routes/loanRoutes');
 
 const ai = require('./routes/aiRoutes');
 const mobile = require('./routes/mobileRoutes');
@@ -107,6 +108,7 @@ app.use('/api/analytics', analytics);
 app.use('/api/expenses', expenses);
 app.use('/api/service-categories', serviceCategories);
 app.use('/api/fixed-expenses', fixedExpenses);
+app.use('/api/loans', loans);
 
 app.use('/api/ai', ai);
 app.use('/api/mobile', mobile);

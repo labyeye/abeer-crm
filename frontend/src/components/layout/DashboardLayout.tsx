@@ -20,6 +20,7 @@ import { AIInsights } from '../ai/AIInsights';
 import { EnhancedAutomation } from '../automation/EnhancedAutomation';
 import { SystemIntegration } from '../integration/SystemIntegration';
 import DailyExpenses from '../dailyExpenses/DailyExpenses';
+import LoanManagement from '../loans/LoanManagement';
 
 const DashboardLayout = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -52,6 +53,8 @@ const DashboardLayout = () => {
         return <DailyExpenses />; 
       case 'analytics':
         return <AdvancedAnalytics />;
+      case 'loans':
+        return <LoanManagement />;
       case 'categories':
         return <CategoryManagement />;
       case 'ai-insights':

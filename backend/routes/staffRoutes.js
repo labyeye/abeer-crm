@@ -11,7 +11,11 @@ const {
   updateStaffPerformance,
   getStaffSalary,
   createStaffSalary
+  ,
+  getUnpaidBookingsForStaff,
+  getStaffPaymentSummary
 } = require('../controller/staffController');
+const { markBookingsPaid } = require('../controller/staffController');
 const { protect, authorize } = require('../middleware/auth');
 
 
@@ -39,5 +43,14 @@ router.route('/:id/performance')
 router.route('/:id/salary')
   .get(authorize('chairman', 'admin', 'manager'), getStaffSalary)
   .post(authorize('chairman', 'admin', 'manager'), createStaffSalary);
+
+router.route('/:id/pay-bookings')
+  .post(authorize('chairman','admin','manager'), markBookingsPaid);
+
+router.route('/:id/unpaid-bookings')
+  .get(authorize('chairman','admin','manager'), getUnpaidBookingsForStaff);
+
+router.route('/:id/payment-summary')
+  .get(authorize('chairman','admin','manager'), getStaffPaymentSummary);
 
 module.exports = router; 

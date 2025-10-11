@@ -12,7 +12,6 @@ import {
   Clock,
   FileText,
   CheckSquare,
-  Truck,
   
   Star
 } from 'lucide-react';
@@ -83,6 +82,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       permission: 'finance',
       roles: ['chairman', 'admin'],
       color: 'warning'
+    },
+    {
+      id: 'loans',
+      name: 'Loans',
+      icon: CreditCard,
+      permission: 'loans',
+      roles: ['chairman', 'admin', 'manager'],
+      color: 'indigo'
     },
     {
       id: 'receive-payments',

@@ -173,3 +173,6 @@ exports.getMonthlyFixedExpensesStatus = asyncHandler(async (req, res) => {
 
   res.status(200).json({ success: true, data: { paidTotal, unpaidTotal, count: list.length } });
 });
+
+// Create fixed expense from a staff member's monthly salary
+// Note: salary -> fixed-expense flow removed. Salary is managed via Salary records and per-task flows.

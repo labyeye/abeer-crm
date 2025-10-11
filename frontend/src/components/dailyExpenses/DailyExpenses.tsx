@@ -25,32 +25,33 @@ const DailyExpenses = () => {
   const [editingPurposeId, setEditingPurposeId] = useState<string | null>(null);
   const [editingPurposeName, setEditingPurposeName] = useState("");
   const { user } = useAuth();
-  
+
   const getBranchName = (branch: any) => {
-    if (!branch) return '-';
-    
-    if (typeof branch === 'object') return branch.name || branch.companyName || branch.code || '-';
-    
+    if (!branch) return "-";
+
+    if (typeof branch === "object")
+      return branch.name || branch.companyName || branch.code || "-";
+
     const found = branches.find((b) => b._id === branch || b.id === branch);
-    return found ? found.name || found.companyName || found.code || branch : branch;
+    return found
+      ? found.name || found.companyName || found.code || branch
+      : branch;
   };
 
   const formatDateDMY = (d: any) => {
     if (!d) return "";
     const dateObj = d instanceof Date ? d : new Date(d);
     if (isNaN(dateObj.getTime())) return "";
-    const dd = String(dateObj.getDate()).padStart(2, '0');
-    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, "0");
+    const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
     const yyyy = String(dateObj.getFullYear());
     return `${dd}/${mm}/${yyyy}`;
   };
 
   useEffect(() => {
     fetchExpenses();
-  fetchPurposes();
+    fetchPurposes();
 
-    
-    
     if (user) {
       if (user.role === "chairman") {
         fetchBranches();
@@ -58,7 +59,6 @@ const DailyExpenses = () => {
         setSelectedBranch(user.branchId);
       }
     }
-    
   }, [user]);
 
   const fetchPurposes = async () => {
@@ -67,7 +67,7 @@ const DailyExpenses = () => {
       const list = (res && (res.data || res)) || [];
       setPurposes(list);
     } catch (err) {
-      // non-fatal
+      // ignore
     }
   };
 
@@ -75,35 +75,28 @@ const DailyExpenses = () => {
     try {
       setLoading(true);
       const res = await dailyExpensesAPI.getExpenses();
-      
       const list = (res && (res.data || res)) || [];
       setExpenses(list);
-    } catch (error) {
-      addNotification({
-        type: "error",
-        title: "Error",
-        message: "Failed to load expenses",
-      });
+    } catch (err) {
+      addNotification({ type: "error", title: "Error", message: "Failed to load expenses" });
     } finally {
       setLoading(false);
     }
   };
+
 
   const fetchBranches = async () => {
     try {
       const bRes = await branchAPI.getBranches();
       const list = (bRes && (bRes.data || bRes)) || [];
       setBranches(list);
-      
+
       if (list.length > 0 && !selectedBranch) setSelectedBranch(list[0]._id);
-    } catch (error) {
-      
-    }
+    } catch (error) {}
   };
 
   const handleCreate = async () => {
     try {
-      
       const branchToSend =
         user && user.role === "chairman" ? selectedBranch : user?.branchId;
 
@@ -117,7 +110,7 @@ const DailyExpenses = () => {
       if (branchToSend) payload.branch = branchToSend;
 
       const result = await dailyExpensesAPI.createExpense(payload);
-      
+
       if (result && (result.data || result)) {
         const newItem = result.data || result;
         setExpenses((prev) => [newItem, ...prev]);
@@ -171,7 +164,7 @@ const DailyExpenses = () => {
             <Plus className="w-4 h-4 mr-2" /> Add Expense
           </button>
           <button
-            onClick={() => setShowFixedExpenses(s => !s)}
+            onClick={() => setShowFixedExpenses((s) => !s)}
             className="px-3 py-1 bg-blue-600 text-white rounded flex items-center"
             title="Fixed Expenses"
           >
@@ -192,13 +185,15 @@ const DailyExpenses = () => {
               className="p-2 border rounded"
             />
             <div className="ml-2 text-sm text-gray-600">
-              {formData.date ? formatDateDMY(formData.date) : ''}
+              {formData.date ? formatDateDMY(formData.date) : ""}
             </div>
             <div className="flex items-center space-x-2 w-full">
               <div className="flex-1">
                 <select
                   value={formData.purpose}
-                  onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, purpose: e.target.value })
+                  }
                   className="p-2 border rounded w-full"
                 >
                   <option value="">-- Select purpose --</option>
@@ -220,7 +215,9 @@ const DailyExpenses = () => {
                 <button
                   onClick={() => {
                     // open edit for currently selected purpose
-                    const selected = purposes.find((p) => p.name === formData.purpose);
+                    const selected = purposes.find(
+                      (p) => p.name === formData.purpose
+                    );
                     if (!selected) return setEditingPurposeId(null);
                     setEditingPurposeId(selected._id || selected.id || null);
                     setEditingPurposeName(selected.name || "");
@@ -255,15 +252,29 @@ const DailyExpenses = () => {
                 onClick={async () => {
                   if (!newPurposeName || !newPurposeName.trim()) return;
                   try {
-                    const res = await dailyExpensesAPI.createPurpose({ name: newPurposeName.trim() });
+                    const res = await dailyExpensesAPI.createPurpose({
+                      name: newPurposeName.trim(),
+                    });
                     const created = (res && (res.data || res)) || res;
                     setPurposes((prev) => [created, ...prev]);
-                    setFormData({ ...formData, purpose: created.name || created });
+                    setFormData({
+                      ...formData,
+                      purpose: created.name || created,
+                    });
                     setNewPurposeName("");
                     setShowAddPurpose(false);
-                    addNotification({ type: 'success', title: 'Added', message: 'Purpose added' });
+                    addNotification({
+                      type: "success",
+                      title: "Added",
+                      message: "Purpose added",
+                    });
                   } catch (err: any) {
-                    addNotification({ type: 'error', title: 'Error', message: err?.response?.data?.message || 'Failed to add purpose' });
+                    addNotification({
+                      type: "error",
+                      title: "Error",
+                      message:
+                        err?.response?.data?.message || "Failed to add purpose",
+                    });
                   }
                 }}
                 className="px-3 py-1 bg-blue-600 text-white rounded"
@@ -271,7 +282,10 @@ const DailyExpenses = () => {
                 Save
               </button>
               <button
-                onClick={() => { setShowAddPurpose(false); setNewPurposeName(''); }}
+                onClick={() => {
+                  setShowAddPurpose(false);
+                  setNewPurposeName("");
+                }}
                 className="px-3 py-1 border rounded"
               >
                 Cancel
@@ -291,18 +305,37 @@ const DailyExpenses = () => {
                 onClick={async () => {
                   if (!editingPurposeName || !editingPurposeName.trim()) return;
                   try {
-                    const res = await dailyExpensesAPI.updatePurpose(editingPurposeId as string, { name: editingPurposeName.trim() });
+                    const res = await dailyExpensesAPI.updatePurpose(
+                      editingPurposeId as string,
+                      { name: editingPurposeName.trim() }
+                    );
                     const updated = (res && (res.data || res)) || res;
-                    setPurposes((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
+                    setPurposes((prev) =>
+                      prev.map((p) => (p._id === updated._id ? updated : p))
+                    );
                     // if currently selected purpose name changed, update formData
-                    if (formData.purpose && formData.purpose === (purposes.find(p => p._id === updated._id)?.name)) {
+                    if (
+                      formData.purpose &&
+                      formData.purpose ===
+                        purposes.find((p) => p._id === updated._id)?.name
+                    ) {
                       setFormData({ ...formData, purpose: updated.name });
                     }
                     setEditingPurposeId(null);
                     setEditingPurposeName("");
-                    addNotification({ type: 'success', title: 'Updated', message: 'Purpose updated' });
+                    addNotification({
+                      type: "success",
+                      title: "Updated",
+                      message: "Purpose updated",
+                    });
                   } catch (err: any) {
-                    addNotification({ type: 'error', title: 'Error', message: err?.response?.data?.message || 'Failed to update purpose' });
+                    addNotification({
+                      type: "error",
+                      title: "Error",
+                      message:
+                        err?.response?.data?.message ||
+                        "Failed to update purpose",
+                    });
                   }
                 }}
                 className="px-3 py-1 bg-blue-600 text-white rounded"
@@ -310,7 +343,10 @@ const DailyExpenses = () => {
                 Save
               </button>
               <button
-                onClick={() => { setEditingPurposeId(null); setEditingPurposeName(''); }}
+                onClick={() => {
+                  setEditingPurposeId(null);
+                  setEditingPurposeName("");
+                }}
                 className="px-3 py-1 border rounded"
               >
                 Cancel
@@ -379,6 +415,7 @@ const DailyExpenses = () => {
         </div>
       )}
 
+      
       <div className="bg-white p-4 rounded">
         {loading ? (
           <div>Loading...</div>
@@ -390,7 +427,7 @@ const DailyExpenses = () => {
                 <th>Purpose</th>
                 <th>Amount</th>
                 <th>Paid By</th>
-                {user && user.role === 'chairman' && <th>Branch</th>}
+                {user && user.role === "chairman" && <th>Branch</th>}
                 <th>Notes</th>
                 <th>Actions</th>
               </tr>
@@ -402,7 +439,7 @@ const DailyExpenses = () => {
                   <td>{exp.purpose}</td>
                   <td>₹{exp.amount}</td>
                   <td>{exp.paidBy?.name || "-"}</td>
-                  {user && user.role === 'chairman' && (
+                  {user && user.role === "chairman" && (
                     <td>{getBranchName(exp.branch)}</td>
                   )}
                   <td>{exp.notes}</td>
