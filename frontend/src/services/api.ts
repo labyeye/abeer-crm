@@ -302,6 +302,11 @@ export const attendanceAPI = {
     return response.data;
   },
 
+  requestLeave: async (leaveData: APIData) => {
+    const response = await api.post('/attendance/request', leaveData);
+    return response.data;
+  },
+
   updateAttendance: async (id: string, attendanceData: APIData) => {
     const response = await api.put(`/attendance/${id}`, attendanceData);
     return response.data;
@@ -399,6 +404,10 @@ export const bookingAPI = {
   },
   updateBookingStatus: async (id: string, status: string) => {
     const response = await api.put(`/bookings/${id}/status`, { status });
+    return response.data;
+  },
+  updateBookingOutputs: async (id: string, outputs: APIData) => {
+    const response = await api.put(`/bookings/${id}/outputs`, outputs);
     return response.data;
   },
   deleteBooking: async (id: string, hard?: boolean) => {

@@ -80,6 +80,11 @@ const AttendanceManagement = () => {
   const [historyEndDate, setHistoryEndDate] = useState<string>('');
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [showCheckOutModal, setShowCheckOutModal] = useState(false);
+  const [showLeaveRequestModal, setShowLeaveRequestModal] = useState(false);
+  const [leaveFromDate, setLeaveFromDate] = useState<string>('');
+  const [leaveToDate, setLeaveToDate] = useState<string>('');
+  const [leavePurposeText, setLeavePurposeText] = useState<string>('');
+  const [leaveRequestLoading, setLeaveRequestLoading] = useState(false);
   const [staffSearchTerm, setStaffSearchTerm] = useState("");
   const [attendanceDetailsModalStaff, setAttendanceDetailsModalStaff] = useState<Staff | null>(null);
   const [attendanceDetailsHistory, setAttendanceDetailsHistory] = useState<AttendanceDetailsRecord[]>([]);
@@ -505,18 +510,11 @@ const AttendanceManagement = () => {
 
         <div className="flex gap-4 mb-6">
           <button
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
-            onClick={() => setShowCheckInModal(true)}
-          >
-            <CheckCircle className="w-5 h-5 mr-2" />
-            Check In
-          </button>
-          <button
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-            onClick={() => setShowCheckOutModal(true)}
+            className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center"
+            onClick={() => setShowLeaveRequestModal(true)}
           >
             <Clock className="w-5 h-5 mr-2" />
-            Check Out
+            Request Leave
           </button>
         </div>
 
@@ -605,91 +603,57 @@ const AttendanceManagement = () => {
         </div>
 
         {}
-        {showCheckInModal && user?.role === 'staff' && (
+        {showLeaveRequestModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl w-full max-w-md p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Check In</h2>
+                <h2 className="text-xl font-bold text-gray-900">Request Leave</h2>
                 <button
-                  onClick={() => setShowCheckInModal(false)}
+                  onClick={() => setShowLeaveRequestModal(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <div className="text-center">
-                <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Check In</h3>
-                <p className="text-gray-600 mb-6">
-                  Are you sure you want to check in for today? This will mark your attendance as present.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowCheckInModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      
-                      
-                      
-                      setShowCheckInModal(false);
-                      addNotification({
-                        type: "info",
-                        title: "Check In",
-                        message: "Please contact your manager to set up your staff profile for check-in functionality.",
-                      });
-                    }}
-                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Check In
-                  </button>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">From</label>
+                  <input type="date" value={leaveFromDate} onChange={(e) => setLeaveFromDate(e.target.value)} className="mt-1 block w-full border border-gray-200 rounded p-2" />
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {}
-        {showCheckOutModal && user?.role === 'staff' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl w-full max-w-md p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Check Out</h2>
-                <button
-                  onClick={() => setShowCheckOutModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              <div className="text-center">
-                <Clock className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Confirm Check Out</h3>
-                <p className="text-gray-600 mb-6">
-                  Are you sure you want to check out for today? This will calculate your working hours.
-                </p>
-                <div className="flex gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">To</label>
+                  <input type="date" value={leaveToDate} onChange={(e) => setLeaveToDate(e.target.value)} className="mt-1 block w-full border border-gray-200 rounded p-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Purpose (optional)</label>
+                  <textarea value={leavePurposeText} onChange={(e) => setLeavePurposeText(e.target.value)} className="mt-1 block w-full border border-gray-200 rounded p-2" rows={3} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowLeaveRequestModal(false)} className="px-4 py-2 border rounded">Cancel</button>
                   <button
-                    onClick={() => setShowCheckOutModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowCheckOutModal(false);
-                      addNotification({
-                        type: "info",
-                        title: "Check Out",
-                        message: "Please contact your manager to set up your staff profile for check-out functionality.",
-                      });
+                    onClick={async () => {
+                      if (!leaveFromDate || !leaveToDate) {
+                        addNotification({ type: 'error', title: 'Validation', message: 'Please select both from and to dates' });
+                        return;
+                      }
+                      setLeaveRequestLoading(true);
+                      try {
+                        await attendanceAPI.requestLeave({ fromDate: leaveFromDate, toDate: leaveToDate, type: 'normal', purpose: leavePurposeText });
+                        addNotification({ type: 'success', title: 'Leave Requested', message: 'Your leave request was submitted.' });
+                        fetchMyAttendance();
+                        setShowLeaveRequestModal(false);
+                        setLeaveFromDate('');
+                        setLeaveToDate('');
+                        setLeavePurposeText('');
+                      } catch (err: any) {
+                        addNotification({ type: 'error', title: 'Error', message: (err && err.message) || 'Failed to request leave' });
+                      } finally {
+                        setLeaveRequestLoading(false);
+                      }
                     }}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="px-4 py-2 bg-amber-600 text-white rounded"
                   >
-                    Check Out
+                    {leaveRequestLoading ? 'Submitting...' : 'Submit Request'}
                   </button>
                 </div>
               </div>

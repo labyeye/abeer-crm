@@ -4,6 +4,7 @@ import Header from './Header';
 import Dashboard from '../dashboard/Dashboard';
 import StaffManagement from '../staff/StaffManagement';
 import BookingManagement from '../bookings/BookingManagement';
+import AssignedBookings from '../bookings/AssignedBookings';
 import ClientManagement from '../clients/ClientManagement';
 import FinanceManagement from '../finance/FinanceManagement';
 import ReceivePayment from '../finance/ReceivePayment';
@@ -34,6 +35,8 @@ const DashboardLayout = () => {
         return <StaffManagement />;
       case 'bookings':
         return <BookingManagement />;
+      case 'assigned-bookings':
+        return <AssignedBookings />;
       case 'clients':
         return <ClientManagement />;
       case 'finance':

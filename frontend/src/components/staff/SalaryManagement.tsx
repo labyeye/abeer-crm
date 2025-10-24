@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useNotification } from "../../contexts/NotificationContext";
 import { staffAPI, advanceAPI, bookingAPI, fixedExpenseAPI } from "../../services/api";
 import { Loader2 } from "lucide-react";
@@ -319,6 +319,34 @@ const SalaryManagement = () => {
     const totalAmount = rows.reduce((s, r) => s + (r.amount || 0), 0);
     return { rows, totalTasks, totalAmount };
   }, [bookingsAssigned, unpaidBookings, selectedStaffId, staffList]);
+
+  // Build a date-wise breakdown of tasks and amounts for the selected staff
+  const dateBreakdown = useMemo(() => {
+    const map: Record<string, any> = {};
+    if (!selectedStaffId) return map;
+    perTaskSummary.rows.forEach((r: any) => {
+      const taskCount = r.count || 0;
+      const rate = Number(r.rate || 0);
+      // If we have a tasks array and dates array, try to map each task to a date
+      const tasks = Array.isArray(r.tasks) ? r.tasks : [];
+      const dates = Array.isArray(r.dates) && r.dates.length ? r.dates : [r.bookingDate ? new Date(r.bookingDate).toLocaleDateString() : new Date().toLocaleDateString()];
+
+      for (let i = 0; i < Math.max(taskCount, tasks.length || 0); i++) {
+        const taskName = tasks[i] || tasks[0] || `Task ${i + 1}`;
+        const dateRaw = dates[i] || dates[0];
+        const dateKey = dateRaw ? new Date(dateRaw).toLocaleDateString() : new Date().toLocaleDateString();
+        const amt = rate; // per-task amount
+        if (!map[dateKey]) map[dateKey] = { totalAmount: 0, totalTasks: 0, items: [] };
+        map[dateKey].totalAmount += amt;
+        map[dateKey].totalTasks += 1;
+        map[dateKey].items.push({ booking: r.bookingNumber, task: taskName, amount: amt });
+      }
+    });
+    // convert to sorted array by date desc
+    const arr = Object.keys(map).map(d => ({ date: d, ...map[d] }));
+    arr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return arr;
+  }, [perTaskSummary.rows, selectedStaffId]);
 
   const openPaymentModal = () => {
     if (!selectedStaffId) {
@@ -824,6 +852,79 @@ const SalaryManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Date-wise breakdown of tasks (per selected staff) */}
+      {dateBreakdown && dateBreakdown.length > 0 && (
+        <div className="bg-white p-4 rounded shadow-sm mt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium">Date-wise Task Breakdown</h3>
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-gray-600">Total: ₹{dateBreakdown.reduce((s:any, d:any) => s + (d.totalAmount||0), 0).toLocaleString()}</div>
+              <button
+                onClick={() => {
+                  // export CSV of the breakdown
+                  try {
+                    const headers = ['Date','Booking','Task','Amount'];
+                    const rows: string[][] = [];
+                    dateBreakdown.forEach((d: any) => {
+                      d.items.forEach((it: any) => {
+                        rows.push([d.date, it.booking, it.task, String(it.amount || 0)]);
+                      });
+                    });
+                    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `staff_${selectedStaffId}_date_breakdown.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                  } catch (e) {
+                    addNotification({ type: 'error', title: 'Export failed', message: (e as any)?.message || 'Could not export CSV' });
+                  }
+                }}
+                className="px-3 py-1 bg-gray-100 rounded text-sm"
+              >
+                Export CSV
+              </button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-600">
+                  <th>Date</th>
+                  <th>Tasks</th>
+                  <th>Tasks Count</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dateBreakdown.map((d: any) => (
+                  <tr key={d.date} className="border-t">
+                          <td className="font-medium">{d.date}</td>
+                    <td>
+                      <div className="text-sm space-y-1">
+                        {d.items.map((it: any, i: number) => (
+                          <div key={i} className="flex items-baseline gap-2">
+                            <div className="mr-2">{it.booking}:</div>
+                            <div className="text-gray-700">{it.task}</div>
+                            <div className="ml-auto">₹{(it.amount||0).toLocaleString()}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td>{d.totalTasks}</td>
+                    <td>₹{(d.totalAmount||0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Per-task staff table */}
       {(() => {

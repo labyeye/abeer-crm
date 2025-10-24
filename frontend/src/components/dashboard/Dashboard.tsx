@@ -22,6 +22,7 @@ import {
   expenseAPI,
   dailyExpensesAPI,
   fixedExpenseAPI,
+  attendanceAPI,
 } from "../../services/api";
 import StatCard from "../ui/StatCard";
 
@@ -58,6 +59,8 @@ const Dashboard = () => {
   const [fixedExpenseTotal, setFixedExpenseTotal] = useState<number>(0);
   const [fixedPaidTotal, setFixedPaidTotal] = useState<number>(0);
   const [fixedUnpaidTotal, setFixedUnpaidTotal] = useState<number>(0);
+  const [myAttendanceHistory, setMyAttendanceHistory] = useState<any[]>([]);
+  const [myAssignedBookingsCount, setMyAssignedBookingsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   // today's date helpers: declare early so functions that run on mount can use them
@@ -121,6 +124,29 @@ const Dashboard = () => {
         // fetch this month's paid/unpaid status totals
         fixedExpenseAPI.getMonthlyStatus(),
       ]);
+      // If current user is staff, fetch their attendance records so we can display working hours
+      if (user?.role === "staff") {
+        try {
+          const attRes: any = await attendanceAPI.getMyAttendance({
+            limit: 100,
+          });
+          const attData = attRes?.data ?? attRes ?? [];
+          setMyAttendanceHistory(Array.isArray(attData) ? attData : []);
+        } catch (e) {
+          console.debug("[Dashboard] failed to fetch my attendance", e);
+          setMyAttendanceHistory([]);
+        }
+        // fetch assigned bookings count for staff
+        try {
+          const bRes: any = await bookingAPI.getBookingsForStaff(user.id, { limit: 100 });
+          const bData = bRes?.data ?? bRes ?? [];
+          const arr = Array.isArray(bData) ? bData : bData.data || [];
+          setMyAssignedBookingsCount(Array.isArray(arr) ? arr.length : 0);
+        } catch (e) {
+          console.debug('[Dashboard] failed to fetch assigned bookings', e);
+          setMyAssignedBookingsCount(0);
+        }
+      }
       setInventoryStats(inventoryRes.data);
       setBookingStats(bookingRes.data);
       setStaffStats(staffRes.data);
@@ -185,38 +211,67 @@ const Dashboard = () => {
 
   const getStatsByRole = () => {
     if (user?.role === "staff") {
+      // compute today's working hours and status from attendance records
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todaysRecords = myAttendanceHistory.filter((r: any) => {
+        const d = r.date
+          ? typeof r.date === "string"
+            ? r.date.split("T")[0]
+            : new Date(r.date).toISOString().split("T")[0]
+          : null;
+        return d === todayStr;
+      });
+
+      const todaysHours = todaysRecords.reduce(
+        (sum: number, r: any) => sum + (parseFloat(r.workingHours || "0") || 0),
+        0
+      );
+      // derive today's attendance status: prefer explicit status, else absent when no record
+      const todaysStatusRaw =
+        todaysRecords.length > 0
+          ? todaysRecords[0].status || "present"
+          : "absent";
+      const todaysStatus = (() => {
+        switch ((todaysStatusRaw || "").toString()) {
+          case "present":
+            return "Present";
+          case "late":
+            return "Late";
+          case "leave":
+            return "On Leave";
+          case "absent":
+          default:
+            return "Absent";
+        }
+      })();
+
       return [
         {
-          title: "My Tasks",
-          value: "0",
-          change: "Tasks assigned to you",
+          title: "Assigned Bookings",
+          value: myAssignedBookingsCount ? myAssignedBookingsCount.toString() : "0",
+          change: "Bookings assigned to you",
           changeType: "neutral" as const,
-          icon: CheckCircle,
-          color: "primary" as const,
+          icon: Calendar,
+          color: "secondary" as const,
         },
         {
           title: "Attendance",
-          value: "Present",
+          value: todaysStatus,
           change: "Today's status",
           changeType: "increase" as const,
           icon: Clock,
-          color: "success" as const,
+          color:
+            todaysStatus === "Present" || todaysStatus === "Late"
+              ? ("success" as const)
+              : ("error" as const),
         },
         {
           title: "Working Hours",
-          value: "8h",
+          value: `${todaysHours.toFixed(1)}h`,
           change: "Today's hours",
           changeType: "neutral" as const,
           icon: TrendingUp,
           color: "secondary" as const,
-        },
-        {
-          title: "Performance",
-          value: "Good",
-          change: "This month",
-          changeType: "increase" as const,
-          icon: Users,
-          color: "purple" as const,
         },
       ];
     }
@@ -563,9 +618,15 @@ const Dashboard = () => {
           user?.role || ""
         ) && (
           <StatCard
-            title={user?.role === "chairman" ? "Monthly Expenses" : "Monthly Expenses"}
+            title={
+              user?.role === "chairman"
+                ? "Monthly Expenses"
+                : "Monthly Expenses"
+            }
             value={`₹${(
-              (user?.role === "chairman" ? totalExpensesAcrossBranches : monthlyExpenseTotal) + Number(fixedPaidTotal || 0)
+              (user?.role === "chairman"
+                ? totalExpensesAcrossBranches
+                : monthlyExpenseTotal) + Number(fixedPaidTotal || 0)
             ).toLocaleString()}`}
             icon={TrendingUp}
             color="error"
@@ -635,7 +696,9 @@ const Dashboard = () => {
       </div>
       {/* Schedule Table: Date, Booking ID, Client, Services, Staff, Inventory, Status */}
       {/* Incomplete Assignments: bookings missing staff or inventory (shows only those) */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      {user?.role !== 'staff' && (
+        <>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">
             Incomplete Assignments
@@ -1166,7 +1229,9 @@ const Dashboard = () => {
             </tbody>
           </table>
         </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

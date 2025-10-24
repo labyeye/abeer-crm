@@ -64,7 +64,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
       name: 'Bookings',
       icon: Calendar,
       permission: 'bookings',
-      roles: ['chairman', 'admin', 'staff'],
+      roles: ['chairman', 'admin'],
+      color: 'secondary'
+    },
+    {
+      id: 'assigned-bookings',
+      name: 'Assigned Bookings',
+      icon: Calendar,
+      permission: 'bookings',
+      roles: ['staff'],
       color: 'secondary'
     },
     {

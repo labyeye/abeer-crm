@@ -141,6 +141,24 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
     // when leaving multi-select mode we don't overwrite user's manual amount
   }, [multiSelectMode, totalSelectedAmount]);
 
+  // When using advance for a single booking, auto-adjust the displayed amount
+  useEffect(() => {
+    if (multiSelectMode) return; // don't interfere with multi-select
+    if (!selectedBooking) return;
+
+    const b = bookings.find(x => x._id === selectedBooking);
+    const remaining = b?.pricing?.remainingAmount ?? b?.pricing?.totalAmount ?? b?.amount ?? 0;
+
+    if (useAdvanceForPayment) {
+      // show net amount after using advance
+      const net = Math.max(0, Number(remaining) - Number(advanceAmountToUse || 0));
+      setAmount(net);
+    } else {
+      // reset to full remaining when not using advance
+      setAmount(remaining);
+    }
+  }, [useAdvanceForPayment, advanceAmountToUse, selectedBooking, bookings, multiSelectMode]);
+
   // fetch payments for the selected booking
   useEffect(() => {
     if (!selectedBooking) {
