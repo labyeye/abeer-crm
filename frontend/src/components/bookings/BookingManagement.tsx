@@ -13,6 +13,9 @@ import {
   X,
   FileText,
   Download,
+  DollarSign,
+  TrendingUp,
+  AlertCircle,
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
 import BookingPDFTemplate from "./BookingPDFTemplate";
@@ -1249,6 +1252,21 @@ const BookingManagement = () => {
     completed: bookings.filter((b) => b.status === "completed").length,
   };
 
+  // Financial stats calculation
+  const financialStats = {
+    totalBookingAmount: bookings.reduce((sum, b) => {
+      return sum + (b.pricing?.totalAmount || 0);
+    }, 0),
+    totalReceived: bookings.reduce((sum, b) => {
+      const total = b.pricing?.totalAmount || 0;
+      const remaining = b.pricing?.remainingAmount || 0;
+      return sum + (total - remaining);
+    }, 0),
+    totalRemaining: bookings.reduce((sum, b) => {
+      return sum + (b.pricing?.remainingAmount || 0);
+    }, 0),
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -1333,6 +1351,51 @@ const BookingManagement = () => {
               <p className="text-sm font-medium text-gray-600">Completed</p>
               <p className="text-2xl font-bold text-gray-900">
                 {stats.completed}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Financial Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="bg-indigo-500 p-3 rounded-lg">
+              <DollarSign className="w-6 h-6 text-white" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Booking Amount</p>
+              <p className="text-2xl font-bold text-gray-900">
+                ₹{financialStats.totalBookingAmount.toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="bg-green-600 p-3 rounded-lg">
+              <TrendingUp className="w-6 h-6 text-white" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Amount Received</p>
+              <p className="text-2xl font-bold text-green-600">
+                ₹{financialStats.totalReceived.toLocaleString('en-IN')}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="bg-orange-500 p-3 rounded-lg">
+              <AlertCircle className="w-6 h-6 text-white" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Remaining Amount</p>
+              <p className="text-2xl font-bold text-orange-600">
+                ₹{financialStats.totalRemaining.toLocaleString('en-IN')}
               </p>
             </div>
           </div>

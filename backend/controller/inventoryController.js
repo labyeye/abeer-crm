@@ -329,8 +329,17 @@ exports.getInventoryStats = asyncHandler(async (req, res, next) => {
       $group: {
         _id: null,
         totalItems: { $sum: 1 },
-        totalQuantity: { $sum: "$quantity" },
-        totalValue: { $sum: { $multiply: ["$quantity", "$purchasePrice"] } },
+        // Coerce quantity to number (in case it's stored as string) and sum
+        totalQuantity: { $sum: { $toDouble: { $ifNull: ["$quantity", 0] } } },
+        // Compute total value as sum(quantity * purchasePrice) with safe coercion
+        totalValue: {
+          $sum: {
+            $multiply: [
+              { $toDouble: { $ifNull: ["$quantity", 0] } },
+              { $toDouble: { $ifNull: ["$purchasePrice", 0] } }
+            ]
+          }
+        },
         lowStockItems: {
           $sum: {
             $cond: [{ $lte: ["$quantity", "$minQuantity"] }, 1, 0],
@@ -351,7 +360,14 @@ exports.getInventoryStats = asyncHandler(async (req, res, next) => {
         _id: "$category",
         count: { $sum: 1 },
         totalQuantity: { $sum: "$quantity" },
-        totalValue: { $sum: { $multiply: ["$quantity", "$purchasePrice"] } },
+        totalValue: {
+          $sum: {
+            $multiply: [
+              { $toDouble: { $ifNull: ["$quantity", 0] } },
+              { $toDouble: { $ifNull: ["$purchasePrice", 0] } }
+            ]
+          }
+        },
       },
     },
     { $sort: { count: -1 } },

@@ -18,6 +18,9 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [bookingPaymentsLoading, setBookingPaymentsLoading] = useState<boolean>(false);
   const [allPayments, setAllPayments] = useState<any[]>([]);
   const [allPaymentsLoading, setAllPaymentsLoading] = useState<boolean>(false);
+  const [clientAdvanceBalance, setClientAdvanceBalance] = useState<number>(0);
+  const [useAdvanceForPayment, setUseAdvanceForPayment] = useState<boolean>(false);
+  const [advanceAmountToUse, setAdvanceAmountToUse] = useState<number>(0);
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0,10));
   const [amount, setAmount] = useState<number | ''>('');
   const [method, setMethod] = useState<string>('cash');
@@ -74,6 +77,22 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         console.error('Failed to load bookings for client', err);
       } finally {
         setBookingsLoading(false);
+      }
+    })();
+  }, [selectedClient]);
+
+  // Fetch client's advance balance
+  useEffect(() => {
+    if (!selectedClient) {
+      setClientAdvanceBalance(0);
+      return;
+    }
+    (async () => {
+      try {
+        const response = await clientAPI.getClientAdvance(selectedClient);
+        setClientAdvanceBalance(response.data?.advanceBalance || 0);
+      } catch (err) {
+        console.error('Failed to fetch client advance balance', err);
       }
     })();
   }, [selectedClient]);
@@ -166,6 +185,12 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
         notes
       };
       
+      // Add advance usage information if applicable
+      if (useAdvanceForPayment && advanceAmountToUse > 0) {
+        payload.useAdvance = true;
+        payload.advanceAmount = Number(advanceAmountToUse);
+      }
+      
       // Add booking info based on mode
       if (multiSelectMode && selectedBookings.length > 0) {
         // build allocations array of { booking: id, amount } and send booking ids separately
@@ -195,9 +220,17 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
           const res = await paymentAPI.getClientBookings(selectedClient);
           const list = Array.isArray(res) ? res : (res && res.data) ? res.data : [];
           setBookings(list);
+          
+          // Refresh client advance balance
+          const advanceRes = await clientAPI.getClientAdvance(selectedClient);
+          setClientAdvanceBalance(advanceRes.data?.advanceBalance || 0);
         } catch (e) {
           console.error('Failed to refresh bookings after payment', e);
         }
+        
+        // Reset advance usage fields
+        setUseAdvanceForPayment(false);
+        setAdvanceAmountToUse(0);
       }
 
       if (selectedBooking && !multiSelectMode) {
@@ -440,6 +473,19 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                       </svg>
                       Choose the client who made the payment
                     </p>
+                    {selectedClient && clientAdvanceBalance > 0 && (
+                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-2 text-green-700">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <div className="text-sm font-semibold">Advance Balance</div>
+                            <div className="text-lg font-bold">₹{clientAdvanceBalance.toLocaleString('en-IN')}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -591,6 +637,113 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                     
                   </div>
                 </div>
+                
+                {/* Use Advance Balance Option */}
+                {!multiSelectMode && selectedBooking && clientAdvanceBalance > 0 && (() => {
+                  const b = bookings.find(x => x._id === selectedBooking);
+                  const remainingAmt = b?.pricing?.remainingAmount ?? b?.pricing?.finalAmount ?? b?.pricing?.totalAmount ?? b?.amount ?? 0;
+                  
+                  return (
+                    <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <div className="font-semibold text-purple-900">Use Advance Balance</div>
+                              <div className="text-sm text-purple-700 mt-1">
+                                Available advance: <span className="font-bold">₹{clientAdvanceBalance.toLocaleString('en-IN')}</span>
+                              </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={useAdvanceForPayment}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setUseAdvanceForPayment(checked);
+                                  if (checked) {
+                                    // Auto-fill with min of advance balance or remaining amount
+                                    const maxUse = Math.min(clientAdvanceBalance, remainingAmt);
+                                    setAdvanceAmountToUse(maxUse);
+                                  } else {
+                                    setAdvanceAmountToUse(0);
+                                  }
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                          </div>
+                          
+                          {useAdvanceForPayment && (
+                            <div className="mt-3">
+                              <label className="block text-sm font-medium text-purple-800 mb-2">
+                                Amount to use from advance:
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-600 font-semibold">₹</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={Math.min(clientAdvanceBalance, remainingAmt)}
+                                  value={advanceAmountToUse}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    const maxUse = Math.min(clientAdvanceBalance, remainingAmt);
+                                    setAdvanceAmountToUse(Math.min(val, maxUse));
+                                  }}
+                                  className="w-full pl-8 pr-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                  placeholder="0"
+                                />
+                              </div>
+                              <div className="text-xs text-purple-700 mt-2">
+                                Max: ₹{Math.min(clientAdvanceBalance, remainingAmt).toLocaleString('en-IN')} 
+                                {advanceAmountToUse > 0 && (
+                                  <span className="ml-2">
+                                    | New remaining: ₹{(remainingAmt - advanceAmountToUse).toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
+                {/* Overpayment notification */}
+                {!multiSelectMode && selectedBooking && amount && (() => {
+                  const b = bookings.find(x => x._id === selectedBooking);
+                  const remainingAmt = b?.pricing?.remainingAmount ?? b?.pricing?.finalAmount ?? b?.pricing?.totalAmount ?? b?.amount ?? 0;
+                  const excessAmount = Number(amount) - Number(remainingAmt);
+                  
+                  if (excessAmount > 0) {
+                    return (
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start gap-3">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="flex-1">
+                            <div className="font-semibold text-blue-900 mb-1">Advance Payment Detected</div>
+                            <div className="text-sm text-blue-800">
+                              Payment amount exceeds booking's remaining amount by <span className="font-bold">₹{excessAmount.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="text-xs text-blue-700 mt-2">
+                              ✓ The excess amount will be credited to the client's advance balance and can be used for future bookings.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 {/* Remaining and History */}
                 <div className="mt-4">
                   {selectedBooking && (() => {
@@ -729,12 +882,17 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                     <th className="px-3 py-3 font-semibold">Method</th>
                     <th className="px-3 py-3 font-semibold">Client</th>
                     <th className="px-3 py-3 font-semibold">Booking</th>
+                    <th className="px-3 py-3 font-semibold">Advance Credit</th>
                     <th className="px-3 py-3 font-semibold">Notes</th>
                     <th className="px-3 py-3 font-semibold">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allPayments.map((p: any) => (
+                  {allPayments.map((p: any) => {
+                    // Use advanceCredit field directly from payment record
+                    const advanceCredit = Number(p.advanceCredit || 0);
+                    
+                    return (
                     <tr key={p._id} className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-3 py-3">{new Date(p.date).toLocaleDateString('en-IN')}</td>
                       <td className="px-3 py-3 font-medium">₹{Number(p.amount).toLocaleString()}</td>
@@ -754,6 +912,15 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                           (bookings.find(b => b._id === p.booking)?.bookingNumber) || 
                           (p.bookings && p.bookings[0] && (p.bookings[0].bookingNumber || p.bookings[0].title)) ||
                           '—'
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        {advanceCredit > 0 ? (
+                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold">
+                            +₹{advanceCredit.toLocaleString('en-IN')}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
                         )}
                       </td>
                       <td className="px-3 py-3">
@@ -788,7 +955,8 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

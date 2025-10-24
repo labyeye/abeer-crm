@@ -86,7 +86,7 @@ const InventoryManagement = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(10);
+  const [limit] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalItemsCount, setTotalItemsCount] = useState<number>(0);
   const [inventoryOverview, setInventoryOverview] = useState<any>(null);
@@ -473,8 +473,8 @@ const InventoryManagement = () => {
         ) : null;
       })()}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+  {/* Stats Cards */}
+  <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="bg-blue-500 p-3 rounded-lg">
@@ -526,6 +526,22 @@ const InventoryManagement = () => {
               <p className="text-2xl font-bold text-gray-900">
                 {inventoryOverview ? (inventoryOverview.outOfStockItems || 0) : inventory.filter(item => item.quantity === 0).length}
               </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Inventory Value Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="bg-indigo-600 p-3 rounded-lg">
+              <Banknote className="w-6 h-6 text-white" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Inventory Value</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {inventoryOverview ? `₹${Number(inventoryOverview.totalValue || 0).toLocaleString('en-IN')}` : `₹${inventory.reduce((s, it) => s + ((Number(it.quantity) || 0) * (Number(it.purchasePrice) || 0)), 0).toLocaleString('en-IN')}`}
+              </p>
+              <div className="text-xs text-gray-500">Sum of (quantity × purchase price)</div>
             </div>
           </div>
         </div>

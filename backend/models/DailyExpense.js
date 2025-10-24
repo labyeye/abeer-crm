@@ -20,6 +20,10 @@ const DailyExpenseSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  client: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Client'
+  },
   branch: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch'

@@ -368,6 +368,11 @@ export const clientAPI = {
     const response = await api.get(`/clients/search/${query}`);
     return response.data;
   },
+
+  getClientAdvance: async (id: string) => {
+    const response = await api.get(`/clients/${id}/advance`);
+    return response.data;
+  },
 };
 
 

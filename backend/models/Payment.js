@@ -11,6 +11,7 @@ const paymentSchema = new mongoose.Schema({
   allocations: [{ booking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' }, amount: Number }],
   invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
   amount: { type: Number, required: true },
+  advanceCredit: { type: Number, default: 0, comment: 'Excess amount credited to client advance balance' },
   date: { type: Date, required: true },
   method: { type: String, enum: ['cash','cheque','bank_transfer','upi','card','other'], default: 'cash' },
   reference: String,

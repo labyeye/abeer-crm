@@ -161,7 +161,7 @@ const deleteRental = asyncHandler(async (req, res, next) => {
     }
   }
   
-  await rental.remove();
+  await rental.deleteOne();
   
   res.status(200).json({
     success: true,

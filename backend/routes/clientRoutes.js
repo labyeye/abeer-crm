@@ -41,4 +41,25 @@ router.route('/:id/invoices')
 router.route('/:id/summary')
   .get(authorize('chairman', 'company_admin', 'branch_admin'), getClientSummary);
 
+// Get client advance balance
+router.route('/:id/advance')
+  .get(authorize('chairman', 'company_admin', 'branch_admin', 'staff'), async (req, res) => {
+    try {
+      const Client = require('../models/Client');
+      const client = await Client.findById(req.params.id).select('advanceBalance name');
+      if (!client) {
+        return res.status(404).json({ success: false, message: 'Client not found' });
+      }
+      res.json({ 
+        success: true, 
+        data: { 
+          advanceBalance: client.advanceBalance || 0,
+          clientName: client.name
+        } 
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+
 module.exports = router; 

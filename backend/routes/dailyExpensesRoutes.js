@@ -32,6 +32,7 @@ router.get(
 
         const expenses = await DailyExpense.find(query)
           .populate('paidBy', 'name')
+          .populate('client', 'name email phone')
           .populate('branch', 'name code')
           .sort({ date: -1 });
 
@@ -122,7 +123,7 @@ router.post(
   authorize(["chairman", "company_admin", "branch_head", "branch_staff"]),
   async (req, res) => {
     try {
-      const { date, purpose, amount, paidBy, notes, branch } = req.body;
+      const { date, purpose, amount, paidBy, notes, branch, client } = req.body;
       
       if (!purpose || !amount) {
         return res
@@ -144,11 +145,15 @@ router.post(
         amount: Number(amount),
         notes: notes || '',
         paidBy: paidBy || req.user._id,
+        client: client || null,
         branch: expenseBranch,
         createdBy: req.user._id
       });
 
-      const populated = await DailyExpense.findById(created._id).populate('paidBy', 'name').populate('branch', 'name code');
+      const populated = await DailyExpense.findById(created._id)
+        .populate('paidBy', 'name')
+        .populate('client', 'name email phone')
+        .populate('branch', 'name code');
 
       // Update branch stats (revenue/employeeCount) after expense is recorded
       try {
@@ -177,7 +182,10 @@ router.put(
       const { id } = req.params;
       const updates = req.body;
 
-      const updated = await DailyExpense.findByIdAndUpdate(id, updates, { new: true }).populate('paidBy', 'name').populate('branch', 'name code');
+      const updated = await DailyExpense.findByIdAndUpdate(id, updates, { new: true })
+        .populate('paidBy', 'name')
+        .populate('client', 'name email phone')
+        .populate('branch', 'name code');
 
       // Update branch stats after expense update
       try {

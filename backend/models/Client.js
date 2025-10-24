@@ -50,6 +50,11 @@ const clientSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  advanceBalance: {
+    type: Number,
+    default: 0,
+    comment: 'Credit balance when client pays more than booking amount'
+  },
   lastBookingDate: Date,
   notes: String,
   tags: [String],

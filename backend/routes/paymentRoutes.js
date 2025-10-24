@@ -7,48 +7,59 @@ const asyncHandler = require('../utils/asyncHandler');
 
 // Create a payment
 router.post('/', asyncHandler(async (req, res) => {
-  const { client, booking, bookings, allocations, invoice, amount, date, method, reference, notes, branch, company } = req.body;
-  // Defensive parsing: sometimes clients send stringified arrays (e.g., bookings or allocations)
-  let parsedBookings = bookings;
-  let parsedAllocations = allocations;
-  if (typeof parsedBookings === 'string') {
-    try {
-      parsedBookings = JSON.parse(parsedBookings);
-    } catch (e) {
-      // leave as-is; downstream normalization will handle
+  const { client, booking, bookings: bookingArray, amount, date, method, notes, allocations, invoice, useAdvance, advanceAmount } = req.body;
+  let parsedAllocations;
+  try {
+    parsedAllocations = typeof allocations === 'string' ? JSON.parse(allocations) : allocations;
+  } catch (e) {
+    parsedAllocations = allocations;
+  }
+
+  // If using advance, deduct from client's advance balance first
+  if (useAdvance && advanceAmount && client) {
+    const Client = require('../models/Client');
+    const clientDoc = await Client.findById(client);
+    if (clientDoc) {
+      const amountToDeduct = Math.min(Number(advanceAmount), clientDoc.advanceBalance || 0);
+      if (amountToDeduct > 0) {
+        clientDoc.advanceBalance = Math.max(0, (clientDoc.advanceBalance || 0) - amountToDeduct);
+        await clientDoc.save();
+      }
     }
   }
-  if (typeof parsedAllocations === 'string') {
-    try {
-      parsedAllocations = JSON.parse(parsedAllocations);
-    } catch (e) {
-      // ignore
-    }
-  }
-  if (!client || !amount || !date) {
-    return res.status(400).json({ message: 'client, amount and date are required' });
-  }
 
-  // Normalize bookings: allow single booking or array
-  const bookingArray = Array.isArray(parsedBookings) ? parsedBookings : (booking ? [booking] : []);
+  const payment = await Payment.create({
+    client,
+    booking,
+    bookings: bookingArray || [],
+    invoice,
+    amount: Number(amount || 0),
+    date: date || new Date(),
+    method: method || 'cash',
+    notes: notes || '',
+    allocations: parsedAllocations || [],
+    advanceCredit: 0 // Will be updated below if there's excess
+  });
 
-  // Create payment record with bookings and optional allocations
-  const paymentData = { client, booking: bookingArray.length === 1 ? bookingArray[0] : undefined, bookings: bookingArray, allocations, invoice, amount, date, method, reference, notes, branch, company, createdBy: req.user && req.user._id };
-  const payment = await Payment.create(paymentData);
+  let advanceCreditAmount = 0;
 
-  // Apply allocations if provided, otherwise split amount equally across bookings
   try {
     if (bookingArray && bookingArray.length > 0) {
-  let allocs = parsedAllocations || allocations || [];
+      let allocs = parsedAllocations || allocations || [];
       if (!allocs || !allocs.length) {
         const share = Number(amount || 0) / bookingArray.length;
         allocs = bookingArray.map(bId => ({ booking: bId, amount: share }));
       }
 
+      // Track total amount applied to bookings
+      let totalApplied = 0;
+
       for (const a of allocs) {
         try {
           const b = await Booking.findById(a.booking || a);
           const amt = Number(a.amount || a.amount === 0 ? a.amount : (Number(amount || 0) / bookingArray.length));
+          totalApplied += amt;
+          
           if (b && b.pricing) {
             b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - amt);
             b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + amt;
@@ -61,40 +72,70 @@ router.post('/', asyncHandler(async (req, res) => {
           console.error('Failed to update one of the bookings after payment:', e);
         }
       }
+
+      // Check if payment exceeds total booking amount and credit to client advance
+      const excessAmount = Number(amount || 0) - totalApplied;
+      if (excessAmount > 0 && client) {
+        advanceCreditAmount = excessAmount;
+        const Client = require('../models/Client');
+        const clientDoc = await Client.findById(client);
+        if (clientDoc) {
+          clientDoc.advanceBalance = (clientDoc.advanceBalance || 0) + excessAmount;
+          await clientDoc.save();
+        }
+        // Update payment with advance credit amount
+        payment.advanceCredit = excessAmount;
+        await payment.save();
+      }
     } else if (booking) {
       // legacy single booking behavior
       const b = await Booking.findById(booking);
       if (b && b.pricing) {
-        b.pricing.remainingAmount = Math.max(0, (b.pricing.remainingAmount || b.pricing.totalAmount || 0) - Number(amount || 0));
-        b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + Number(amount || 0);
+        const bookingRemaining = b.pricing.remainingAmount || b.pricing.totalAmount || 0;
+        const appliedAmount = Math.min(Number(amount || 0), bookingRemaining);
+        const excessAmount = Number(amount || 0) - appliedAmount;
+
+        b.pricing.remainingAmount = Math.max(0, bookingRemaining - appliedAmount);
+        b.pricing.advanceAmount = (b.pricing.advanceAmount || 0) + appliedAmount;
         if (b.pricing.remainingAmount === 0) b.paymentStatus = 'completed';
         else if (b.pricing.advanceAmount > 0) b.paymentStatus = 'partial';
         else b.paymentStatus = 'pending';
         await b.save();
+
+        // Credit excess to client advance
+        if (excessAmount > 0 && client) {
+          advanceCreditAmount = excessAmount;
+          const Client = require('../models/Client');
+          const clientDoc = await Client.findById(client);
+          if (clientDoc) {
+            clientDoc.advanceBalance = (clientDoc.advanceBalance || 0) + excessAmount;
+            await clientDoc.save();
+          }
+          // Update payment with advance credit amount
+          payment.advanceCredit = excessAmount;
+          await payment.save();
+        }
+      }
+    } else {
+      // Payment with no booking - entire amount goes to client advance
+      if (client) {
+        advanceCreditAmount = Number(amount || 0);
+        const Client = require('../models/Client');
+        const clientDoc = await Client.findById(client);
+        if (clientDoc) {
+          clientDoc.advanceBalance = (clientDoc.advanceBalance || 0) + Number(amount || 0);
+          await clientDoc.save();
+        }
+        // Update payment with advance credit amount
+        payment.advanceCredit = Number(amount || 0);
+        await payment.save();
       }
     }
   } catch (e) {
     console.error('Failed to apply allocations to bookings after payment:', e);
   }
 
-  // If linked to an invoice, push to invoice.paymentHistory and update remaining/advance fields
-  if (invoice) {
-    const Invoice = require('../models/Invoice');
-    const inv = await Invoice.findById(invoice);
-    if (inv) {
-      inv.paymentHistory = inv.paymentHistory || [];
-      inv.paymentHistory.push({ amount, paymentDate: date, paymentMethod: method || 'cash', reference, notes });
-      // update paid/remaining
-      inv.pricing = inv.pricing || {};
-      inv.pricing.advancePaid = (inv.pricing.advancePaid || 0) + Number(amount || 0);
-      inv.pricing.remainingAmount = Math.max(0, (inv.pricing.remainingAmount || inv.pricing.finalAmount || 0) - Number(amount || 0));
-      if (inv.pricing.remainingAmount === 0) inv.status = 'paid';
-      await inv.save();
-    }
-  }
-
-  const populated = await Payment.findById(payment._id).populate('client booking invoice bookings');
-  res.status(201).json(populated);
+  res.json({ success: true, data: payment });
 }));
 
 // List payments (optionally filter by client)
@@ -296,9 +337,8 @@ router.delete('/:id', asyncHandler(async (req, res) => {
     console.error('Failed to revert linked booking/invoice during payment deletion', e);
   }
 
-  await payment.remove();
+  await payment.deleteOne();
   res.json({ success: true });
 }));
 
 module.exports = router;
-
