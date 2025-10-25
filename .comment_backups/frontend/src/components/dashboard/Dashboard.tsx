@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Users, 
   Calendar, 
-  DollarSign, 
+  IndianRupee, 
   Camera,
   TrendingUp,
   Clock,
@@ -125,7 +125,7 @@ const Dashboard = () => {
         value: bookingStats ? `₹${bookingStats.reduce((sum: number, b: BookingStat) => sum + (b.pricing?.totalAmount || 0), 0).toLocaleString()}` : '₹0',
         change: '+18% from last month',
         changeType: 'increase' as const,
-        icon: DollarSign,
+        icon: IndianRupee,
         color: 'purple' as const
       },
       {
@@ -164,7 +164,7 @@ const Dashboard = () => {
       value: `₹${inventoryStats.overview.totalValue ? inventoryStats.overview.totalValue.toLocaleString() : '0'}`,
       change: 'Total asset value',
       changeType: 'neutral' as const,
-      icon: DollarSign,
+      icon: IndianRupee,
       color: 'purple' as const
     },
     {

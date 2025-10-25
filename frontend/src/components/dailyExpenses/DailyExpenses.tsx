@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Edit, Trash, DollarSign } from "lucide-react";
+import { Plus, Edit, Trash, IndianRupee } from "lucide-react";
 import { dailyExpensesAPI, branchAPI, clientAPI } from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -171,7 +171,7 @@ const DailyExpenses = () => {
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold flex items-center">
-              <DollarSign className="w-8 h-8 mr-3" /> Daily Expenses
+              <IndianRupee className="w-8 h-8 mr-3" /> Daily Expenses
             </h2>
             <p className="text-blue-100 mt-1 text-sm">
               Track and manage your daily business expenses
@@ -507,7 +507,7 @@ const DailyExpenses = () => {
           </div>
         ) : expenses.length === 0 ? (
           <div className="text-center py-12">
-            <DollarSign className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+            <IndianRupee className="w-12 h-12 mx-auto text-gray-300 mb-3" />
             <p className="text-gray-500 text-lg">No expenses recorded yet</p>
             <p className="text-gray-400 text-sm mt-1">Click "Add Expense" to get started</p>
           </div>

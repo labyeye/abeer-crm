@@ -13,9 +13,9 @@ import {
   X,
   FileText,
   Download,
-  DollarSign,
-  TrendingUp,
+  IndianRupee,
   AlertCircle,
+  ReceiptIndianRupee,
 } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
 import BookingPDFTemplate from "./BookingPDFTemplate";
@@ -30,6 +30,7 @@ import {
   branchAPI,
   serviceCategoryAPI,
 } from "../../services/api";
+import StatCard from "../ui/StatCard";
 
 interface Booking {
   _id: string;
@@ -123,6 +124,8 @@ const BookingManagement = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterBranch, setFilterBranch] = useState("all");
+  const [filterClient, setFilterClient] = useState("all");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -184,8 +187,8 @@ const BookingManagement = () => {
         assignedStaff: [] as string[],
         inventorySelection: [] as string[],
         quantity: 1,
-            price: undefined,
-            amount: undefined,
+        price: undefined,
+        amount: undefined,
       },
     ] as Array<{
       serviceName?: string;
@@ -207,20 +210,17 @@ const BookingManagement = () => {
     venueName: "",
     venueAddress: "",
     serviceNeeded: "",
-    inventorySelection: [] as string[], // fallback/global selection (kept for compatibility)
-    assignedStaff: [] as string[], // fallback/global (kept for compatibility)
+    inventorySelection: [] as string[],
+    assignedStaff: [] as string[],
     bookingBranch: "",
     services: [] as any[],
     totalAmount: 0,
-    // GST controls
     applyGST: false,
-    gstIncluded: true, // if true -> prices already include GST; if false -> add GST on top
+    gstIncluded: true,
     gstRate: 18,
     gstAmount: 0,
-  // Discount in currency (absolute amount)
-  discountAmount: 0,
-  // whether user manually edited totalAmount
-  manualTotal: false,
+    discountAmount: 0,
+    manualTotal: false,
     advanceAmount: 0,
     status: "enquiry",
     notes: "",
@@ -239,6 +239,20 @@ const BookingManagement = () => {
   const { addNotification } = useNotification();
 
   const { user } = useAuth();
+  // If the authenticated user belongs to a branch, auto-select that branch
+  // for list filtering and for the booking form where appropriate.
+  useEffect(() => {
+    try {
+      if (user?.branchId) {
+        // set branch filter in header to user's branch so they see their branch bookings by default
+        setFilterBranch(user.branchId);
+        // prefill booking form branch (keeps any existing bookingBranch value if present)
+  setFormData((prev) => ({ ...prev, bookingBranch: prev.bookingBranch || user.branchId || "" }));
+      }
+    } catch (err) {
+      // no-op
+    }
+  }, [user]);
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -402,15 +416,15 @@ const BookingManagement = () => {
       serviceNeeded: "",
       inventorySelection: [],
       assignedStaff: [],
-      bookingBranch: "",
+  bookingBranch: user?.branchId || "",
       services: [],
       totalAmount: 0,
       applyGST: false,
       gstIncluded: true,
       gstRate: 18,
       gstAmount: 0,
-  discountAmount: 0,
-  manualTotal: false,
+      discountAmount: 0,
+      manualTotal: false,
       advanceAmount: 0,
       status: "enquiry",
       notes: "",
@@ -602,13 +616,15 @@ const BookingManagement = () => {
         // preserve any per-service event if the service object contains it, else fall back to booking.event
         event: svc.event || svc.eventName || b.event || "",
       }));
-        
     } else {
       scheduleEntries = [
         {
           serviceName: b.serviceNeeded || b.functionDetails?.type || "",
           // preserve booking-level event if present
-          event: b.event || (b.functionDetails && (b.functionDetails.event || "")) || "",
+          event:
+            b.event ||
+            (b.functionDetails && (b.functionDetails.event || "")) ||
+            "",
           date: b.functionDetails?.date
             ? b.functionDetails.date.split("T")[0]
             : "",
@@ -718,7 +734,7 @@ const BookingManagement = () => {
       gstRate: (booking.pricing as any)?.gstRate || 18,
       gstAmount: (booking.pricing as any)?.gstAmount ?? 0,
       discountAmount: (booking.pricing as any)?.discountAmount ?? 0,
-      manualTotal: !!((booking.pricing as any)?.manualTotal) || false,
+      manualTotal: !!(booking.pricing as any)?.manualTotal || false,
       advanceAmount: booking.pricing.advanceAmount,
       status: booking.status || "enquiry",
       notes: (booking as any).notes || "",
@@ -744,7 +760,6 @@ const BookingManagement = () => {
     setSubmitting(true);
 
     try {
-
       // Build schedule list and calculate pricing fields from servicesSchedule amounts
       const scheduleList =
         formData.servicesSchedule && formData.servicesSchedule.length > 0
@@ -766,7 +781,9 @@ const BookingManagement = () => {
               },
             ];
       // Calculate subtotal using same logic as the form (amount if provided, otherwise price * qty)
-  const subtotal = computeSubtotalFromForm({ servicesSchedule: scheduleList } as any);
+      const subtotal = computeSubtotalFromForm({
+        servicesSchedule: scheduleList,
+      } as any);
 
       // Build functionDetailsList from servicesSchedule, and keep functionDetails as the first entry for compatibility
       const functionDetailsList = scheduleList.map((s: any, idx: number) => ({
@@ -798,14 +815,22 @@ const BookingManagement = () => {
         },
         // preserve any per-service event (falls back to the global form event)
         event: s.event || formData.event || "",
-  // include service metadata so backend can persist per-service info
-  service: s.serviceName || (categories.find((c: any) => c._id === s.serviceCategoryId)?.name) || formData.serviceNeeded || "",
-  serviceType: Array.isArray(s.serviceType) ? s.serviceType : (s.serviceType ? [s.serviceType] : []),
-  serviceCategory: s.serviceCategoryId || s.serviceCategory || "",
-  // carry price/quantity/amount into per-service details as well
-  quantity: s.quantity ?? 1,
-  rate: s.price ?? s.rate ?? 0,
-  amount: s.amount ?? ((s.quantity ?? 1) * (s.price ?? s.rate ?? 0)),
+        // include service metadata so backend can persist per-service info
+        service:
+          s.serviceName ||
+          categories.find((c: any) => c._id === s.serviceCategoryId)?.name ||
+          formData.serviceNeeded ||
+          "",
+        serviceType: Array.isArray(s.serviceType)
+          ? s.serviceType
+          : s.serviceType
+          ? [s.serviceType]
+          : [],
+        serviceCategory: s.serviceCategoryId || s.serviceCategory || "",
+        // carry price/quantity/amount into per-service details as well
+        quantity: s.quantity ?? 1,
+        rate: s.price ?? s.rate ?? 0,
+        amount: s.amount ?? (s.quantity ?? 1) * (s.price ?? s.rate ?? 0),
         // Add outsource data (optional)
         outsourceStaff: outsourceStaff[idx] || [],
         outsourceEquipment: outsourceEquipment[idx] || [],
@@ -879,9 +904,15 @@ const BookingManagement = () => {
           : formData.applyGST && !formData.gstIncluded
           ? Number((subtotal + computedGstAmount).toFixed(2))
           : Number(subtotal.toFixed(2));
-      const finalTotalAmount = Math.max(0, rawFinal - (formData.discountAmount || 0));
+      const finalTotalAmount = Math.max(
+        0,
+        rawFinal - (formData.discountAmount || 0)
+      );
 
-      const remainingAmount = Math.max(0, finalTotalAmount - (formData.advanceAmount || 0));
+      const remainingAmount = Math.max(
+        0,
+        finalTotalAmount - (formData.advanceAmount || 0)
+      );
 
       const bookingData = {
         client: formData.clientId,
@@ -909,7 +940,7 @@ const BookingManagement = () => {
                 ? scheduleList[0].serviceType.join(", ")
                 : (scheduleList[0].serviceName as string) || ""))) ||
           "",
-    // per-service assignedStaff and inventorySelection live inside functionDetailsList
+        // per-service assignedStaff and inventorySelection live inside functionDetailsList
         bookingBranch: formData.bookingBranch,
         status: formData.status,
         services: servicesFromSchedule,
@@ -1055,8 +1086,8 @@ const BookingManagement = () => {
       )
     ) {
       try {
-  // Request permanent deletion from backend (hard delete)
-  await bookingAPI.deleteBooking(id, true);
+        // Request permanent deletion from backend (hard delete)
+        await bookingAPI.deleteBooking(id, true);
         addNotification({
           type: "success",
           title: "Success",
@@ -1231,6 +1262,7 @@ const BookingManagement = () => {
       booking.bookingBranch?._id ||
       booking.bookingBranch ||
       "";
+    const bookingClientId = (booking as any).client?._id || (booking as any).client || "";
     if (user?.role === "chairman" && user.branchId) {
       if (bookingBranchId !== user.branchId) return false;
     }
@@ -1242,7 +1274,9 @@ const BookingManagement = () => {
         .includes(searchTerm.toLowerCase());
     const matchesStatus =
       filterStatus === "all" || booking.status === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesBranch = filterBranch === "all" || bookingBranchId === filterBranch;
+    const matchesClient = filterClient === "all" || bookingClientId === filterClient;
+    return matchesSearch && matchesStatus && matchesBranch && matchesClient;
   });
 
   const stats = {
@@ -1276,189 +1310,139 @@ const BookingManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Booking Management
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Manage client bookings and events
-          </p>
-        </div>
-        {user?.role !== "staff" && (
-          <button
-            onClick={handleAddBooking}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Booking
-          </button>
-        )}
-      </div>
-
+    <div className="space-y-6 page-animate w-full">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <Calendar className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">
-                Total Bookings
-              </p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard title="Total Bookings" value={stats.total} icon={Calendar} />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-yellow-500 p-3 rounded-lg">
-              <Clock className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.pending}
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard title="Pending" value={stats.pending} icon={Clock} />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-green-500 p-3 rounded-lg">
-              <CheckCircle className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Confirmed</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.confirmed}
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Confirmed"
+          value={stats.confirmed}
+          icon={CheckCircle}
+        />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-purple-500 p-3 rounded-lg">
-              <Camera className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Completed</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {stats.completed}
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard title="Completed" value={stats.completed} icon={Camera} />
       </div>
 
       {/* Financial Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-indigo-500 p-3 rounded-lg">
-              <DollarSign className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Booking Amount</p>
-              <p className="text-2xl font-bold text-gray-900">
-                ₹{financialStats.totalBookingAmount.toLocaleString('en-IN')}
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatCard
+          title="Total Booking Amount"
+          value={`₹${financialStats.totalBookingAmount.toLocaleString(
+            "en-IN"
+          )}`}
+          icon={IndianRupee}
+        />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-green-600 p-3 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Amount Received</p>
-              <p className="text-2xl font-bold text-green-600">
-                ₹{financialStats.totalReceived.toLocaleString('en-IN')}
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Amount Received"
+          value={`₹${financialStats.totalReceived.toLocaleString("en-IN")}`}
+          icon={ReceiptIndianRupee}
+        />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-orange-500 p-3 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Remaining Amount</p>
-              <p className="text-2xl font-bold text-orange-600">
-                ₹{financialStats.totalRemaining.toLocaleString('en-IN')}
-              </p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Remaining Amount"
+          value={`₹${financialStats.totalRemaining.toLocaleString("en-IN")}`}
+          icon={AlertCircle}
+        />
       </div>
 
       {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Search bookings..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
+      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search bookings..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={filterBranch}
+            onChange={(e) => setFilterBranch(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Branches</option>
+            {branches && branches.map((br: any) => (
+              <option key={br._id} value={br._id}>
+                {br.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filterClient}
+            onChange={(e) => setFilterClient(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Clients</option>
+            {clients && clients.map((cl: any) => (
+              <option key={cl._id} value={cl._id}>
+                {cl.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Status</option>
+            <option value="enquiry">Enquiry</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
         </div>
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="all">All Status</option>
-          <option value="enquiry">Enquiry</option>
-          <option value="pending">Pending</option>
-          <option value="confirmed">Confirmed</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
       </div>
 
+      {user?.role !== "staff" && (
+        <button
+          onClick={handleAddBooking}
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-medium"
+        >
+          <Plus className="w-5 h-5 mr-2" />
+          Add Booking
+        </button>
+      )}
+
       {/* Bookings List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-[1800px] w-full divide-y divide-gray-200 border-collapse [&_th]:border [&_td]:border [&_th]:border-gray-200 [&_td]:border-gray-200">
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white rounded-xl shadow-sm border border-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
                   Booking Details
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
                   Client
                 </th>
                 {user?.role === "chairman" && (
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
                     Branch
                   </th>
                 )}
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-right text-sm font-semibold text-gray-700">
                   Total
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-right text-sm font-semibold text-gray-700">
                   Received
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-right text-sm font-semibold text-gray-700">
                   Balance Due
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">
                   Actions
                 </th>
               </tr>
@@ -1466,12 +1450,12 @@ const BookingManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredBookings.map((booking) => (
                 <tr key={booking._id || booking.bookingNumber}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-2 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
                         {booking.bookingNumber}
                       </div>
-                     
+
                       {(booking.pricing as any)?.gstAmount ? (
                         <div className="text-xs text-gray-400">
                           + GST ({(booking.pricing as any).gstRate}%): ₹
@@ -1482,8 +1466,8 @@ const BookingManagement = () => {
                       ) : null}
                     </div>
                   </td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap">
+
+                  <td className="px-4 py-2 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
                         {booking.client.name}
@@ -1494,7 +1478,7 @@ const BookingManagement = () => {
                     </div>
                   </td>
                   {user?.role === "chairman" && (
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-2 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
                           {(booking as any).branch?.name ||
@@ -1509,7 +1493,7 @@ const BookingManagement = () => {
                       </div>
                     </td>
                   )}
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-2 whitespace-nowrap">
                     <div className="flex items-center gap-3">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -1546,16 +1530,25 @@ const BookingManagement = () => {
                       ) : null}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {typeof booking.pricing?.totalAmount === 'number' && booking.pricing.totalAmount > 0 ? `₹${booking.pricing.totalAmount.toLocaleString()}` : '-'}
+                  <td className="px-4 py-2 whitespace-nowrap text-right">
+                    {typeof booking.pricing?.totalAmount === "number" &&
+                    booking.pricing.totalAmount > 0
+                      ? `₹${booking.pricing.totalAmount.toLocaleString()}`
+                      : "-"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {typeof booking.pricing?.advanceAmount === 'number' && booking.pricing.advanceAmount > 0 ? `₹${booking.pricing.advanceAmount.toLocaleString()}` : '-'}
+                  <td className="px-4 py-2 whitespace-nowrap text-right">
+                    {typeof booking.pricing?.advanceAmount === "number" &&
+                    booking.pricing.advanceAmount > 0
+                      ? `₹${booking.pricing.advanceAmount.toLocaleString()}`
+                      : "-"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {typeof booking.pricing?.remainingAmount === 'number' && booking.pricing.remainingAmount > 0 ? `₹${booking.pricing.remainingAmount.toLocaleString()}` : '-'}
+                  <td className="px-4 py-2 whitespace-nowrap text-right">
+                    {typeof booking.pricing?.remainingAmount === "number" &&
+                    booking.pricing.remainingAmount > 0
+                      ? `₹${booking.pricing.remainingAmount.toLocaleString()}`
+                      : "-"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-4 py-2 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       {user?.role === "staff" ? (
                         // Staff users can only update status — show clear action buttons for allowed next states
@@ -1667,7 +1660,6 @@ const BookingManagement = () => {
             </tbody>
           </table>
         </div>
-      </div>
 
       {filteredBookings.length === 0 && (
         <div className="text-center py-12">
@@ -1683,8 +1675,8 @@ const BookingManagement = () => {
 
       {/* Add/Edit Modal */}
       {(showAddModal || showEditModal) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white rounded-xl w-full max-w-7xl max-h-[80vh] overflow-y-auto shadow-2xl mx-2 sm:mx-4">
             <div className="flex justify-between items-center p-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900">
                 {selectedBooking ? "Edit Booking" : "Add New Booking"}
@@ -1722,11 +1714,19 @@ const BookingManagement = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">Select a client</option>
-                      {clients.map((client) => (
-                        <option key={client._id} value={client._id}>
-                          {client.name} - {client.phone}
-                        </option>
-                      ))}
+                      {(() => {
+                        const bookingBranchToUse = formData.bookingBranch || user?.branchId || "";
+                        const visible = (clients || []).filter((client: any) => {
+                          if (!bookingBranchToUse) return true;
+                          const cb = client.branch?._id || client.branch || client.branchId || "";
+                          return String(cb) === String(bookingBranchToUse);
+                        });
+                        return visible.map((client: any) => (
+                          <option key={client._id} value={client._id}>
+                            {client.name} - {client.phone}
+                          </option>
+                        ));
+                      })()}
                     </select>
                   </div>
 
@@ -1744,6 +1744,7 @@ const BookingManagement = () => {
                         })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={!!user?.branchId}
                     >
                       <option value="">Select branch</option>
                       {branches.map((branch) => (
@@ -2000,12 +2001,18 @@ const BookingManagement = () => {
                               <input
                                 type="number"
                                 min={0}
-                                value={typeof entry.price === 'number' ? entry.price : ''}
+                                value={
+                                  typeof entry.price === "number"
+                                    ? entry.price
+                                    : ""
+                                }
                                 onChange={(e) =>
                                   updateScheduleEntry(
                                     idx,
                                     "price",
-                                    e.target.value === "" ? undefined : Number(e.target.value)
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value)
                                   )
                                 }
                                 className="w-full px-3 py-2 border rounded"
@@ -2018,12 +2025,18 @@ const BookingManagement = () => {
                               <input
                                 type="number"
                                 min={0}
-                                value={typeof entry.amount === 'number' ? entry.amount : ''}
+                                value={
+                                  typeof entry.amount === "number"
+                                    ? entry.amount
+                                    : ""
+                                }
                                 onChange={(e) =>
                                   updateScheduleEntry(
                                     idx,
                                     "amount",
-                                    e.target.value === "" ? undefined : Number(e.target.value)
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value)
                                   )
                                 }
                                 className="w-full px-3 py-2 border rounded"
@@ -3302,13 +3315,25 @@ const BookingManagement = () => {
                               subtotal = selectedBooking.pricing.subtotal || 0;
                             }
                             const gstRate = prev.gstRate || 18;
-                            const base = computeBaseExcludingGST(prev, subtotal, gstRate);
+                            const base = computeBaseExcludingGST(
+                              prev,
+                              subtotal,
+                              gstRate
+                            );
                             const gstAmount = apply
                               ? prev.gstIncluded
-                                ? Number(((base * gstRate) / (100 + gstRate)).toFixed(2))
+                                ? Number(
+                                    (
+                                      (base * gstRate) /
+                                      (100 + gstRate)
+                                    ).toFixed(2)
+                                  )
                                 : Number((base * (gstRate / 100)).toFixed(2))
                               : 0;
-                            const total = apply && !prev.gstIncluded ? Number((base + gstAmount).toFixed(2)) : Number(base.toFixed(2));
+                            const total =
+                              apply && !prev.gstIncluded
+                                ? Number((base + gstAmount).toFixed(2))
+                                : Number(base.toFixed(2));
                             return {
                               ...prev,
                               applyGST: apply,
@@ -3336,8 +3361,16 @@ const BookingManagement = () => {
                                     selectedBooking.pricing.subtotal || 0;
                                 }
                                 const gstRate = prev.gstRate || 18;
-                                const base = computeBaseExcludingGST(prev, subtotal, gstRate);
-                                const gstAmount = Number(((base * gstRate) / (100 + gstRate)).toFixed(2));
+                                const base = computeBaseExcludingGST(
+                                  prev,
+                                  subtotal,
+                                  gstRate
+                                );
+                                const gstAmount = Number(
+                                  ((base * gstRate) / (100 + gstRate)).toFixed(
+                                    2
+                                  )
+                                );
                                 const total = Number(base.toFixed(2));
                                 return {
                                   ...prev,
@@ -3365,8 +3398,12 @@ const BookingManagement = () => {
                                 const gstRate = prev.gstRate || 18;
                                 // base is the subtotal (when prices don't include GST)
                                 const base = Number(subtotal || 0);
-                                const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
-                                const total = Number((base + gstAmount).toFixed(2));
+                                const gstAmount = Number(
+                                  (base * (gstRate / 100)).toFixed(2)
+                                );
+                                const total = Number(
+                                  (base + gstAmount).toFixed(2)
+                                );
                                 return {
                                   ...prev,
                                   applyGST: true,
@@ -3395,8 +3432,12 @@ const BookingManagement = () => {
                                 }
                                 const gstRate = prev.gstRate || 18;
                                 const base = Number(subtotal || 0);
-                                const gstAmount = Number((base * (gstRate / 100)).toFixed(2));
-                                const total = Number((base + gstAmount).toFixed(2));
+                                const gstAmount = Number(
+                                  (base * (gstRate / 100)).toFixed(2)
+                                );
+                                const total = Number(
+                                  (base + gstAmount).toFixed(2)
+                                );
                                 return {
                                   ...prev,
                                   applyGST: true,
@@ -3434,18 +3475,18 @@ const BookingManagement = () => {
                   <div>
                     <div className="text-xs text-gray-500">Total Amount</div>
                     <div>
-                        <input
-                          type="number"
-                          value={formData.totalAmount}
-                          onChange={(e) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              totalAmount: Number(e.target.value),
-                              manualTotal: true,
-                            }))
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
+                      <input
+                        type="number"
+                        value={formData.totalAmount}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            totalAmount: Number(e.target.value),
+                            manualTotal: true,
+                          }))
+                        }
+                        className="w-full px-2 py-1 border rounded"
+                      />
                       {formData.applyGST && !formData.gstIncluded ? (
                         <div className="text-sm text-gray-500 mt-1">
                           Computed with GST: ₹

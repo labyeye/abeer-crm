@@ -1,6 +1,11 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useNotification } from "../../contexts/NotificationContext";
-import { staffAPI, advanceAPI, bookingAPI, fixedExpenseAPI } from "../../services/api";
+import {
+  staffAPI,
+  advanceAPI,
+  bookingAPI,
+  fixedExpenseAPI,
+} from "../../services/api";
 import { Loader2 } from "lucide-react";
 
 const SalaryManagement = () => {
@@ -90,13 +95,17 @@ const SalaryManagement = () => {
             // fetch unpaid bookings and payment summary
             try {
               const up: any = await staffAPI.getUnpaidBookings(selectedStaffId);
-              const upList = Array.isArray(up) ? up : up.data || up.data?.data || [];
+              const upList = Array.isArray(up)
+                ? up
+                : up.data || up.data?.data || [];
               setUnpaidBookings(upList);
             } catch (e) {
               setUnpaidBookings([]);
             }
             try {
-              const sum: any = await staffAPI.getPaymentSummary(selectedStaffId);
+              const sum: any = await staffAPI.getPaymentSummary(
+                selectedStaffId
+              );
               const sdata = sum?.data || sum || null;
               setPaymentSummary(sdata);
             } catch (e) {
@@ -110,13 +119,22 @@ const SalaryManagement = () => {
         }
         // fetch fixed-expense for staff (salary fixed) and merge monthly payments into salary records
         try {
-          const fxRes: any = await fixedExpenseAPI.getFixedExpenses({ staff: selectedStaffId, source: 'salary' });
-          const fxList = Array.isArray(fxRes) ? fxRes : fxRes.data || fxRes.data?.data || [];
+          const fxRes: any = await fixedExpenseAPI.getFixedExpenses({
+            staff: selectedStaffId,
+            source: "salary",
+          });
+          const fxList = Array.isArray(fxRes)
+            ? fxRes
+            : fxRes.data || fxRes.data?.data || [];
           // ensure we only consider fixed-expenses that belong to the selected staff
           const fxFiltered = fxList.filter((f: any) => {
             if (!f) return false;
-            const sid = f.staff ? (f.staff._id || f.staff) : undefined;
-            return sid && sid.toString && sid.toString() === selectedStaffId.toString();
+            const sid = f.staff ? f.staff._id || f.staff : undefined;
+            return (
+              sid &&
+              sid.toString &&
+              sid.toString() === selectedStaffId.toString()
+            );
           });
           if (fxFiltered.length > 0) {
             const fx = fxFiltered[0];
@@ -127,17 +145,23 @@ const SalaryManagement = () => {
               const dt = new Date(p.month);
               const month = dt.getMonth() + 1;
               const year = dt.getFullYear();
-              const existsIdx = recs.findIndex((r: any) => Number(r.month) === month && Number(r.year) === year);
+              const existsIdx = recs.findIndex(
+                (r: any) => Number(r.month) === month && Number(r.year) === year
+              );
               const merged = {
                 month,
                 year,
                 basicSalary: Number(p.amount || fx.amount || 0),
                 allowances: 0,
-                deductions: { ...(recs[existsIdx]?.deductions || {} ) },
+                deductions: { ...(recs[existsIdx]?.deductions || {}) },
                 netSalary: Number(p.amount || fx.amount || 0),
-                paymentStatus: p.paid ? 'paid' : 'pending',
-                paymentDate: p.paidAt || (p.paid ? p.updatedAt || new Date().toISOString() : undefined),
-                notes: `Fixed expense payment (${fx.title || 'Salary'})`
+                paymentStatus: p.paid ? "paid" : "pending",
+                paymentDate:
+                  p.paidAt ||
+                  (p.paid
+                    ? p.updatedAt || new Date().toISOString()
+                    : undefined),
+                notes: `Fixed expense payment (${fx.title || "Salary"})`,
               };
               if (existsIdx >= 0) {
                 // overlay paid status
@@ -177,18 +201,34 @@ const SalaryManagement = () => {
         // determine if this staff has a salary fixed-expense marked paid for this month
         try {
           setMonthlyFixedPaid(false);
-          const fxRes2: any = await fixedExpenseAPI.getFixedExpenses({ staff: selectedStaffId, source: 'salary' });
-          const fxList2 = Array.isArray(fxRes2) ? fxRes2 : fxRes2.data || fxRes2.data?.data || [];
+          const fxRes2: any = await fixedExpenseAPI.getFixedExpenses({
+            staff: selectedStaffId,
+            source: "salary",
+          });
+          const fxList2 = Array.isArray(fxRes2)
+            ? fxRes2
+            : fxRes2.data || fxRes2.data?.data || [];
           const fxFiltered2 = fxList2.filter((f: any) => {
             if (!f) return false;
-            const sid = f.staff ? (f.staff._id || f.staff) : undefined;
-            return sid && sid.toString && sid.toString() === selectedStaffId.toString();
+            const sid = f.staff ? f.staff._id || f.staff : undefined;
+            return (
+              sid &&
+              sid.toString &&
+              sid.toString() === selectedStaffId.toString()
+            );
           });
           if (fxFiltered2.length > 0) {
             const fx = fxFiltered2[0];
             const now = new Date();
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-            const payment = (fx.payments || []).find((p: any) => p.month && new Date(p.month).setDate(1) === monthStart && p.paid);
+            const monthStart = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              1
+            ).getTime();
+            const payment = (fx.payments || []).find(
+              (p: any) =>
+                p.month && new Date(p.month).setDate(1) === monthStart && p.paid
+            );
             if (payment) setMonthlyFixedPaid(true);
           }
         } catch (e) {
@@ -225,7 +265,7 @@ const SalaryManagement = () => {
 
   // Small polling to pick up very recent booking assignment changes (runs while a per_task staff is selected)
   useEffect(() => {
-  let timer: number | null = null;
+    let timer: number | null = null;
     let attempts = 0;
     if (!selectedStaffId) return;
     const staff = staffList.find((s) => s._id === selectedStaffId);
@@ -254,8 +294,8 @@ const SalaryManagement = () => {
     const staff = staffList.find((s) => s._id === selectedStaffId);
     let rate = 0;
     if (staff) {
-      if (typeof staff.salary === 'number') rate = staff.salary;
-      else if (typeof staff.salary === 'object' && staff.salary !== null) {
+      if (typeof staff.salary === "number") rate = staff.salary;
+      else if (typeof staff.salary === "object" && staff.salary !== null) {
         rate = Number(staff.salary.basic || staff.salary.rate || 0) || 0;
       } else if (staff.salary) {
         rate = Number(staff.salary) || 0;
@@ -266,7 +306,10 @@ const SalaryManagement = () => {
     const rows: any[] = [];
     let totalTasks = 0;
     // use unpaidBookings as the source when per_task staff selected, otherwise fallback to bookingsAssigned
-    const sourceBookings = (staff && (staff.staffType || '').toString() === 'per_task') ? unpaidBookings : bookingsAssigned;
+    const sourceBookings =
+      staff && (staff.staffType || "").toString() === "per_task"
+        ? unpaidBookings
+        : bookingsAssigned;
     sourceBookings.forEach((b: any) => {
       // count assigned tasks: look into functionDetailsList assignedStaff arrays
       let count = 0;
@@ -283,11 +326,21 @@ const SalaryManagement = () => {
               if (id.toString() === selectedStaffId.toString()) {
                 count += 1;
                 // capture a human-friendly task name
-                const taskName = fd.service || fd.event || 'Task';
+                const taskName = fd.service || fd.event || "Task";
                 tasks.push(taskName);
-                services.push(fd.service || fd.event || '');
-                types.push(Array.isArray(fd.serviceType) ? fd.serviceType.join(', ') : (fd.serviceType || ''));
-                dates.push(fd.date ? new Date(fd.date).toLocaleDateString() : (b.functionDetails?.date ? new Date(b.functionDetails.date).toLocaleDateString() : ''));
+                services.push(fd.service || fd.event || "");
+                types.push(
+                  Array.isArray(fd.serviceType)
+                    ? fd.serviceType.join(", ")
+                    : fd.serviceType || ""
+                );
+                dates.push(
+                  fd.date
+                    ? new Date(fd.date).toLocaleDateString()
+                    : b.functionDetails?.date
+                    ? new Date(b.functionDetails.date).toLocaleDateString()
+                    : ""
+                );
               }
             });
           }
@@ -311,7 +364,10 @@ const SalaryManagement = () => {
           services,
           types,
           dates,
-          bookingDate: b.functionDetails?.date || (b.functionDetailsList && b.functionDetailsList[0]?.date) || b.createdAt,
+          bookingDate:
+            b.functionDetails?.date ||
+            (b.functionDetailsList && b.functionDetailsList[0]?.date) ||
+            b.createdAt,
         });
         totalTasks += count;
       }
@@ -329,21 +385,35 @@ const SalaryManagement = () => {
       const rate = Number(r.rate || 0);
       // If we have a tasks array and dates array, try to map each task to a date
       const tasks = Array.isArray(r.tasks) ? r.tasks : [];
-      const dates = Array.isArray(r.dates) && r.dates.length ? r.dates : [r.bookingDate ? new Date(r.bookingDate).toLocaleDateString() : new Date().toLocaleDateString()];
+      const dates =
+        Array.isArray(r.dates) && r.dates.length
+          ? r.dates
+          : [
+              r.bookingDate
+                ? new Date(r.bookingDate).toLocaleDateString()
+                : new Date().toLocaleDateString(),
+            ];
 
       for (let i = 0; i < Math.max(taskCount, tasks.length || 0); i++) {
         const taskName = tasks[i] || tasks[0] || `Task ${i + 1}`;
         const dateRaw = dates[i] || dates[0];
-        const dateKey = dateRaw ? new Date(dateRaw).toLocaleDateString() : new Date().toLocaleDateString();
+        const dateKey = dateRaw
+          ? new Date(dateRaw).toLocaleDateString()
+          : new Date().toLocaleDateString();
         const amt = rate; // per-task amount
-        if (!map[dateKey]) map[dateKey] = { totalAmount: 0, totalTasks: 0, items: [] };
+        if (!map[dateKey])
+          map[dateKey] = { totalAmount: 0, totalTasks: 0, items: [] };
         map[dateKey].totalAmount += amt;
         map[dateKey].totalTasks += 1;
-        map[dateKey].items.push({ booking: r.bookingNumber, task: taskName, amount: amt });
+        map[dateKey].items.push({
+          booking: r.bookingNumber,
+          task: taskName,
+          amount: amt,
+        });
       }
     });
     // convert to sorted array by date desc
-    const arr = Object.keys(map).map(d => ({ date: d, ...map[d] }));
+    const arr = Object.keys(map).map((d) => ({ date: d, ...map[d] }));
     arr.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return arr;
   }, [perTaskSummary.rows, selectedStaffId]);
@@ -618,20 +688,27 @@ const SalaryManagement = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 page-animate">
       {/* Payroll prompt visible on days 1-5 */}
       {(() => {
         const day = new Date().getDate();
         if (day >= 1 && day <= 5) {
           return (
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+            <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm">
               <div className="flex items-center justify-between">
-                <div>
-                  <strong>Payroll reminder:</strong> It's the start of the
-                  month. Mark salaries as given for staff if you have paid them.
+                <div className="text-sm text-gray-700">
+                  <strong className="text-amber-900">Payroll reminder:</strong>{" "}
+                  It's the start of the month. Mark salaries as given for staff
+                  if you have paid them.
                 </div>
                 <div>
-                  {!(monthlyFixedPaid && (staffList.find(s => s._id === selectedStaffId)?.staffType || '').toString() === 'monthly') && (
+                  {!(
+                    monthlyFixedPaid &&
+                    (
+                      staffList.find((s) => s._id === selectedStaffId)
+                        ?.staffType || ""
+                    ).toString() === "monthly"
+                  ) && (
                     <button
                       onClick={() => {
                         if (!selectedStaffId) {
@@ -650,7 +727,7 @@ const SalaryManagement = () => {
                         }));
                         setShowPaymentModal(true);
                       }}
-                      className="px-3 py-1 bg-green-600 text-white rounded"
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
                     >
                       Mark Salary Given
                     </button>
@@ -662,21 +739,38 @@ const SalaryManagement = () => {
         }
         return null;
       })()}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Salary Management</h1>
-        <div>
-          {!(monthlyFixedPaid && (staffList.find(s => s._id === selectedStaffId)?.staffType || '').toString() === 'monthly') && (
-            <button
-              onClick={openPaymentModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-              Salary Given
-            </button>
-          )}
+
+      {/* Header */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Salary Management
+            </h1>
+            <p className="text-gray-500 mt-1 text-sm">
+              Manage staff salaries and payments
+            </p>
+          </div>
+          <div>
+            {!(
+              monthlyFixedPaid &&
+              (
+                staffList.find((s) => s._id === selectedStaffId)?.staffType ||
+                ""
+              ).toString() === "monthly"
+            ) && (
+              <button
+                onClick={openPaymentModal}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md"
+              >
+                Salary Given
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-4 rounded shadow-sm">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 card-hover card-animate">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-sm text-gray-600">Select Staff</label>
@@ -717,34 +811,71 @@ const SalaryManagement = () => {
       </div>
 
       {/* Payment summary cards */}
-      <div className="bg-white p-4 rounded shadow-sm mt-4">
+      {selectedStaffId && (
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="p-3 border rounded">
-            <div className="text-sm text-gray-600">Total Assigned</div>
-            <div className="text-xl font-semibold">₹{(paymentSummary?.totalAssigned ?? perTaskSummary.totalAmount ?? 0).toLocaleString()}</div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover card-animate">
+            <div className="text-sm font-medium text-gray-500 mb-1">
+              Total Assigned
+            </div>
+            <div className="text-2xl font-bold text-gray-900">
+              ₹
+              {(
+                paymentSummary?.totalAssigned ??
+                perTaskSummary.totalAmount ??
+                0
+              ).toLocaleString()}
+            </div>
           </div>
-          <div className="p-3 border rounded">
-            <div className="text-sm text-gray-600">Given</div>
-            <div className="text-xl font-semibold">₹{(paymentSummary?.totalGiven ?? salaryRecords.reduce((s,r) => s + (r.netSalary||0),0)).toLocaleString()}</div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover card-animate">
+            <div className="text-sm font-medium text-gray-500 mb-1">Given</div>
+            <div className="text-2xl font-bold text-green-600">
+              ₹
+              {(
+                paymentSummary?.totalGiven ??
+                salaryRecords.reduce((s, r) => s + (r.netSalary || 0), 0)
+              ).toLocaleString()}
+            </div>
           </div>
-          <div className="p-3 border rounded">
-            <div className="text-sm text-gray-600">Advance Taken</div>
-            <div className="text-xl font-semibold">₹{(paymentSummary?.totalAdvanceTaken ?? advances.reduce((s,a) => s + (a.amount||0),0)).toLocaleString()}</div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover card-animate">
+            <div className="text-sm font-medium text-gray-500 mb-1">
+              Advance Taken
+            </div>
+            <div className="text-2xl font-bold text-amber-600">
+              ₹
+              {(
+                paymentSummary?.totalAdvanceTaken ??
+                advances.reduce((s, a) => s + (a.amount || 0), 0)
+              ).toLocaleString()}
+            </div>
           </div>
-          <div className="p-3 border rounded">
-            <div className="text-sm text-gray-600">To Pay Now</div>
-            <div className="text-xl font-semibold">₹{(paymentSummary?.toPayNow ?? Math.max(0, perTaskSummary.totalAmount - advances.reduce((s,a) => s + (a.remaining||0),0))).toLocaleString()}</div>
+          <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover card-animate">
+            <div className="text-sm font-medium text-gray-500 mb-1">
+              To Pay Now
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              ₹
+              {(
+                paymentSummary?.toPayNow ??
+                Math.max(
+                  0,
+                  perTaskSummary.totalAmount -
+                    advances.reduce((s, a) => s + (a.remaining || 0), 0)
+                )
+              ).toLocaleString()}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="bg-white p-4 rounded shadow-sm">
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium mb-3">Salary History</h3>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 card-hover card-animate">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Salary History
+          </h3>
           <div>
             <button
               onClick={openAdvanceModal}
-              className="px-3 py-1 bg-yellow-400 text-black rounded mr-2"
+              className="px-3 py-1 bg-primary-500 text-white rounded mr-2"
             >
               Record Advance
             </button>
@@ -778,7 +909,9 @@ const SalaryManagement = () => {
                     <td>₹{(r.netSalary || 0).toLocaleString()}</td>
                     <td className="capitalize">{r.paymentStatus}</td>
                     <td>
-                      {r.paymentDate ? new Date(r.paymentDate).toLocaleDateString() : "-"}
+                      {r.paymentDate
+                        ? new Date(r.paymentDate).toLocaleDateString()
+                        : "-"}
                     </td>
                   </tr>
                 ))}
@@ -800,18 +933,27 @@ const SalaryManagement = () => {
                       const unpaidKeys: string[] = [];
                       perTaskSummary.rows.forEach((r: any, idx: number) => {
                         const key = `${r.bookingNumber}::${idx}`;
-                        const alreadyPaid = salaryRecords.some((sr: any) => (sr.notes || "").includes(r.bookingNumber));
+                        const alreadyPaid = salaryRecords.some((sr: any) =>
+                          (sr.notes || "").includes(r.bookingNumber)
+                        );
                         if (!alreadyPaid) unpaidKeys.push(key);
                       });
-                      const allSelected = unpaidKeys.length > 0 && unpaidKeys.every(k => !!selectedTaskRows[k]);
+                      const allSelected =
+                        unpaidKeys.length > 0 &&
+                        unpaidKeys.every((k) => !!selectedTaskRows[k]);
                       return (
                         <input
                           type="checkbox"
                           checked={allSelected}
                           onChange={() => {
                             const newSel: Record<string, boolean> = {};
-                            unpaidKeys.forEach(k => { newSel[k] = !allSelected; });
-                            setSelectedTaskRows((prev) => ({ ...prev, ...newSel }));
+                            unpaidKeys.forEach((k) => {
+                              newSel[k] = !allSelected;
+                            });
+                            setSelectedTaskRows((prev) => ({
+                              ...prev,
+                              ...newSel,
+                            }));
                           }}
                           title="Select/deselect unpaid rows"
                         />
@@ -828,14 +970,21 @@ const SalaryManagement = () => {
               <tbody>
                 {perTaskSummary.rows.map((r: any, idx: number) => {
                   const rowKey = `${r.bookingNumber}::${idx}`;
-                  const alreadyPaid = salaryRecords.some((sr: any) => (sr.notes || "").includes(r.bookingNumber));
+                  const alreadyPaid = salaryRecords.some((sr: any) =>
+                    (sr.notes || "").includes(r.bookingNumber)
+                  );
                   return (
                     <tr key={rowKey} className="border-t">
                       <td className="p-2">
                         <input
                           type="checkbox"
                           checked={!!selectedTaskRows[rowKey]}
-                          onChange={(e) => setSelectedTaskRows((prev) => ({ ...prev, [rowKey]: e.target.checked }))}
+                          onChange={(e) =>
+                            setSelectedTaskRows((prev) => ({
+                              ...prev,
+                              [rowKey]: e.target.checked,
+                            }))
+                          }
                           disabled={alreadyPaid}
                         />
                       </td>
@@ -859,22 +1008,40 @@ const SalaryManagement = () => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium">Date-wise Task Breakdown</h3>
             <div className="flex items-center gap-3">
-              <div className="text-sm text-gray-600">Total: ₹{dateBreakdown.reduce((s:any, d:any) => s + (d.totalAmount||0), 0).toLocaleString()}</div>
+              <div className="text-sm text-gray-600">
+                Total: ₹
+                {dateBreakdown
+                  .reduce((s: any, d: any) => s + (d.totalAmount || 0), 0)
+                  .toLocaleString()}
+              </div>
               <button
                 onClick={() => {
                   // export CSV of the breakdown
                   try {
-                    const headers = ['Date','Booking','Task','Amount'];
+                    const headers = ["Date", "Booking", "Task", "Amount"];
                     const rows: string[][] = [];
                     dateBreakdown.forEach((d: any) => {
                       d.items.forEach((it: any) => {
-                        rows.push([d.date, it.booking, it.task, String(it.amount || 0)]);
+                        rows.push([
+                          d.date,
+                          it.booking,
+                          it.task,
+                          String(it.amount || 0),
+                        ]);
                       });
                     });
-                    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const csv = [headers, ...rows]
+                      .map((r) =>
+                        r
+                          .map((c) => `"${String(c).replace(/"/g, '""')}"`)
+                          .join(",")
+                      )
+                      .join("\n");
+                    const blob = new Blob([csv], {
+                      type: "text/csv;charset=utf-8;",
+                    });
                     const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
+                    const a = document.createElement("a");
                     a.href = url;
                     a.download = `staff_${selectedStaffId}_date_breakdown.csv`;
                     document.body.appendChild(a);
@@ -882,7 +1049,11 @@ const SalaryManagement = () => {
                     a.remove();
                     URL.revokeObjectURL(url);
                   } catch (e) {
-                    addNotification({ type: 'error', title: 'Export failed', message: (e as any)?.message || 'Could not export CSV' });
+                    addNotification({
+                      type: "error",
+                      title: "Export failed",
+                      message: (e as any)?.message || "Could not export CSV",
+                    });
                   }
                 }}
                 className="px-3 py-1 bg-gray-100 rounded text-sm"
@@ -904,20 +1075,22 @@ const SalaryManagement = () => {
               <tbody>
                 {dateBreakdown.map((d: any) => (
                   <tr key={d.date} className="border-t">
-                          <td className="font-medium">{d.date}</td>
+                    <td className="font-medium">{d.date}</td>
                     <td>
                       <div className="text-sm space-y-1">
                         {d.items.map((it: any, i: number) => (
                           <div key={i} className="flex items-baseline gap-2">
                             <div className="mr-2">{it.booking}:</div>
                             <div className="text-gray-700">{it.task}</div>
-                            <div className="ml-auto">₹{(it.amount||0).toLocaleString()}</div>
+                            <div className="ml-auto">
+                              ₹{(it.amount || 0).toLocaleString()}
+                            </div>
                           </div>
                         ))}
                       </div>
                     </td>
                     <td>{d.totalTasks}</td>
-                    <td>₹{(d.totalAmount||0).toLocaleString()}</td>
+                    <td>₹{(d.totalAmount || 0).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -939,7 +1112,11 @@ const SalaryManagement = () => {
                     onClick={async () => {
                       if (!selectedStaffId) return;
                       await fetchAssignedBookings(selectedStaffId);
-                      addNotification({ type: 'success', title: 'Refreshed', message: 'Assigned bookings refreshed' });
+                      addNotification({
+                        type: "success",
+                        title: "Refreshed",
+                        message: "Assigned bookings refreshed",
+                      });
                     }}
                     className="px-3 py-1 bg-gray-200 rounded text-sm"
                   >
@@ -959,7 +1136,6 @@ const SalaryManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    
                     <tr className="border-t font-medium">
                       <td>Total</td>
                       <td>{perTaskSummary.totalTasks}</td>
@@ -968,7 +1144,9 @@ const SalaryManagement = () => {
                     </tr>
                     {/* If user has selected rows, compute totals for selection; otherwise show overall advance and payable */}
                     {(() => {
-                      const selectedKeys = Object.keys(selectedTaskRows).filter(k => selectedTaskRows[k]);
+                      const selectedKeys = Object.keys(selectedTaskRows).filter(
+                        (k) => selectedTaskRows[k]
+                      );
                       // if no selection, payable is 0 as requested
                       if (selectedKeys.length === 0) {
                         return (
@@ -986,12 +1164,23 @@ const SalaryManagement = () => {
                           </>
                         );
                       }
-                      const selectedAmount = perTaskSummary.rows.reduce((s, r, idx) => {
-                        const key = `${r.bookingNumber}::${idx}`;
-                        return s + (selectedTaskRows[key] ? (r.amount || 0) : 0);
-                      }, 0);
-                      const totalAdvances = advances.reduce((s, a) => s + (a.amount || 0), 0);
-                      const payable = Math.max(0, selectedAmount - totalAdvances);
+                      const selectedAmount = perTaskSummary.rows.reduce(
+                        (s, r, idx) => {
+                          const key = `${r.bookingNumber}::${idx}`;
+                          return (
+                            s + (selectedTaskRows[key] ? r.amount || 0 : 0)
+                          );
+                        },
+                        0
+                      );
+                      const totalAdvances = advances.reduce(
+                        (s, a) => s + (a.amount || 0),
+                        0
+                      );
+                      const payable = Math.max(
+                        0,
+                        selectedAmount - totalAdvances
+                      );
                       return (
                         <>
                           <tr className="border-t">
@@ -1014,38 +1203,75 @@ const SalaryManagement = () => {
                 <button
                   onClick={async () => {
                     // build selected bookings list
-                    const selectedKeys = Object.keys(selectedTaskRows).filter(k => selectedTaskRows[k]);
-                    if (selectedKeys.length === 0) return addNotification({ type: 'info', title: 'No selection', message: 'Select bookings to pay' });
-                    const bookingIds: string[] = selectedKeys.map(k => k.split('::')[0]);
+                    const selectedKeys = Object.keys(selectedTaskRows).filter(
+                      (k) => selectedTaskRows[k]
+                    );
+                    if (selectedKeys.length === 0)
+                      return addNotification({
+                        type: "info",
+                        title: "No selection",
+                        message: "Select bookings to pay",
+                      });
+                    const bookingIds: string[] = selectedKeys.map(
+                      (k) => k.split("::")[0]
+                    );
                     try {
                       setLoading(true);
                       const payload = {
                         bookings: Array.from(new Set(bookingIds)),
                         month: new Date().getMonth() + 1,
                         year: new Date().getFullYear(),
-                        paymentMethod: 'cash'
+                        paymentMethod: "cash",
                       };
-                      const res: any = await staffAPI.payBookings(selectedStaffId, payload as any);
-                      addNotification({ type: 'success', title: 'Paid', message: `Paid ${res.data?.salary ? 'and updated advances' : ''}` });
+                      const res: any = await staffAPI.payBookings(
+                        selectedStaffId,
+                        payload as any
+                      );
+                      addNotification({
+                        type: "success",
+                        title: "Paid",
+                        message: `Paid ${
+                          res.data?.salary ? "and updated advances" : ""
+                        }`,
+                      });
                       // refresh advances, salary records and bookings
-                      const advRes: any = await advanceAPI.listAdvancesForStaff(selectedStaffId);
-                      const advs = Array.isArray(advRes) ? advRes : advRes.data || advRes.data?.data || [];
+                      const advRes: any = await advanceAPI.listAdvancesForStaff(
+                        selectedStaffId
+                      );
+                      const advs = Array.isArray(advRes)
+                        ? advRes
+                        : advRes.data || advRes.data?.data || [];
                       setAdvances(advs);
-                      const refreshed: any = await staffAPI.getStaffSalary(selectedStaffId);
+                      const refreshed: any = await staffAPI.getStaffSalary(
+                        selectedStaffId
+                      );
                       let recs: any[] = [];
                       if (Array.isArray(refreshed)) recs = refreshed;
-                      else if (Array.isArray(refreshed.data)) recs = refreshed.data;
-                      else if (Array.isArray(refreshed.data?.data)) recs = refreshed.data.data;
+                      else if (Array.isArray(refreshed.data))
+                        recs = refreshed.data;
+                      else if (Array.isArray(refreshed.data?.data))
+                        recs = refreshed.data.data;
                       else recs = refreshed.data || refreshed.data?.data || [];
                       setSalaryRecords(recs);
                       await fetchAssignedBookings(selectedStaffId);
                       setSelectedTaskRows({});
                     } catch (e: any) {
-                      addNotification({ type: 'error', title: 'Error', message: e?.response?.data?.message || e?.message || 'Failed to pay bookings' });
-                    } finally { setLoading(false); }
+                      addNotification({
+                        type: "error",
+                        title: "Error",
+                        message:
+                          e?.response?.data?.message ||
+                          e?.message ||
+                          "Failed to pay bookings",
+                      });
+                    } finally {
+                      setLoading(false);
+                    }
                   }}
                   className="px-3 py-1 bg-green-600 text-white rounded"
-                >Pay Selected</button>
+                >
+                  Pay Selected
+                </button>
               </div>
             </div>
           );
@@ -1053,7 +1279,7 @@ const SalaryManagement = () => {
         return null;
       })()}
 
-      <div className="bg-white p-4 rounded shadow-sm">
+      <div className="bg-white p-4 rounded-lg shadow-sm">
         <h3 className="font-medium mb-3">Advance History</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1074,19 +1300,39 @@ const SalaryManagement = () => {
                   <td className="flex items-center justify-between">
                     <div>{a.notes || "-"}</div>
                     <div className="ml-4">
-                      <select value={a.repaymentStatus || 'not_repaid'} onChange={async (e) => {
-                        const status = e.target.value;
-                        try {
-                          setLoading(true);
-                          await advanceAPI.updateAdvance(a._id, { repaymentStatus: status });
-                          // refresh
-                          const advRes: any = await advanceAPI.listAdvancesForStaff(selectedStaffId);
-                          const advs = Array.isArray(advRes) ? advRes : advRes.data || advRes.data?.data || [];
-                          setAdvances(advs);
-                        } catch (err: any) {
-                          addNotification({ type: 'error', title: 'Error', message: err?.response?.data?.message || err?.message || 'Failed to update advance' });
-                        } finally { setLoading(false); }
-                      }} className="px-2 py-1 border rounded text-sm">
+                      <select
+                        value={a.repaymentStatus || "not_repaid"}
+                        onChange={async (e) => {
+                          const status = e.target.value;
+                          try {
+                            setLoading(true);
+                            await advanceAPI.updateAdvance(a._id, {
+                              repaymentStatus: status,
+                            });
+                            // refresh
+                            const advRes: any =
+                              await advanceAPI.listAdvancesForStaff(
+                                selectedStaffId
+                              );
+                            const advs = Array.isArray(advRes)
+                              ? advRes
+                              : advRes.data || advRes.data?.data || [];
+                            setAdvances(advs);
+                          } catch (err: any) {
+                            addNotification({
+                              type: "error",
+                              title: "Error",
+                              message:
+                                err?.response?.data?.message ||
+                                err?.message ||
+                                "Failed to update advance",
+                            });
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        className="px-2 py-1 border rounded text-sm"
+                      >
                         <option value="not_repaid">Not Done</option>
                         <option value="partial">Partial</option>
                         <option value="paid">Done</option>
@@ -1293,20 +1539,37 @@ const SalaryManagement = () => {
                                 {/* Header checkbox: selects/deselects unpaid rows */}
                                 {(() => {
                                   const unpaidKeys: string[] = [];
-                                  perTaskSummary.rows.forEach((r: any, idx: number) => {
-                                    const key = `${r.bookingNumber}::${idx}`;
-                                    const alreadyPaid = salaryRecords.some((sr: any) => (sr.notes || "").includes(r.bookingNumber));
-                                    if (!alreadyPaid) unpaidKeys.push(key);
-                                  });
-                                  const allSelected = unpaidKeys.length > 0 && unpaidKeys.every(k => !!selectedTaskRows[k]);
+                                  perTaskSummary.rows.forEach(
+                                    (r: any, idx: number) => {
+                                      const key = `${r.bookingNumber}::${idx}`;
+                                      const alreadyPaid = salaryRecords.some(
+                                        (sr: any) =>
+                                          (sr.notes || "").includes(
+                                            r.bookingNumber
+                                          )
+                                      );
+                                      if (!alreadyPaid) unpaidKeys.push(key);
+                                    }
+                                  );
+                                  const allSelected =
+                                    unpaidKeys.length > 0 &&
+                                    unpaidKeys.every(
+                                      (k) => !!selectedTaskRows[k]
+                                    );
                                   return (
                                     <input
                                       type="checkbox"
                                       checked={allSelected}
                                       onChange={() => {
-                                        const newSel: Record<string, boolean> = {};
-                                        unpaidKeys.forEach(k => { newSel[k] = !allSelected; });
-                                        setSelectedTaskRows((prev) => ({ ...prev, ...newSel }));
+                                        const newSel: Record<string, boolean> =
+                                          {};
+                                        unpaidKeys.forEach((k) => {
+                                          newSel[k] = !allSelected;
+                                        });
+                                        setSelectedTaskRows((prev) => ({
+                                          ...prev,
+                                          ...newSel,
+                                        }));
                                       }}
                                       title="Select/deselect unpaid rows"
                                     />
@@ -1326,7 +1589,10 @@ const SalaryManagement = () => {
                           <tbody>
                             {perTaskSummary.rows.map((r: any, idx: number) => {
                               const key = `${r.bookingNumber}::${idx}`;
-                              const alreadyPaid = salaryRecords.some((sr: any) => (sr.notes || "").includes(r.bookingNumber));
+                              const alreadyPaid = salaryRecords.some(
+                                (sr: any) =>
+                                  (sr.notes || "").includes(r.bookingNumber)
+                              );
                               return (
                                 <tr key={key} className="border-t">
                                   <td className="p-2">
@@ -1341,14 +1607,29 @@ const SalaryManagement = () => {
                                       }
                                     />
                                   </td>
-                                  <td className="font-medium">{r.bookingNumber}</td>
-                                  <td>{(r.services || []).join(', ') || (r.tasks || []).join(', ')}</td>
-                                  <td>{(r.types || []).join(', ') || '-'}</td>
-                                  <td>{r.dates && r.dates.length ? r.dates[0] : (r.bookingDate ? new Date(r.bookingDate).toLocaleDateString() : '-')}</td>
+                                  <td className="font-medium">
+                                    {r.bookingNumber}
+                                  </td>
+                                  <td>
+                                    {(r.services || []).join(", ") ||
+                                      (r.tasks || []).join(", ")}
+                                  </td>
+                                  <td>{(r.types || []).join(", ") || "-"}</td>
+                                  <td>
+                                    {r.dates && r.dates.length
+                                      ? r.dates[0]
+                                      : r.bookingDate
+                                      ? new Date(
+                                          r.bookingDate
+                                        ).toLocaleDateString()
+                                      : "-"}
+                                  </td>
                                   <td>{r.count}</td>
                                   <td>₹{(r.rate || 0).toLocaleString()}</td>
                                   <td>₹{(r.amount || 0).toLocaleString()}</td>
-                                  <td className="text-sm">{alreadyPaid ? 'Paid' : 'Not'}</td>
+                                  <td className="text-sm">
+                                    {alreadyPaid ? "Paid" : "Not"}
+                                  </td>
                                 </tr>
                               );
                             })}

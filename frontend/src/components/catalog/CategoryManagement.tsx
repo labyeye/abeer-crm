@@ -62,12 +62,14 @@ const CategoryManagement: React.FC = () => {
   };
 
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Category Management</h1>
+    <div className="space-y-6 page-animate">
+      {/* Header */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h1 className="text-2xl font-semibold text-gray-900">Category Management</h1>
+        <p className="text-gray-500 mt-1 text-sm">Manage service categories and types</p>
       </div>
 
-      <div className="mt-6">
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover card-animate">
         <div className="grid grid-cols-4 gap-3 max-w-xl">
           <input value={name} onChange={e=>setName(e.target.value)} placeholder="Service name" className="p-2 border" />
           <input value={typeInput} onChange={e=>setTypeInput(e.target.value)} placeholder="Add type and press Enter (comma to add multiple)" className="p-2 border"

@@ -12,7 +12,7 @@ import {
   Award,
   TrendingUp,
   Clock,
-  DollarSign,
+  IndianRupee,
   Shield,
   Eye,
   EyeOff
@@ -146,7 +146,7 @@ const ProfilePage = () => {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'project': return Camera;
-      case 'payment': return DollarSign;
+      case 'payment': return IndianRupee;
       case 'booking': return Calendar;
       case 'review': return Star;
       default: return User;
@@ -447,7 +447,7 @@ const ProfilePage = () => {
                 <div className="bg-purple-50 rounded-xl p-6">
                   <div className="flex items-center">
                     <div className="bg-purple-500 p-3 rounded-lg">
-                      <DollarSign className="w-6 h-6 text-white" />
+                      <IndianRupee className="w-6 h-6 text-white" />
                     </div>
                     <div className="ml-4">
                       <p className="text-sm font-medium text-purple-600">Total Revenue</p>

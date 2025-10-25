@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { clientAPI, branchAPI, staffAPI, bookingAPI, inventoryAPI, expenseAPI } from '../../services/api';
+import { useReactToPrint } from 'react-to-print';
 import { 
   Users, 
   Package, 
@@ -11,16 +12,23 @@ import {
   Mail, 
   Badge,
   Clock,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   TrendingDown,
   Search,
-  Download
+  Download,
+  User,
+  Building2,
+  Briefcase,
+  FileText,
+  Activity,
+  Award
 } from 'lucide-react';
 
 const EntityReport: React.FC = () => {
   const { addNotification } = useNotification();
   const { user } = useAuth();
+  const printRef = useRef<HTMLDivElement>(null);
 
   const [entityType, setEntityType] = useState<'client' | 'branch' | 'staff'>('branch');
   const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -46,15 +54,47 @@ const EntityReport: React.FC = () => {
     const loadOptions = async () => {
       try {
         if (entityType === 'client') {
-          const res = await clientAPI.getClients();
+          // If user belongs to a branch and is not chairman, limit clients to that branch
+          let res;
+          if (user?.branchId && user?.role !== 'chairman') {
+            res = await clientAPI.getClients({ branch: user.branchId });
+          } else {
+            res = await clientAPI.getClients();
+          }
           const list = getArrayFromResponse(res);
           setOptions(list.map((c: any) => ({ value: c._id, label: `${c.name || c.email} (${c.phone || ''})` })));
         } else if (entityType === 'branch') {
-          const res = await branchAPI.getBranches();
-          const list = getArrayFromResponse(res);
-          setOptions(list.map((b: any) => ({ value: b._id, label: `${b.name || b.code}` })));
+          // If user belongs to a branch and is not chairman, only show that branch
+          if (user?.branchId && user?.role !== 'chairman') {
+            try {
+              const single: any = await branchAPI.getBranch(user.branchId);
+              const branchObj = getSingleFromResponse(single);
+              if (branchObj) {
+                setOptions([{ value: branchObj._id, label: `${branchObj.name || branchObj.code}` }]);
+                setSelectedEntityId(branchObj._id);
+              } else {
+                setOptions([]);
+                setSelectedEntityId('');
+              }
+            } catch (err) {
+              // fallback to fetching all branches
+              const res = await branchAPI.getBranches();
+              const list = getArrayFromResponse(res);
+              setOptions(list.map((b: any) => ({ value: b._id, label: `${b.name || b.code}` })));
+            }
+          } else {
+            const res = await branchAPI.getBranches();
+            const list = getArrayFromResponse(res);
+            setOptions(list.map((b: any) => ({ value: b._id, label: `${b.name || b.code}` })));
+          }
         } else if (entityType === 'staff') {
-          const res = await staffAPI.getStaff();
+          // If user belongs to a branch and is not chairman, limit staff to branch
+          let res;
+          if (user?.branchId && user?.role !== 'chairman') {
+            res = await staffAPI.getStaff({ branch: user.branchId });
+          } else {
+            res = await staffAPI.getStaff();
+          }
           const list = getArrayFromResponse(res);
           setOptions(list.map((s: any) => ({ value: s._id, label: `${s.name} — ${s.designation || ''}` })));
         }
@@ -64,7 +104,7 @@ const EntityReport: React.FC = () => {
     };
 
     loadOptions();
-  }, [entityType]);
+  }, [entityType, user]);
 
   const loadEntityDetails = async () => {
     if (!selectedEntityId) return;
@@ -309,6 +349,17 @@ const EntityReport: React.FC = () => {
     );
   };
 
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `${entityType}-report-${entityDetails?.name || selectedEntityId}`,
+  });
+
+  const getAvatarUrl = () => {
+    if (!entityDetails) return null;
+    // Check for avatar/profilePic/image fields
+    return entityDetails.avatarUrl || entityDetails.avatar || entityDetails.profilePic || entityDetails.image || null;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
@@ -317,137 +368,237 @@ const EntityReport: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <TrendingUp className="h-8 w-8 text-blue-600" />
-                Entity Report Dashboard
+                <Activity className="h-8 w-8 text-blue-600" />
+                Report
               </h1>
-              <p className="text-gray-600 mt-1">Comprehensive overview of staff, inventory, and bookings</p>
+              <p className="text-gray-600 mt-1">Complete detailed profile and analytics</p>
             </div>
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
-              <Download className="h-4 w-4" />
-              Export Report
-            </button>
+            {entityDetails && (
+              <button 
+                onClick={handlePrint}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Download Report
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div ref={printRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Controls Section */}
         <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
-          {user?.role === 'chairman' ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Entity Type</label>
-                  <select
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                    onChange={(e) => { setSelectedEntityId(''); setEntityType(e.target.value as 'client' | 'branch' | 'staff'); }}
-                    value={entityType}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Entity Type</label>
+                <select
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  onChange={(e) => { setSelectedEntityId(''); setEntityType(e.target.value as 'client' | 'branch' | 'staff'); }}
+                  value={entityType}
+                  disabled={!!user?.branchId && user?.role !== 'chairman' && false}
+                >
+                  <option value="client">👤 Client</option>
+                  <option value="branch">🏢 Branch</option>
+                  <option value="staff">👥 Staff</option>
+                </select>
+                {user?.branchId && user?.role !== 'chairman' && (
+                  <p className="text-xs text-gray-500 mt-2">Limited to your branch</p>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select {entityType.charAt(0).toUpperCase() + entityType.slice(1)}
+                </label>
+                <div className="flex gap-3">
+                  <select 
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white" 
+                    value={selectedEntityId} 
+                    onChange={(e) => setSelectedEntityId(e.target.value)}
                   >
-                    <option value="client">👤 Client</option>
-                    <option value="branch">🏢 Branch</option>
-                    <option value="staff">👥 Staff</option>
+                    <option value="">-- Select {entityType} --</option>
+                    {options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
                   </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select {entityType.charAt(0).toUpperCase() + entityType.slice(1)}
-                  </label>
-                  <div className="flex gap-3">
-                    <select 
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white" 
-                      value={selectedEntityId} 
-                      onChange={(e) => setSelectedEntityId(e.target.value)}
-                    >
-                      <option value="">-- Select {entityType} --</option>
-                      {options.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                    <button 
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed flex items-center gap-2" 
-                      onClick={async () => await loadEntityDetails()} 
-                      disabled={!selectedEntityId || loadingDetails}
-                    >
-                      {loadingDetails ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          <Search className="h-4 w-4" />
-                          Load Data
-                        </>
-                      )}
-                    </button>
-                  </div>
+                  <button 
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed flex items-center gap-2" 
+                    onClick={async () => await loadEntityDetails()} 
+                    disabled={!selectedEntityId || loadingDetails}
+                  >
+                    {loadingDetails ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <Search className="h-4 w-4" />
+                        Load Data
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
+            </div>
 
-              {/* Search Bar */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search across tables..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search across tables..."
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <p className="text-yellow-800">🔒 Only chairman can view full entity history and reports.</p>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Entity Details Header */}
+        {/* Entity Details Header - Kundli Style */}
         {entityDetails && (
-          <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
-            <div className="flex items-center gap-6">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-2xl font-bold text-white shadow-lg">
-                {entityType === 'branch' && entityDetails.name?.charAt(0)}
-                {entityType === 'client' && entityDetails.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
-                {entityType === 'staff' && entityDetails.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
+          <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl shadow-lg border-2 border-blue-200 p-8 mb-8">
+            {/* Header with Avatar */}
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-8">
+              {/* Avatar/Profile Picture */}
+              <div className="relative">
+                {getAvatarUrl() ? (
+                  <img 
+                    src={getAvatarUrl()!} 
+                    alt={entityDetails.name}
+                    className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-xl"
+                  />
+                ) : (
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-4xl font-bold text-white shadow-xl border-4 border-white">
+                    {entityType === 'branch' && <Building2 className="h-16 w-16" />}
+                    {entityType === 'client' && (entityDetails.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2) || 'C')}
+                    {entityType === 'staff' && (entityDetails.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2) || 'S')}
+                  </div>
+                )}
+                {/* Status Indicator */}
+                {entityDetails.status && (
+                  <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center">
+                    {entityDetails.status === 'active' ? (
+                      <div className="w-full h-full bg-green-500 rounded-full"></div>
+                    ) : (
+                      <div className="w-full h-full bg-gray-400 rounded-full"></div>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  {entityDetails.name}
-                  {entityType === 'staff' && entityDetails.designation && (
-                    <span className="ml-3 text-lg font-normal text-gray-600">• {entityDetails.designation}</span>
-                  )}
-                </h2>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+
+              {/* Main Details */}
+              <div className="flex-1 text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
+                  {entityType === 'branch' && <Building2 className="h-6 w-6 text-blue-600" />}
+                  {entityType === 'client' && <User className="h-6 w-6 text-purple-600" />}
+                  {entityType === 'staff' && <Briefcase className="h-6 w-6 text-green-600" />}
+                  <h2 className="text-3xl font-bold text-gray-900">{entityDetails.name}</h2>
+                </div>
+                
+                {entityType === 'staff' && entityDetails.designation && (
+                  <div className="flex items-center justify-center md:justify-start gap-2 mb-4">
+                    <Award className="h-5 w-5 text-amber-600" />
+                    <span className="text-xl text-gray-700 font-medium">{entityDetails.designation}</span>
+                  </div>
+                )}
+                
+                {entityType === 'client' && entityDetails.category && (
+                  <div className="flex items-center justify-center md:justify-start gap-2 mb-4">
+                    <Badge className="h-5 w-5 text-blue-600" />
+                    <span className="text-lg text-gray-700 capitalize">{entityDetails.category}</span>
+                  </div>
+                )}
+
+                {/* Contact Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
                   {entityDetails.email && (
-                    <div className="flex items-center gap-1">
-                      <Mail className="h-4 w-4" />
-                      {entityDetails.email}
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                      <Mail className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm text-gray-700">{entityDetails.email}</span>
                     </div>
                   )}
                   {entityDetails.phone && (
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-4 w-4" />
-                      {entityDetails.phone}
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                      <Phone className="h-4 w-4 text-green-600" />
+                      <span className="text-sm text-gray-700">{entityDetails.phone}</span>
                     </div>
                   )}
                   {entityDetails.code && (
-                    <div className="flex items-center gap-1">
-                      <Badge className="h-4 w-4" />
-                      Code: {entityDetails.code}
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                      <FileText className="h-4 w-4 text-purple-600" />
+                      <span className="text-sm text-gray-700">Code: {entityDetails.code}</span>
+                    </div>
+                  )}
+                  {entityType === 'staff' && entityDetails.employeeId && (
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                      <Badge className="h-4 w-4 text-indigo-600" />
+                      <span className="text-sm text-gray-700">ID: {entityDetails.employeeId}</span>
                     </div>
                   )}
                   {entityType === 'staff' && entityDetails.branch && (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4" />
-                      {entityDetails.branch?.name || entityDetails.branch}
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                      <MapPin className="h-4 w-4 text-red-600" />
+                      <span className="text-sm text-gray-700">{entityDetails.branch?.name || entityDetails.branch}</span>
+                    </div>
+                  )}
+                  {(entityType === 'client' || entityType === 'branch') && entityDetails.address && (
+                    <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm col-span-full">
+                      <MapPin className="h-4 w-4 text-red-600" />
+                      <span className="text-sm text-gray-700">
+                        {typeof entityDetails.address === 'string' 
+                          ? entityDetails.address 
+                          : `${entityDetails.address?.street || ''} ${entityDetails.address?.city || ''} ${entityDetails.address?.state || ''} ${entityDetails.address?.pincode || ''}`
+                        }
+                      </span>
                     </div>
                   )}
                 </div>
+
+                {/* Additional Details Section */}
+                {(entityDetails.dateOfJoining || entityDetails.salary || entityDetails.dateOfBirth || entityDetails.createdAt) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                    {entityDetails.dateOfJoining && (
+                      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <Calendar className="h-4 w-4 text-blue-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Joined</p>
+                          <p className="text-sm font-medium text-gray-700">{formatDate(entityDetails.dateOfJoining)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {entityDetails.salary && (
+                      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <IndianRupee className="h-4 w-4 text-green-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Salary</p>
+                          <p className="text-sm font-medium text-gray-700">{formatCurrency(entityDetails.salary)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {entityDetails.dateOfBirth && (
+                      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <Calendar className="h-4 w-4 text-purple-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Date of Birth</p>
+                          <p className="text-sm font-medium text-gray-700">{formatDate(entityDetails.dateOfBirth)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {entityDetails.createdAt && (
+                      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <Clock className="h-4 w-4 text-gray-600" />
+                        <div>
+                          <p className="text-xs text-gray-500">Registered</p>
+                          <p className="text-sm font-medium text-gray-700">{formatDate(entityDetails.createdAt)}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -460,7 +611,7 @@ const EntityReport: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white rounded-xl shadow-sm border p-6 flex items-center">
                 <div className="flex-shrink-0">
-                  <DollarSign className="h-8 w-8 text-green-600" />
+                  <IndianRupee className="h-8 w-8 text-green-600" />
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
@@ -733,7 +884,7 @@ const EntityReport: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900 flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
+                              <IndianRupee className="h-3 w-3" />
                               {booking.amount ? formatCurrency(booking.amount) : 'Not set'}
                             </div>
                           </td>
@@ -778,7 +929,7 @@ const EntityReport: React.FC = () => {
               <div className="bg-white rounded-xl shadow-sm border p-6">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <DollarSign className="h-8 w-8 text-green-600" />
+                    <IndianRupee className="h-8 w-8 text-green-600" />
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
@@ -820,7 +971,7 @@ const EntityReport: React.FC = () => {
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                             item.type === 'booking' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
                           }`}>
-                            {item.type === 'booking' ? <Calendar className="h-5 w-5" /> : <DollarSign className="h-5 w-5" />}
+                            {item.type === 'booking' ? <Calendar className="h-5 w-5" /> : <IndianRupee className="h-5 w-5" />}
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">

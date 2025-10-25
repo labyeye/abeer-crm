@@ -4,7 +4,7 @@ import {
   Users, 
   Calendar, 
   UserCheck, 
-  DollarSign, 
+  IndianRupee, 
   Package, 
   Building2, 
   X,
@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
     {
       id: 'finance',
       name: 'Finance',
-      icon: DollarSign,
+      icon: IndianRupee,
       permission: 'finance',
       roles: ['chairman', 'company_admin', 'branch_head']
     },
@@ -101,7 +101,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setI
     {
       id: 'daily-expenses',
       name: 'Daily Expenses',
-      icon: DollarSign,
+      icon: IndianRupee,
       permission: 'daily_expenses',
       roles: ['chairman', 'company_admin', 'branch_head']
     },

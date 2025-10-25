@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { loanAPI, branchAPI, clientAPI } from "../../services/api";
+import { useAuth } from "../../contexts/AuthContext";
+import StatCard from "../ui/StatCard";
+import { CreditCard, Calendar, CheckCircle } from "lucide-react";
 import { useNotification } from "../../contexts/NotificationContext";
 
 const LoanManagement: React.FC = () => {
   const { addNotification } = useNotification();
+  const { user } = useAuth();
   const [branches, setBranches] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [loans, setLoans] = useState<any[]>([]);
@@ -33,34 +37,80 @@ const LoanManagement: React.FC = () => {
     (async () => {
       try {
         const b: any = await branchAPI.getBranches();
-        setBranches(b.data || b || []);
+        const allBranches = b.data || b || [];
+        // If user belongs to a branch and is not chairman, limit visible branches
+        if (user?.branchId && user?.role !== "chairman") {
+          const only = allBranches.filter((br: any) => String(br._id) === String(user.branchId));
+          setBranches(only);
+          // ensure form default branch is set
+          setForm((f: any) => ({ ...f, branch: f.branch || user.branchId }));
+        } else {
+          setBranches(allBranches);
+        }
       } catch (e) {}
       try {
         const c: any = await clientAPI.getClients();
-        setClients(c.data || c || []);
+        const allClients = c.data || c || [];
+        if (user?.branchId && user?.role !== "chairman") {
+          setClients(
+            allClients.filter((cl: any) => {
+              const cb = cl.branch?._id || cl.branch || cl.branchId || "";
+              return String(cb) === String(user.branchId);
+            })
+          );
+        } else {
+          setClients(allClients);
+        }
       } catch (e) {}
       fetchLoans();
     })();
-  }, []);
+  }, [user]);
 
   const fetchLoans = async () => {
     try {
       const res: any = await loanAPI.listLoans();
       const loansList = res.data || res || [];
-      setLoans(loansList);
+      // If user belongs to a branch (and is not chairman), restrict visible loans to that branch
+      const visibleLoans = user?.branchId && user?.role !== "chairman"
+        ? (Array.isArray(loansList) ? loansList : []).filter((ln: any) => {
+            const bid = ln.branch?._id || ln.branch || ln.branchId || ln.loanBranch || "";
+            return String(bid) === String(user.branchId);
+          })
+        : Array.isArray(loansList) ? loansList : [];
+      setLoans(visibleLoans);
       // compute richer summary client-side: totalTaken, totalPaid (sum repayments), totalRemaining (principal), totalRemainingWithInterest (principal + accrued interest)
       try {
         let totalTaken = 0,
           totalPaid = 0,
           totalRemaining = 0,
-          totalRemainingWithInterest = 0;
+          totalRemainingWithInterest = 0,
+          thisMonthEMI = 0;
         const now = new Date();
-        loansList.forEach((ln: any) => {
+        (visibleLoans || []).forEach((ln: any) => {
           totalTaken += Number(ln.amount || 0);
           const paid = (ln.repayments || []).reduce(
             (s: number, r: any) => s + Number(r.amount || 0),
             0
           );
+          // sum repayments that happened this month
+          (ln.repayments || []).forEach((r: any) => {
+            try {
+              const rd = r.date
+                ? new Date(r.date)
+                : r.createdAt
+                ? new Date(r.createdAt)
+                : null;
+              if (
+                rd &&
+                rd.getMonth() === now.getMonth() &&
+                rd.getFullYear() === now.getFullYear()
+              ) {
+                thisMonthEMI += Number(r.amount || 0);
+              }
+            } catch (e) {
+              // ignore malformed dates
+            }
+          });
           totalPaid += paid;
           const principalRemaining = Number(ln.remainingAmount || 0);
           totalRemaining += principalRemaining;
@@ -76,12 +126,13 @@ const LoanManagement: React.FC = () => {
           totalRemainingWithInterest += principalRemaining + accrued;
         });
         setSummary({
-          count: loansList.length,
+          count: (visibleLoans || []).length,
           totalTaken: Math.round(totalTaken * 100) / 100,
           totalRemaining: Math.round(totalRemaining * 100) / 100,
           totalPaid: Math.round(totalPaid * 100) / 100,
           totalRemainingWithInterest:
             Math.round(totalRemainingWithInterest * 100) / 100,
+          thisMonthEMI: Math.round(thisMonthEMI * 100) / 100,
         });
       } catch (err) {
         // ignore
@@ -93,6 +144,23 @@ const LoanManagement: React.FC = () => {
         message: e?.message || "Failed to load loans",
       });
     }
+  };
+
+  const getBranchName = (loan: any) => {
+    // Loan might embed branch object, or store branch id in various fields
+    const branchObj = loan.branch;
+    if (branchObj && typeof branchObj === "object")
+      return branchObj.name || "-";
+    const possibleId =
+      loan.branch ||
+      loan.branchId ||
+      loan.loanBranch ||
+      (loan.branch && loan.branch._id);
+    if (!possibleId) return "-";
+    const found = branches.find((b) => String(b._id) === String(possibleId));
+    if (found) return found.name;
+    // fallback to raw value
+    return typeof possibleId === "string" ? possibleId : "-";
   };
 
   const openRepayModal = (loan: any) => {
@@ -312,19 +380,42 @@ const LoanManagement: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Loans</h2>
-      <div className="bg-white p-4 rounded shadow-sm">
+    <div className="space-y-6 page-animate">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <StatCard title="Loans" value={summary.count || 0} icon={Calendar} />
+
+        <StatCard
+          title="Total Taken"
+          value={`₹${(summary.totalTaken || 0).toLocaleString()}`}
+          icon={CreditCard}
+        />
+
+        <StatCard
+          title="This Month EMI"
+          value={`₹${(summary.thisMonthEMI || 0).toLocaleString()}`}
+          icon={Calendar}
+        />
+
+        <StatCard
+          title="Total Paid"
+          value={`₹${(summary.totalPaid || 0).toLocaleString()}`}
+          icon={CheckCircle}
+        />
+      </div>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 card-hover card-animate">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Add New Loan
+        </h3>
         <form
           onSubmit={submit}
-          className="grid grid-cols-1 md:grid-cols-3 gap-3"
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
         >
           <div>
             <label className="text-sm">Type</label>
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             >
               <option value="bank">Bank</option>
               <option value="third_party">Third Party</option>
@@ -335,7 +426,8 @@ const LoanManagement: React.FC = () => {
             <select
               value={form.branch}
               onChange={(e) => setForm({ ...form, branch: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
+              disabled={!!user?.branchId && user?.role !== 'chairman'}
             >
               <option value="">-- Select --</option>
               {branches.map((b) => (
@@ -354,7 +446,7 @@ const LoanManagement: React.FC = () => {
                   onChange={(e) =>
                     setForm({ ...form, bankName: e.target.value })
                   }
-                  className="w-full border px-2 py-1 rounded"
+                  className="w-full border px-2 py-1 rounded-md"
                 />
               </div>
               <div>
@@ -364,7 +456,7 @@ const LoanManagement: React.FC = () => {
                   onChange={(e) =>
                     setForm({ ...form, bankAccountNumber: e.target.value })
                   }
-                  className="w-full border px-2 py-1 rounded"
+                  className="w-full border px-2 py-1 rounded-md"
                 />
               </div>
               <div>
@@ -374,7 +466,7 @@ const LoanManagement: React.FC = () => {
                   onChange={(e) =>
                     setForm({ ...form, bankBranch: e.target.value })
                   }
-                  className="w-full border px-2 py-1 rounded"
+                  className="w-full border px-2 py-1 rounded-md"
                 />
               </div>
             </>
@@ -384,7 +476,7 @@ const LoanManagement: React.FC = () => {
               <select
                 value={form.client || ""}
                 onChange={(e) => setForm({ ...form, client: e.target.value })}
-                className="w-full border px-2 py-1 rounded"
+                className="w-full border px-2 py-1 rounded-md"
               >
                 <option value="">-- Select Client --</option>
                 {clients.map((c) => (
@@ -404,7 +496,7 @@ const LoanManagement: React.FC = () => {
               onChange={(e) =>
                 setForm({ ...form, amount: Number(e.target.value) })
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             />
           </div>
 
@@ -416,7 +508,7 @@ const LoanManagement: React.FC = () => {
               onChange={(e) =>
                 setForm({ ...form, dateReceived: e.target.value })
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             />
           </div>
 
@@ -428,7 +520,7 @@ const LoanManagement: React.FC = () => {
               onChange={(e) =>
                 setForm({ ...form, interestRate: Number(e.target.value) })
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             />
           </div>
 
@@ -439,7 +531,7 @@ const LoanManagement: React.FC = () => {
               onChange={(e) =>
                 setForm({ ...form, interestPeriodUnit: e.target.value })
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             >
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
@@ -454,7 +546,7 @@ const LoanManagement: React.FC = () => {
               onChange={(e) =>
                 setForm({ ...form, tenure: Number(e.target.value) })
               }
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             />
           </div>
 
@@ -463,7 +555,7 @@ const LoanManagement: React.FC = () => {
             <select
               value={form.tenureUnit}
               onChange={(e) => setForm({ ...form, tenureUnit: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             >
               <option value="months">Months</option>
               <option value="years">Years</option>
@@ -475,7 +567,7 @@ const LoanManagement: React.FC = () => {
             <input
               value={form.purpose || ""}
               onChange={(e) => setForm({ ...form, purpose: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border px-2 py-1 rounded-md"
             />
           </div>
 
@@ -488,37 +580,6 @@ const LoanManagement: React.FC = () => {
             </button>
           </div>
         </form>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded shadow-sm">
-          <div className="text-sm text-gray-500">Loans</div>
-          <div className="text-xl font-semibold">{summary.count}</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow-sm">
-          <div className="text-sm text-gray-500">Total Taken</div>
-          <div className="text-xl font-semibold">
-            ₹{(summary.totalTaken || 0).toLocaleString()}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded shadow-sm">
-          <div className="text-sm text-gray-500">Total Paid</div>
-          <div className="text-xl font-semibold">
-            ₹{(summary.totalPaid || 0).toLocaleString()}
-          </div>
-        </div>
-        <div className="bg-white p-4 rounded shadow-sm">
-          <div className="text-sm text-gray-500">
-            Left to Pay (incl. accrued)
-          </div>
-          <div className="text-xl font-semibold">
-            ₹
-            {(
-              (summary.totalRemainingWithInterest ?? summary.totalRemaining) ||
-              0
-            ).toLocaleString()}
-          </div>
-        </div>
       </div>
 
       <div className="bg-white p-4 rounded shadow-sm mt-3">
@@ -540,28 +601,28 @@ const LoanManagement: React.FC = () => {
               {loans.map((l) => (
                 <tr key={l._id} className="border-t">
                   <td>{new Date(l.dateReceived).toLocaleDateString()}</td>
-                  <td>{l.branch?.name || "-"}</td>
+                  <td>{getBranchName(l)}</td>
                   <td>{l.type}</td>
                   <td>{l.type === "bank" ? l.bankName : l.client?.name}</td>
                   <td>₹{(l.amount || 0).toLocaleString()}</td>
                   <td>₹{(l.remainingAmount || 0).toLocaleString()}</td>
                   <td>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-1">
                       <button
                         onClick={() => openRepayModal(l)}
-                        className="px-3 py-1 bg-green-600 text-white rounded text-sm"
+                        className="px-3 py-1 bg-primary-500 text-white rounded text-sm"
                       >
                         Repay
                       </button>
                       <button
                         onClick={() => openEditModal(l)}
-                        className="px-3 py-1 bg-yellow-500 text-white rounded text-sm"
+                        className="px-3 py-1 bg-primary-500 text-white rounded text-sm"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(l)}
-                        className="px-3 py-1 bg-red-600 text-white rounded text-sm"
+                        className="px-3 py-1 bg-primary-500 text-white rounded text-sm"
                       >
                         Delete
                       </button>
@@ -593,7 +654,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, type: e.target.value })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     >
                       <option value="bank">Bank</option>
                       <option value="third_party">Third Party</option>
@@ -606,7 +667,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, branch: e.target.value })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     >
                       <option value="">-- Select --</option>
                       {branches.map((b) => (
@@ -626,7 +687,7 @@ const LoanManagement: React.FC = () => {
                         onChange={(e) =>
                           setForm({ ...form, bankName: e.target.value })
                         }
-                        className="w-full border px-2 py-1 rounded"
+                        className="w-full border px-2 py-1 rounded-md"
                       />
                     </div>
                     <div>
@@ -639,7 +700,7 @@ const LoanManagement: React.FC = () => {
                             bankAccountNumber: e.target.value,
                           })
                         }
-                        className="w-full border px-2 py-1 rounded"
+                        className="w-full border px-2 py-1 rounded-md"
                       />
                     </div>
                     <div>
@@ -649,7 +710,7 @@ const LoanManagement: React.FC = () => {
                         onChange={(e) =>
                           setForm({ ...form, bankBranch: e.target.value })
                         }
-                        className="w-full border px-2 py-1 rounded"
+                        className="w-full border px-2 py-1 rounded-md"
                       />
                     </div>
                   </div>
@@ -661,7 +722,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, client: e.target.value })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     >
                       <option value="">-- Select Client --</option>
                       {clients.map((c) => (
@@ -682,7 +743,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, amount: Number(e.target.value) })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     />
                   </div>
                   <div>
@@ -693,7 +754,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, dateReceived: e.target.value })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     />
                   </div>
                   <div>
@@ -707,7 +768,7 @@ const LoanManagement: React.FC = () => {
                           interestRate: Number(e.target.value),
                         })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     />
                   </div>
                 </div>
@@ -720,7 +781,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, interestPeriodUnit: e.target.value })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     >
                       <option value="monthly">Monthly</option>
                       <option value="yearly">Yearly</option>
@@ -734,7 +795,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, tenure: Number(e.target.value) })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     />
                   </div>
                   <div>
@@ -744,7 +805,7 @@ const LoanManagement: React.FC = () => {
                       onChange={(e) =>
                         setForm({ ...form, tenureUnit: e.target.value })
                       }
-                      className="w-full border px-2 py-1 rounded"
+                      className="w-full border px-2 py-1 rounded-md"
                     >
                       <option value="months">Months</option>
                       <option value="years">Years</option>
@@ -759,7 +820,7 @@ const LoanManagement: React.FC = () => {
                     onChange={(e) =>
                       setForm({ ...form, purpose: e.target.value })
                     }
-                    className="w-full border px-2 py-1 rounded"
+                    className="w-full border px-2 py-1 rounded-md"
                   />
                 </div>
               </div>

@@ -4,7 +4,7 @@ import {
   TrendingUp, 
   TrendingDown,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Users,
   Camera,
   Clock,
@@ -352,7 +352,7 @@ const AdvancedAnalytics = () => {
         <div className="flex items-center space-x-1 overflow-x-auto">
           {[
             { id: 'overview' as const, label: 'Overview', icon: BarChart3 },
-            { id: 'revenue' as const, label: 'Revenue', icon: DollarSign },
+            { id: 'revenue' as const, label: 'Revenue', icon: IndianRupee },
             { id: 'operations' as const, label: 'Operations', icon: Target },
             { id: 'clients' as const, label: 'Clients', icon: Users },
             { id: 'team' as const, label: 'Team', icon: Award },
@@ -393,7 +393,7 @@ const AdvancedAnalytics = () => {
                     <span className="text-sm font-medium">{analyticsData.overview.revenueGrowth}%</span>
                   </div>
                 </div>
-                <DollarSign className="w-8 h-8 text-green-500" />
+                <IndianRupee className="w-8 h-8 text-green-500" />
               </div>
             </NeomorphicCard>
             

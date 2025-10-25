@@ -5,7 +5,7 @@ import {
   Mail, 
   MapPin, 
   Star, 
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   AlertTriangle,
   CheckCircle,
@@ -493,7 +493,7 @@ const VendorManagement = () => {
                 <p className="text-sm text-gray-600">Total Spend</p>
                 <p className="text-xl font-bold text-green-600">₹{(vendorStats.totalSpend / 100000).toFixed(1)}L</p>
               </div>
-              <DollarSign className="w-8 h-8 text-green-500" />
+              <IndianRupee className="w-8 h-8 text-green-500" />
             </div>
           </NeomorphicCard>
           

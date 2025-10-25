@@ -3,7 +3,7 @@ import {
   BarChart3, 
   Plus, 
   TrendingUp,
-  DollarSign,
+  IndianRupee,
   Users,
   Calendar,
   Camera,
@@ -430,7 +430,7 @@ const ReportsAndAnalytics = () => {
               </div>
             </div>
               <div className="icon-circle icon-bg-5 p-3 rounded-lg">
-              <DollarSign className="w-6 h-6 text-white" />
+              <IndianRupee className="w-6 h-6 text-white" />
             </div>
           </div>
         </div>

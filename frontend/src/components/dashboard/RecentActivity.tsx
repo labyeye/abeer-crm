@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, DollarSign, Users, Camera } from 'lucide-react';
+import { Calendar, IndianRupee, Users, Camera } from 'lucide-react';
 
 const RecentActivity = () => {
   const activities = [
@@ -18,7 +18,7 @@ const RecentActivity = () => {
       title: 'Payment received',
       description: '$2,500 from Johnson Family',
       time: '4 hours ago',
-      icon: DollarSign,
+      icon: IndianRupee,
       color: 'text-emerald-600 bg-emerald-50'
     },
     {

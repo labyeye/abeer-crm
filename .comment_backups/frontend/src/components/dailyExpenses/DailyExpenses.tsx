@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Edit, Trash, DollarSign } from "lucide-react";
+import { Plus, Edit, Trash, IndianRupee } from "lucide-react";
 import { dailyExpensesAPI, branchAPI } from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -133,7 +133,7 @@ const DailyExpenses = () => {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold flex items-center">
-          <DollarSign className="w-5 h-5 mr-2" /> Daily Expenses
+          <IndianRupee className="w-5 h-5 mr-2" /> Daily Expenses
         </h2>
         <div>
           <button

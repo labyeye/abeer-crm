@@ -25,6 +25,7 @@ import {
   attendanceAPI,
 } from "../../services/api";
 import StatCard from "../ui/StatCard";
+import AnimatedNumber from "../ui/AnimatedNumber";
 
 interface BookingStat {
   _id: string;
@@ -60,8 +61,21 @@ const Dashboard = () => {
   const [fixedPaidTotal, setFixedPaidTotal] = useState<number>(0);
   const [fixedUnpaidTotal, setFixedUnpaidTotal] = useState<number>(0);
   const [myAttendanceHistory, setMyAttendanceHistory] = useState<any[]>([]);
-  const [myAssignedBookingsCount, setMyAssignedBookingsCount] = useState<number>(0);
+  const [myAssignedBookingsCount, setMyAssignedBookingsCount] =
+    useState<number>(0);
   const [loading, setLoading] = useState(true);
+  // Top performers & revenue chart UI state
+  const [topPerformers, setTopPerformers] = useState<any[]>([]);
+  const [revenueTrend, setRevenueTrend] = useState<
+    Array<{ month: string; value: number }>
+  >([]);
+  const [chartTooltip, setChartTooltip] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    value: number | null;
+    label: string;
+  }>({ visible: false, x: 0, y: 0, value: null, label: "" });
 
   // today's date helpers: declare early so functions that run on mount can use them
   const today = new Date();
@@ -74,6 +88,75 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardStats();
   }, []);
+
+  // derive top performers & revenue after data loads
+  useEffect(() => {
+    if (!bookingStats || !staffStats) return;
+
+    // compute assigned counts per staff from bookingStats
+    const assignCounts: Record<string, number> = {};
+    bookingStats.forEach((b: any) => {
+      // booking may contain assignedStaff array or functionDetailsList with assignedStaff
+      if (Array.isArray(b.assignedStaff)) {
+        b.assignedStaff.forEach((s: any) => {
+          assignCounts[String(s)] = (assignCounts[String(s)] || 0) + 1;
+        });
+      }
+      if (Array.isArray(b.functionDetailsList)) {
+        b.functionDetailsList.forEach((fd: any) => {
+          if (Array.isArray(fd.assignedStaff))
+            fd.assignedStaff.forEach((s: any) => {
+              assignCounts[String(s)] = (assignCounts[String(s)] || 0) + 1;
+            });
+          if (Array.isArray(fd.staffAssignment))
+            fd.staffAssignment.forEach((s: any) => {
+              assignCounts[String(s)] = (assignCounts[String(s)] || 0) + 1;
+            });
+        });
+      }
+    });
+
+    // enrich staff stats with count
+    const performers = staffStats
+      .map((s: any) => ({
+        ...s,
+        assignedCount: assignCounts[s._id] || 0,
+      }))
+      .sort((a: any, b: any) => b.assignedCount - a.assignedCount)
+      .slice(0, 6);
+    setTopPerformers(performers);
+
+    // revenue trend: compute monthly totals from payments (last 6 months)
+    const months: Array<{ month: string; value: number }> = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleString(undefined, { month: "short" });
+      months.push({ month: label, value: 0 });
+    }
+    payments.forEach((p: any) => {
+      const date = new Date(
+        p.createdAt || p.date || p.receivedAt || p.paymentDate || Date.now()
+      );
+      const idx = months.findIndex((m) => {
+        const mDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - (5 - months.indexOf(m)),
+          1
+        );
+        return (
+          mDate.getMonth() === date.getMonth() &&
+          mDate.getFullYear() === date.getFullYear()
+        );
+      });
+      if (idx >= 0)
+        months[idx].value += Number(p.amount || p.totalAmount || p.value || 0);
+    });
+    setRevenueTrend(months);
+  }, [bookingStats, staffStats, payments]);
+
+  // helper to format currency
+  const fmtCurrency = (v: number) => `₹${v.toLocaleString()}`;
 
   const fetchDashboardStats = async () => {
     try {
@@ -138,12 +221,14 @@ const Dashboard = () => {
         }
         // fetch assigned bookings count for staff
         try {
-          const bRes: any = await bookingAPI.getBookingsForStaff(user.id, { limit: 100 });
+          const bRes: any = await bookingAPI.getBookingsForStaff(user.id, {
+            limit: 100,
+          });
           const bData = bRes?.data ?? bRes ?? [];
           const arr = Array.isArray(bData) ? bData : bData.data || [];
           setMyAssignedBookingsCount(Array.isArray(arr) ? arr.length : 0);
         } catch (e) {
-          console.debug('[Dashboard] failed to fetch assigned bookings', e);
+          console.debug("[Dashboard] failed to fetch assigned bookings", e);
           setMyAssignedBookingsCount(0);
         }
       }
@@ -248,7 +333,9 @@ const Dashboard = () => {
       return [
         {
           title: "Assigned Bookings",
-          value: myAssignedBookingsCount ? myAssignedBookingsCount.toString() : "0",
+          value: myAssignedBookingsCount
+            ? myAssignedBookingsCount.toString()
+            : "0",
           change: "Bookings assigned to you",
           changeType: "neutral" as const,
           icon: Calendar,
@@ -442,25 +529,18 @@ const Dashboard = () => {
     });
     return map;
   }, [inventoryStats]);
-
-  // (today and startOfToday are declared earlier)
-  // week window helper removed — not used
-
-  // upcoming tasks flattened helper removed — not used
-
-  // upcoming tasks grouping removed — not used in current dashboard UI
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case "completed":
-        return "badge-success";
+        return "px-2 py-1 text-xs font-medium rounded-md bg-green-50 text-green-700";
       case "in_progress":
-        return "badge-primary";
+        return "px-2 py-1 text-xs font-medium rounded-md bg-blue-50 text-blue-700";
       case "confirmed":
-        return "badge-secondary";
+        return "px-2 py-1 text-xs font-medium rounded-md bg-purple-50 text-purple-700";
       case "scheduled":
-        return "badge-warning";
+        return "px-2 py-1 text-xs font-medium rounded-md bg-amber-50 text-amber-700";
       default:
-        return "badge-neutral";
+        return "px-2 py-1 text-xs font-medium rounded-md bg-gray-50 text-gray-700";
     }
   };
 
@@ -560,6 +640,145 @@ const Dashboard = () => {
     });
   };
 
+  // Top performers card and revenue chart components
+  const TopPerformersCard = () => (
+    <div className="bg-white rounded-2xl p-4 shadow-md transform transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-700">Top Performance</h3>
+        <select className="text-xs text-gray-500 bg-transparent border-none outline-none">
+          <option>This Month</option>
+          <option>Last Month</option>
+        </select>
+      </div>
+
+      <div className="overflow-x-auto -mx-2">
+        <div className="flex items-stretch gap-3 px-2">
+          {topPerformers.map((s) => (
+            <div
+              key={s._id}
+              className="w-50 flex-shrink-0 bg-white rounded-lg p-3 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all"
+            >
+              <div className="flex items-center justify-center">
+                <div className="w-14 h-14 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">
+                  <img
+                    src={s.avatarUrl}
+                    alt={s.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+              <div>
+                <div className="flex-1 min-w-0 mt-2">
+                  <div className="text-sm text-center font-medium text-gray-900 truncate">
+                    {s.name}
+                  </div>
+                  <div className="text-xs text-center text-gray-500 mt-1">
+                    {s.designation || s.role || "Staff"}
+                  </div>
+                </div>
+                <div className="text-center mt-2">
+                  <div className="text-sm font-semibold text-gray-900">
+                    <AnimatedNumber
+                      value={Number(s.assignedCount || 0)}
+                      duration={700}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500">tasks</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const RevenueChart = () => {
+    const width = 520;
+    const height = 160;
+    const padding = 28;
+    const max = Math.max(...revenueTrend.map((r) => r.value), 1);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+      // trigger mount animation
+      const t = setTimeout(() => setMounted(true), 80);
+      return () => clearTimeout(t);
+    }, []);
+    return (
+      <div className="bg-white rounded-2xl p-4 shadow-md transform transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700">Revenue</h3>
+          <div className="text-xs text-gray-500">Month</div>
+        </div>
+        <div className="relative">
+          <svg width={width} height={height} className="block">
+            {revenueTrend.map((d, i) => {
+              const barSlot = (width - padding * 2) / revenueTrend.length;
+              const barWidth = barSlot * 0.6;
+              const gap = barSlot - barWidth;
+              const x = padding + i * (barWidth + gap) + gap / 2;
+              const fullH = (d.value / max) * (height - padding * 2);
+              const h = mounted ? fullH : 0;
+              const y = height - padding - h;
+              const fill =
+                i === revenueTrend.length - 1 ? "#2563EB" : "#DBEAFE";
+              return (
+                <g key={d.month}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={h}
+                    rx={8}
+                    fill={fill}
+                    style={{ transition: "all 600ms cubic-bezier(.2,.9,.2,1)" }}
+                    onMouseEnter={(e) =>
+                      setChartTooltip({
+                        visible: true,
+                        x: (e.nativeEvent as any).offsetX,
+                        y: (e.nativeEvent as any).offsetY,
+                        value: d.value,
+                        label: d.month,
+                      })
+                    }
+                    onMouseLeave={() =>
+                      setChartTooltip({
+                        visible: false,
+                        x: 0,
+                        y: 0,
+                        value: null,
+                        label: "",
+                      })
+                    }
+                  />
+                  <text
+                    x={x + barWidth / 2}
+                    y={height - padding + 14}
+                    textAnchor="middle"
+                    fill="#475569"
+                    fontSize={11}
+                  >
+                    {d.month}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+          {chartTooltip.visible && (
+            <div
+              className="absolute bg-white text-xs text-gray-700 px-2 py-1 rounded shadow"
+              style={{ left: chartTooltip.x + 12, top: chartTooltip.y - 28 }}
+            >
+              <div className="font-semibold">{chartTooltip.label}</div>
+              <div>{fmtCurrency(chartTooltip.value || 0)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -569,28 +788,28 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="card-gradient-primary text-white p-8 rounded-2xl">
+    <div className="space-y-6 page-animate">
+      {/* Welcome Banner - Clean minimal style */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold font-display text-white">
-              {user?.role === "staff"
-                ? `Welcome back, ${user?.name?.split(" ")[0]}!`
-                : `Welcome back, ${user?.name?.split(" ")[0]}!`}
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Hey, {user?.name?.split(" ")[0]}
             </h1>
-            <p className="text-primary-100 mt-2 text-lg">
-              {user?.role === "staff"
-                ? "Here's your personal dashboard with tasks and attendance information."
-                : "Here's what's happening with your photography business today."}
+            <p className="text-gray-500 mt-1 text-sm">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
             </p>
           </div>
         </div>
-        {/* Today's Expenses */}
       </div>
 
-      {/* Business Stats Grid */}
-      <div className="dashboard-grid">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statsWithPayments.map((stat, index) => (
           <StatCard key={index} {...stat} />
         ))}
@@ -651,18 +870,32 @@ const Dashboard = () => {
         )}
       </div>
 
+      {/* Graphs & Analytics Section - Management only */}
+      {["chairman", "company_admin", "branch_head"].includes(
+        user?.role || ""
+      ) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <RevenueChart />
+          </div>
+          <div>
+            <TopPerformersCard />
+          </div>
+        </div>
+      )}
+
       {/* Inventory Overview - Only show for management roles */}
       {inventoryStats &&
         ["chairman", "company_admin", "branch_head"].includes(
           user?.role || ""
         ) && (
           <>
-            <div className="border-t border-neutral-200 pt-6">
-              <h2 className="text-2xl font-bold text-neutral-900 mb-4 font-display">
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 Inventory Overview
               </h2>
             </div>
-            <div className="dashboard-grid">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {inventoryStatsCards.map((stat, index) => (
                 <StatCard key={index} {...stat} />
               ))}
@@ -673,16 +906,18 @@ const Dashboard = () => {
       {}
       {user?.role === "staff" && (
         <>
-          <div className="border-t border-gray-200 pt-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">My Tasks</h2>
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              My Tasks
+            </h2>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8">
             <div className="text-center py-8">
-              <CheckSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-base font-medium text-gray-900 mb-2">
                 No tasks assigned
               </h3>
-              <p className="text-gray-600">
+              <p className="text-sm text-gray-500">
                 You don't have any tasks assigned to you at the moment.
               </p>
             </div>
@@ -690,545 +925,554 @@ const Dashboard = () => {
         </>
       )}
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Schedule/Tasks Section */}
-      </div>
-      {/* Schedule Table: Date, Booking ID, Client, Services, Staff, Inventory, Status */}
-      {/* Incomplete Assignments: bookings missing staff or inventory (shows only those) */}
-      {user?.role !== 'staff' && (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6"></div>
+      {user?.role !== "staff" && (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">
-            Incomplete Assignments
-          </h2>
-          <p className="text-sm text-gray-500">
-            Bookings missing staff and/or inventory assignment
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[1000px] w-full divide-y divide-gray-200 border-collapse">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Booking
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[360px]">
-                  Services
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Staff
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Inventory
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {bookingStats && bookingStats.length > 0 ? (
-                bookingStats
-                  .filter((b: any) => {
-                    const servicesArr =
-                      Array.isArray(b.services) && b.services.length
-                        ? b.services
-                        : b.servicesSchedule?.length
-                        ? b.servicesSchedule
-                        : b.items?.length
-                        ? b.items
-                        : [];
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Incomplete Assignments
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Bookings missing staff and/or inventory assignment
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[1000px] w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booking
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[360px]">
+                      Services
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Staff
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Inventory
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {bookingStats && bookingStats.length > 0 ? (
+                    bookingStats
+                      .filter((b: any) => {
+                        const servicesArr =
+                          Array.isArray(b.services) && b.services.length
+                            ? b.services
+                            : b.servicesSchedule?.length
+                            ? b.servicesSchedule
+                            : b.items?.length
+                            ? b.items
+                            : [];
 
-                    const fdList = Array.isArray(b.functionDetailsList)
-                      ? b.functionDetailsList
-                      : [];
+                        const fdList = Array.isArray(b.functionDetailsList)
+                          ? b.functionDetailsList
+                          : [];
 
-                    if (servicesArr.length) {
-                      return servicesArr.some((svc: any, idx: number) => {
-                        const fd = fdList[idx] || {};
-                        const hasStaff =
-                          (Array.isArray(fd.assignedStaff) &&
-                            fd.assignedStaff.length > 0) ||
-                          (Array.isArray(fd.staffAssignment) &&
-                            fd.staffAssignment.length > 0) ||
-                          (Array.isArray(svc.assignedStaff) &&
-                            svc.assignedStaff.length > 0) ||
-                          (Array.isArray(svc.staffAssignment) &&
-                            svc.staffAssignment.length > 0);
-                        const hasInv =
-                          (Array.isArray(fd.inventorySelection) &&
-                            fd.inventorySelection.length > 0) ||
-                          (Array.isArray(fd.inventory) &&
-                            fd.inventory.length > 0) ||
-                          (Array.isArray(svc.inventorySelection) &&
-                            svc.inventorySelection.length > 0) ||
-                          (Array.isArray(svc.inventory) &&
-                            svc.inventory.length > 0);
-                        return !hasStaff || !hasInv;
-                      });
-                    }
+                        if (servicesArr.length) {
+                          return servicesArr.some((svc: any, idx: number) => {
+                            const fd = fdList[idx] || {};
+                            const hasStaff =
+                              (Array.isArray(fd.assignedStaff) &&
+                                fd.assignedStaff.length > 0) ||
+                              (Array.isArray(fd.staffAssignment) &&
+                                fd.staffAssignment.length > 0) ||
+                              (Array.isArray(svc.assignedStaff) &&
+                                svc.assignedStaff.length > 0) ||
+                              (Array.isArray(svc.staffAssignment) &&
+                                svc.staffAssignment.length > 0);
+                            const hasInv =
+                              (Array.isArray(fd.inventorySelection) &&
+                                fd.inventorySelection.length > 0) ||
+                              (Array.isArray(fd.inventory) &&
+                                fd.inventory.length > 0) ||
+                              (Array.isArray(svc.inventorySelection) &&
+                                svc.inventorySelection.length > 0) ||
+                              (Array.isArray(svc.inventory) &&
+                                svc.inventory.length > 0);
+                            return !hasStaff || !hasInv;
+                          });
+                        }
 
-                    const staffOk = hasStaffAssigned(b);
-                    const invOk = hasInventoryAssigned(b);
-                    return !staffOk || !invOk;
-                  })
-                  .map((b: any) => {
-                    // Determine per-service source: prefer functionDetailsList, then servicesSchedule, then services, then items
-                    const perServiceSource =
-                      Array.isArray(b.functionDetailsList) &&
-                      b.functionDetailsList.length
-                        ? b.functionDetailsList
-                        : b.servicesSchedule?.length
-                        ? b.servicesSchedule
-                        : b.services?.length
-                        ? b.services
-                        : b.items?.length
-                        ? b.items
-                        : [];
+                        const staffOk = hasStaffAssigned(b);
+                        const invOk = hasInventoryAssigned(b);
+                        return !staffOk || !invOk;
+                      })
+                      .map((b: any) => {
+                        // Determine per-service source: prefer functionDetailsList, then servicesSchedule, then services, then items
+                        const perServiceSource =
+                          Array.isArray(b.functionDetailsList) &&
+                          b.functionDetailsList.length
+                            ? b.functionDetailsList
+                            : b.servicesSchedule?.length
+                            ? b.servicesSchedule
+                            : b.services?.length
+                            ? b.services
+                            : b.items?.length
+                            ? b.items
+                            : [];
 
-                    // If we have any per-service entries, use them to compute per-service names and flags.
-                    // Only when no per-service source exists do we fallback to booking-level name list and flags.
-                    const services = perServiceSource.length
-                      ? perServiceSource.map((s: any) => {
-                          const name =
-                            s.service ||
-                            s.serviceName ||
-                            s.name ||
-                            s.title ||
-                            "Service";
-                          const type = Array.isArray(s.serviceType)
-                            ? s.serviceType.join(", ")
-                            : s.serviceType || s.type || "";
-                          return type ? `${name} (${type})` : name;
-                        })
-                      : extractServiceNames(b);
+                        // If we have any per-service entries, use them to compute per-service names and flags.
+                        // Only when no per-service source exists do we fallback to booking-level name list and flags.
+                        const services = perServiceSource.length
+                          ? perServiceSource.map((s: any) => {
+                              const name =
+                                s.service ||
+                                s.serviceName ||
+                                s.name ||
+                                s.title ||
+                                "Service";
+                              const type = Array.isArray(s.serviceType)
+                                ? s.serviceType.join(", ")
+                                : s.serviceType || s.type || "";
+                              return type ? `${name} (${type})` : name;
+                            })
+                          : extractServiceNames(b);
 
-                    const perServiceFlags = perServiceSource.length
-                      ? perServiceSource.map((svc: any) => {
-                          const hasStaff =
-                            (Array.isArray(svc.assignedStaff) &&
-                              svc.assignedStaff.length > 0) ||
-                            (Array.isArray(svc.staffAssignment) &&
-                              svc.staffAssignment.length > 0);
-                          const hasInv =
-                            (Array.isArray(svc.inventorySelection) &&
-                              svc.inventorySelection.length > 0) ||
-                            (Array.isArray(svc.inventory) &&
-                              svc.inventory.length > 0);
-                          return { hasStaff: !!hasStaff, hasInv: !!hasInv };
-                        })
-                      : [];
+                        const perServiceFlags = perServiceSource.length
+                          ? perServiceSource.map((svc: any) => {
+                              const hasStaff =
+                                (Array.isArray(svc.assignedStaff) &&
+                                  svc.assignedStaff.length > 0) ||
+                                (Array.isArray(svc.staffAssignment) &&
+                                  svc.staffAssignment.length > 0);
+                              const hasInv =
+                                (Array.isArray(svc.inventorySelection) &&
+                                  svc.inventorySelection.length > 0) ||
+                                (Array.isArray(svc.inventory) &&
+                                  svc.inventory.length > 0);
+                              return { hasStaff: !!hasStaff, hasInv: !!hasInv };
+                            })
+                          : [];
 
-                    // booking-level flags (used only when perServiceSource is empty)
-                    const bookingStaffOk = hasStaffAssigned(b);
-                    const bookingInvOk = hasInventoryAssigned(b);
-                    return (
-                      <tr key={b._id}>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {b.bookingNumber || b._id}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">
-                          {b.client?.name || "Unknown"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 min-w-[360px]">
-                          {services.map((s: string, i: number) => {
-                            const flags = perServiceFlags[i];
-                            // if no per-service flags, show booking-level icon instead
-                            const staffOkDisplay = flags
-                              ? flags.hasStaff
-                              : bookingStaffOk;
-                            const invOkDisplay = flags
-                              ? flags.hasInv
-                              : bookingInvOk;
-                            return (
-                              <div
-                                key={i}
-                                className="leading-snug flex items-center gap-3"
-                              >
-                                <div className="flex-1">{s}</div>
-                                <div className="flex items-center gap-2">
-                                  {staffOkDisplay ? (
-                                    <span
-                                      title="Staff assigned"
-                                      aria-label="Staff assigned"
-                                    >
-                                      <CheckCircle className="text-green-600" />
-                                    </span>
-                                  ) : (
-                                    <span
-                                      title="No staff assigned"
-                                      aria-label="No staff assigned"
-                                    >
-                                      <XCircle className="text-red-600" />
-                                    </span>
-                                  )}
-                                  {invOkDisplay ? (
-                                    <span
-                                      title="Inventory assigned"
-                                      aria-label="Inventory assigned"
-                                    >
-                                      <Package className="text-green-600" />
-                                    </span>
-                                  ) : (
-                                    <span
-                                      title="No inventory assigned"
-                                      aria-label="No inventory assigned"
-                                    >
-                                      <XCircle className="text-red-600" />
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </td>
-                      </tr>
-                    );
-                  })
-              ) : (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-6 py-4 text-center text-sm text-gray-500"
-                  >
-                    No bookings to show
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Schedule</h2>
-          <p className="text-sm text-gray-500">
-            Shows upcoming bookings and assignments
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[1400px] w-full divide-y divide-gray-200 border-collapse [&_th]:border [&_td]:border [&_th]:border-gray-200 [&_td]:border-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Booking
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[36px]">
-                  Services
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Staff
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[30px]">
-                  Inventory
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200 min-w-[1800px]">
-              {bookingStats && bookingStats.length > 0 ? (
-                // expand bookings into per-service rows - each service gets its own row with its specific date
-                [...bookingStats]
-                  .flatMap((b: any) => {
-                    // Get per-service entries (functionDetailsList is authoritative)
-                    const perServiceEntries =
-                      Array.isArray(b.functionDetailsList) &&
-                      b.functionDetailsList.length
-                        ? b.functionDetailsList
-                        : b.servicesSchedule?.length
-                        ? b.servicesSchedule
-                        : b.services?.length
-                        ? b.services.map((svc: any) => ({
-                            // fallback: use functionDetails date for services without individual dates
-                            date:
-                              b.functionDetails?.date ||
-                              b.date ||
-                              b.scheduledDate,
-                            time: b.functionDetails?.time || {},
-                            venue: b.functionDetails?.venue || {},
-                            service:
-                              svc.service || svc.serviceName || "Service",
-                            serviceType: svc.serviceType || svc.type || [],
-                            event: svc.event || b.event || "",
-                            assignedStaff: [],
-                            inventorySelection: [],
-                          }))
-                        : [
-                            {
-                              date:
-                                b.functionDetails?.date ||
-                                b.date ||
-                                b.scheduledDate,
-                              time: b.functionDetails?.time || {},
-                              venue: b.functionDetails?.venue || {},
-                              service:
-                                b.functionDetails?.type ||
-                                b.serviceName ||
-                                "Service",
-                              serviceType: [],
-                              event: b.event || "",
-                              assignedStaff: [],
-                              inventorySelection: [],
-                            },
-                          ];
-
-                    // Create one row per service entry
-                    return perServiceEntries.map((serviceEntry: any) => {
-                      const rawDate = serviceEntry.date;
-                      const d = rawDate ? new Date(rawDate) : null;
-
-                      // Service name for this specific entry
-                      const serviceName =
-                        serviceEntry.service ||
-                        serviceEntry.serviceName ||
-                        serviceEntry.name ||
-                        serviceEntry.title ||
-                        "Service";
-                      const serviceType = Array.isArray(
-                        serviceEntry.serviceType
-                      )
-                        ? serviceEntry.serviceType.join(", ")
-                        : serviceEntry.serviceType || serviceEntry.type || "";
-                      const displayService = serviceType
-                        ? `${serviceName} (${serviceType})`
-                        : serviceName;
-
-                      // Staff for this specific service entry
-                      const serviceStaffNames: string[] = [];
-                      if (Array.isArray(serviceEntry.assignedStaff)) {
-                        serviceEntry.assignedStaff.forEach((staffId: any) => {
-                          const staff = staffStats.find(
-                            (s: any) => s._id === (staffId._id || staffId)
-                          );
-                          if (staff) serviceStaffNames.push(staff.name);
-                        });
-                      }
-
-                      // Equipment names for this specific service entry
-                      const equipmentNames: string[] = [];
-                      if (Array.isArray(serviceEntry.inventorySelection)) {
-                        serviceEntry.inventorySelection.forEach((inv: any) => {
-                          if (typeof inv === "object" && inv.name) {
-                            equipmentNames.push(inv.name);
-                          } else if (typeof inv === "string") {
-                            const resolved = inventoryIdToName.get(inv);
-                            if (resolved) equipmentNames.push(resolved);
-                          }
-                        });
-                      }
-
-                      return {
-                        booking: b,
-                        dateObj: d,
-                        service: displayService,
-                        serviceStaffNames,
-                        equipmentNames,
-                      };
-                    });
-                  })
-                  .filter((row) => {
-                    if (!row.dateObj) return false;
-                    // exclude bookings dated before today (past bookings) from the Schedule
-                    const dOnly = new Date(
-                      row.dateObj.getFullYear(),
-                      row.dateObj.getMonth(),
-                      row.dateObj.getDate()
-                    ).getTime();
-                    if (dOnly < startOfToday) return false;
-                    // exclude enquiry bookings from schedule display
-                    if ((row.booking?.status || "").toLowerCase() === "enquiry")
-                      return false;
-                    return true;
-                  })
-                  .sort((a, b) => {
-                    // put today's bookings first
-                    const aIsToday =
-                      new Date(
-                        a.dateObj!.getFullYear(),
-                        a.dateObj!.getMonth(),
-                        a.dateObj!.getDate()
-                      ).getTime() ===
-                      new Date(
-                        today.getFullYear(),
-                        today.getMonth(),
-                        today.getDate()
-                      ).getTime();
-                    const bIsToday =
-                      new Date(
-                        b.dateObj!.getFullYear(),
-                        b.dateObj!.getMonth(),
-                        b.dateObj!.getDate()
-                      ).getTime() ===
-                      new Date(
-                        today.getFullYear(),
-                        today.getMonth(),
-                        today.getDate()
-                      ).getTime();
-                    if (aIsToday !== bIsToday) return aIsToday ? -1 : 1;
-                    return a.dateObj!.getTime() - b.dateObj!.getTime();
-                  })
-                  .map((row: any) => {
-                    const isToday =
-                      new Date(
-                        row.dateObj.getFullYear(),
-                        row.dateObj.getMonth(),
-                        row.dateObj.getDate()
-                      ).getTime() ===
-                      new Date(
-                        today.getFullYear(),
-                        today.getMonth(),
-                        today.getDate()
-                      ).getTime();
-                    return (
-                      <tr
-                        key={`${row.booking._id}-${row.service}`}
-                        className={`${isToday ? "bg-amber-50" : ""}`}
+                        // booking-level flags (used only when perServiceSource is empty)
+                        const bookingStaffOk = hasStaffAssigned(b);
+                        const bookingInvOk = hasInventoryAssigned(b);
+                        return (
+                          <tr key={b._id}>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {b.bookingNumber || b._id}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              {b.client?.name || "Unknown"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 min-w-[360px]">
+                              {services.map((s: string, i: number) => {
+                                const flags = perServiceFlags[i];
+                                // if no per-service flags, show booking-level icon instead
+                                const staffOkDisplay = flags
+                                  ? flags.hasStaff
+                                  : bookingStaffOk;
+                                const invOkDisplay = flags
+                                  ? flags.hasInv
+                                  : bookingInvOk;
+                                return (
+                                  <div
+                                    key={i}
+                                    className="leading-snug flex items-center gap-3"
+                                  >
+                                    <div className="flex-1">{s}</div>
+                                    <div className="flex items-center gap-2">
+                                      {staffOkDisplay ? (
+                                        <span
+                                          title="Staff assigned"
+                                          aria-label="Staff assigned"
+                                        >
+                                          <CheckCircle className="text-green-600" />
+                                        </span>
+                                      ) : (
+                                        <span
+                                          title="No staff assigned"
+                                          aria-label="No staff assigned"
+                                        >
+                                          <XCircle className="text-red-600" />
+                                        </span>
+                                      )}
+                                      {invOkDisplay ? (
+                                        <span
+                                          title="Inventory assigned"
+                                          aria-label="Inventory assigned"
+                                        >
+                                          <Package className="text-green-600" />
+                                        </span>
+                                      ) : (
+                                        <span
+                                          title="No inventory assigned"
+                                          aria-label="No inventory assigned"
+                                        >
+                                          <XCircle className="text-red-600" />
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-6 py-4 text-center text-sm text-gray-500"
                       >
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                          {new Date(row.dateObj).toDateString()}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {row.booking.bookingNumber || row.booking._id}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 max-w-[220px] break-words">
-                          {row.booking.client?.name || "Unknown"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 min-w-[360px] border border-gray-200">
-                          <div className="leading-snug">
-                            {row.service || "—"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 max-w-[200px] border border-gray-200">
-                          {row.serviceStaffNames &&
-                          row.serviceStaffNames.length > 0 ? (
-                            row.serviceStaffNames.map(
-                              (name: string, i: number) => (
-                                <div key={i} className="leading-snug">
-                                  {name}
-                                </div>
-                              )
-                            )
-                          ) : (
-                            <div className="text-neutral-400">—</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 max-w-[220px]">
-                          {row.equipmentNames &&
-                          row.equipmentNames.length > 0 ? (
-                            row.equipmentNames.map((e: string, i: number) => (
-                              <div key={i} className="leading-snug">
-                                {e}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-neutral-400">—</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm">
-                          <span
-                            className={`badge ${getStatusBadgeColor(
-                              row.booking.status
-                            )}`}
-                          >
-                            {(row.booking.status || "").replace("_", " ")}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-              ) : (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-6 py-4 text-center text-sm text-gray-500"
-                  >
-                    No bookings available
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {/* Payments Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Recent Payments</h2>
-          <p className="text-sm text-gray-500">
-            Payments received (latest {payments ? payments.length : 0})
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[800px] w-full divide-y divide-gray-200 border-collapse [&_th]:border [&_td]:border [&_th]:border-gray-200 [&_td]:border-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Booking
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {payments && payments.length > 0 ? (
-                payments
-                  .slice()
-                  .sort(
-                    (a: any, b: any) =>
-                      new Date(b.date).getTime() - new Date(a.date).getTime()
-                  )
-                  .map((p: any) => (
-                    <tr key={p._id || `${p.date}-${p.amount}`}>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                        {p.date ? new Date(p.date).toDateString() : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {p.client?.name || p.clientName || "Unknown"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700">
-                        {p.booking?.bookingNumber ||
-                          p.booking ||
-                          (p.bookings && p.bookings.length === 1
-                            ? p.bookings[0]
-                            : p.bookings
-                            ? `${p.bookings.length} bookings`
-                            : "—")}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900">
-                        ₹{(Number(p.amount) || 0).toLocaleString()}
+                        No bookings to show
                       </td>
                     </tr>
-                  ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-6 py-4 text-center text-sm text-gray-500"
-                  >
-                    No payments recorded
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">Schedule</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Shows upcoming bookings and assignments
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[1400px] w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booking
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[36px]">
+                      Services
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Staff
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[30px]">
+                      Inventory
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {bookingStats && bookingStats.length > 0 ? (
+                    // expand bookings into per-service rows - each service gets its own row with its specific date
+                    [...bookingStats]
+                      .flatMap((b: any) => {
+                        // Get per-service entries (functionDetailsList is authoritative)
+                        const perServiceEntries =
+                          Array.isArray(b.functionDetailsList) &&
+                          b.functionDetailsList.length
+                            ? b.functionDetailsList
+                            : b.servicesSchedule?.length
+                            ? b.servicesSchedule
+                            : b.services?.length
+                            ? b.services.map((svc: any) => ({
+                                // fallback: use functionDetails date for services without individual dates
+                                date:
+                                  b.functionDetails?.date ||
+                                  b.date ||
+                                  b.scheduledDate,
+                                time: b.functionDetails?.time || {},
+                                venue: b.functionDetails?.venue || {},
+                                service:
+                                  svc.service || svc.serviceName || "Service",
+                                serviceType: svc.serviceType || svc.type || [],
+                                event: svc.event || b.event || "",
+                                assignedStaff: [],
+                                inventorySelection: [],
+                              }))
+                            : [
+                                {
+                                  date:
+                                    b.functionDetails?.date ||
+                                    b.date ||
+                                    b.scheduledDate,
+                                  time: b.functionDetails?.time || {},
+                                  venue: b.functionDetails?.venue || {},
+                                  service:
+                                    b.functionDetails?.type ||
+                                    b.serviceName ||
+                                    "Service",
+                                  serviceType: [],
+                                  event: b.event || "",
+                                  assignedStaff: [],
+                                  inventorySelection: [],
+                                },
+                              ];
+
+                        // Create one row per service entry
+                        return perServiceEntries.map((serviceEntry: any) => {
+                          const rawDate = serviceEntry.date;
+                          const d = rawDate ? new Date(rawDate) : null;
+
+                          // Service name for this specific entry
+                          const serviceName =
+                            serviceEntry.service ||
+                            serviceEntry.serviceName ||
+                            serviceEntry.name ||
+                            serviceEntry.title ||
+                            "Service";
+                          const serviceType = Array.isArray(
+                            serviceEntry.serviceType
+                          )
+                            ? serviceEntry.serviceType.join(", ")
+                            : serviceEntry.serviceType ||
+                              serviceEntry.type ||
+                              "";
+                          const displayService = serviceType
+                            ? `${serviceName} (${serviceType})`
+                            : serviceName;
+
+                          // Staff for this specific service entry
+                          const serviceStaffNames: string[] = [];
+                          if (Array.isArray(serviceEntry.assignedStaff)) {
+                            serviceEntry.assignedStaff.forEach(
+                              (staffId: any) => {
+                                const staff = staffStats.find(
+                                  (s: any) => s._id === (staffId._id || staffId)
+                                );
+                                if (staff) serviceStaffNames.push(staff.name);
+                              }
+                            );
+                          }
+
+                          // Equipment names for this specific service entry
+                          const equipmentNames: string[] = [];
+                          if (Array.isArray(serviceEntry.inventorySelection)) {
+                            serviceEntry.inventorySelection.forEach(
+                              (inv: any) => {
+                                if (typeof inv === "object" && inv.name) {
+                                  equipmentNames.push(inv.name);
+                                } else if (typeof inv === "string") {
+                                  const resolved = inventoryIdToName.get(inv);
+                                  if (resolved) equipmentNames.push(resolved);
+                                }
+                              }
+                            );
+                          }
+
+                          return {
+                            booking: b,
+                            dateObj: d,
+                            service: displayService,
+                            serviceStaffNames,
+                            equipmentNames,
+                          };
+                        });
+                      })
+                      .filter((row) => {
+                        if (!row.dateObj) return false;
+                        // exclude bookings dated before today (past bookings) from the Schedule
+                        const dOnly = new Date(
+                          row.dateObj.getFullYear(),
+                          row.dateObj.getMonth(),
+                          row.dateObj.getDate()
+                        ).getTime();
+                        if (dOnly < startOfToday) return false;
+                        // exclude enquiry bookings from schedule display
+                        if (
+                          (row.booking?.status || "").toLowerCase() ===
+                          "enquiry"
+                        )
+                          return false;
+                        return true;
+                      })
+                      .sort((a, b) => {
+                        // put today's bookings first
+                        const aIsToday =
+                          new Date(
+                            a.dateObj!.getFullYear(),
+                            a.dateObj!.getMonth(),
+                            a.dateObj!.getDate()
+                          ).getTime() ===
+                          new Date(
+                            today.getFullYear(),
+                            today.getMonth(),
+                            today.getDate()
+                          ).getTime();
+                        const bIsToday =
+                          new Date(
+                            b.dateObj!.getFullYear(),
+                            b.dateObj!.getMonth(),
+                            b.dateObj!.getDate()
+                          ).getTime() ===
+                          new Date(
+                            today.getFullYear(),
+                            today.getMonth(),
+                            today.getDate()
+                          ).getTime();
+                        if (aIsToday !== bIsToday) return aIsToday ? -1 : 1;
+                        return a.dateObj!.getTime() - b.dateObj!.getTime();
+                      })
+                      .map((row: any) => {
+                        const isToday =
+                          new Date(
+                            row.dateObj.getFullYear(),
+                            row.dateObj.getMonth(),
+                            row.dateObj.getDate()
+                          ).getTime() ===
+                          new Date(
+                            today.getFullYear(),
+                            today.getMonth(),
+                            today.getDate()
+                          ).getTime();
+                        return (
+                          <tr
+                            key={`${row.booking._id}-${row.service}`}
+                            className={`${isToday ? "bg-amber-50" : ""}`}
+                          >
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                              {new Date(row.dateObj).toDateString()}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {row.booking.bookingNumber || row.booking._id}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 max-w-[220px] break-words">
+                              {row.booking.client?.name || "Unknown"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 min-w-[360px] border border-gray-200">
+                              <div className="leading-snug">
+                                {row.service || "—"}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 max-w-[200px] border border-gray-200">
+                              {row.serviceStaffNames &&
+                              row.serviceStaffNames.length > 0 ? (
+                                row.serviceStaffNames.map(
+                                  (name: string, i: number) => (
+                                    <div key={i} className="leading-snug">
+                                      {name}
+                                    </div>
+                                  )
+                                )
+                              ) : (
+                                <div className="text-neutral-400">—</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700 max-w-[220px]">
+                              {row.equipmentNames &&
+                              row.equipmentNames.length > 0 ? (
+                                row.equipmentNames.map(
+                                  (e: string, i: number) => (
+                                    <div key={i} className="leading-snug">
+                                      {e}
+                                    </div>
+                                  )
+                                )
+                              ) : (
+                                <div className="text-neutral-400">—</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <span
+                                className={`badge ${getStatusBadgeColor(
+                                  row.booking.status
+                                )}`}
+                              >
+                                {(row.booking.status || "").replace("_", " ")}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-6 py-4 text-center text-sm text-gray-500"
+                      >
+                        No bookings available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* Payments Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Recent Payments
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Payments received (latest {payments ? payments.length : 0})
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-[800px] w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booking
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {payments && payments.length > 0 ? (
+                    payments
+                      .slice()
+                      .sort(
+                        (a: any, b: any) =>
+                          new Date(b.date).getTime() -
+                          new Date(a.date).getTime()
+                      )
+                      .map((p: any) => (
+                        <tr key={p._id || `${p.date}-${p.amount}`}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                            {p.date ? new Date(p.date).toDateString() : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {p.client?.name || p.clientName || "Unknown"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {p.booking?.bookingNumber ||
+                              p.booking ||
+                              (p.bookings && p.bookings.length === 1
+                                ? p.bookings[0]
+                                : p.bookings
+                                ? `${p.bookings.length} bookings`
+                                : "—")}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-900">
+                            ₹{(Number(p.amount) || 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-6 py-4 text-center text-sm text-gray-500"
+                      >
+                        No payments recorded
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

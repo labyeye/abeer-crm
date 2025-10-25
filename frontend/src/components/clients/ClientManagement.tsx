@@ -2,17 +2,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Users, 
   Plus, 
-  Search, 
-  Star,
+  Search,
   Loader2,
   X,
   Edit,
-  Trash2
+  Trash2,
+  UserCheck,
+  TicketIcon,
+  User
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { clientAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { branchAPI } from '../../services/api';
+import StatCard from '../ui/StatCard';
 
 interface Branch {
   _id: string;
@@ -290,83 +293,55 @@ const ClientManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Client Management</h1>
-          <p className="text-gray-600 mt-1">Manage your client relationships and information</p>
+    <div className="space-y-6 page-animate">
+      {/* Header */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Client Management</h1>
+            <p className="text-gray-500 mt-1 text-sm">Manage your client relationships and information</p>
+          </div>
+          <button
+            onClick={handleAddClient}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-sm hover:shadow-md font-medium"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Add Client
+          </button>
         </div>
-        <button
-          onClick={handleAddClient}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Add Client
-        </button>
       </div>
 
-      {}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Clients</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-            </div>
-          </div>
-        </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <StatCard
+          title="Total Clients"
+          value={stats.total}
+          icon={Users}
+        />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-green-500 p-3 rounded-lg">
-              <Star className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Active Clients"
+          value={stats.active}
+          icon={UserCheck}
+        />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-amber-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Leads</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.leads}</p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Leads"
+          value={stats.leads}
+          icon={TicketIcon}
+        />
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-purple-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Individual</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.individual}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center">
-            <div className="bg-indigo-500 p-3 rounded-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Professional</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.professional}</p>
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Individual Clients"
+          value={stats.individual}
+          icon={User}
+        />
+        <StatCard
+          title="Professional Clients"
+          value={stats.professional}
+          icon={User}
+        />
+        
       </div>
 
       {}
@@ -418,8 +393,6 @@ const ClientManagement = () => {
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Status</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Branch</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">City</th>
-              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Total Bookings</th>
-              <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Total Spent</th>
               <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700">Actions</th>
             </tr>
           </thead>
@@ -431,15 +404,13 @@ const ClientManagement = () => {
             ) : (
               filteredClients.map((client) => (
                 <tr key={client._id} className="border-b">
-                  <td className="px-4 py-2">{client.name}</td>
-                  <td className="px-4 py-2">{client.phone}</td>
-                  <td className="px-4 py-2">{client.email}</td>
-                  <td className="px-4 py-2">{client.category}</td>
-                  <td className="px-4 py-2">{client.status}</td>
-                  <td className="px-4 py-2">{client.branch?.name || '-'}</td>
-                  <td className="px-4 py-2">{client.address.city}</td>
-                  <td className="px-4 py-2">{client.totalBookings || 0}</td>
-                  <td className="px-4 py-2">₹{client.totalSpent?.toLocaleString() || '0'}</td>
+                  <td className="px-4 py-2 text-sm">{client.name}</td>
+                  <td className="px-4 py-2 text-sm">{client.phone}</td>
+                  <td className="px-4 py-2 text-sm">{client.email}</td>
+                  <td className="px-4 py-2 text-sm">{client.category}</td>
+                  <td className="px-4 py-2 text-sm">{client.status}</td>
+                  <td className="px-4 py-2 text-sm">{client.branch?.name || '-'}</td>
+                  <td className="px-4 py-2 text-sm">{client.address.city}</td>                  
                   <td className="px-4 py-2">
                     <button
                       onClick={() => handleEditClient(client)}

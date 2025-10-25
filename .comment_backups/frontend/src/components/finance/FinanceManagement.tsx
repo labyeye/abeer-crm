@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { branchAPI, expenseAPI, bookingAPI, dailyExpensesAPI, companyAPI } from '../../services/api';
 import { 
-  DollarSign, 
+  IndianRupee, 
   Plus, 
   TrendingUp, 
   TrendingDown,
@@ -350,7 +350,7 @@ const FinanceManagement = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="bg-blue-500 p-3 rounded-lg">
-              <DollarSign className="w-6 h-6 text-white" />
+              <IndianRupee className="w-6 h-6 text-white" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Net Profit</p>

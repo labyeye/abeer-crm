@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { clientAPI, paymentAPI } from '../../services/api';
 import DateInputDDMMYYYY from '../common/DateInputDDMMYYYY';
 import logo from '../../images/logo.png';
+import StatCard from '../ui/StatCard';
+import { ReceiptIndianRupee, Calendar, Clock, AlertCircle, File, Pencil, Trash } from 'lucide-react';
 
 const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   const [clients, setClients] = useState<any[]>([]);
@@ -60,6 +62,28 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
       }
     })();
   }, []);
+
+  // Derived aggregates used for stats cards
+  const totalReceived = allPayments.reduce((s, p) => s + Number(p?.amount || 0), 0);
+  const now = new Date();
+  const thisMonthReceived = allPayments.reduce((s, p) => {
+    try {
+      const d = p?.date ? new Date(p.date) : p?.createdAt ? new Date(p.createdAt) : null;
+      if (d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) return s + Number(p.amount || 0);
+    } catch (e) {}
+    return s;
+  }, 0);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayReceived = allPayments.reduce((s, p) => {
+    const dstr = (p?.date || p?.createdAt || '').toString().slice(0, 10);
+    if (dstr === todayStr) return s + Number(p.amount || 0);
+    return s;
+  }, 0);
+  const totalAdvance = allPayments.reduce((s, p) => {
+    const isAdvance = Boolean(p?.isAdvance || p?.isAdvancePayment || p?.type === 'advance' || p?.advanceAmount);
+    if (isAdvance) return s + Number(p.amount || p.advanceAmount || 0);
+    return s;
+  }, 0);
 
   useEffect(() => {
     if (!selectedClient) {
@@ -376,27 +400,36 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-blue-50 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header Card */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
-          <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-6 rounded-t-xl">
-            <div className="flex items-center gap-4">
-              <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V4m0 16v-4" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">Receive Payment</h1>
-                <p className="text-emerald-100 mt-1">Record a payment received from your client</p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen p-4 page-animate">
+      <div className="max-w-4xl mx-auto space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCard
+              title="Total Received"
+              value={`₹${totalReceived.toLocaleString('en-IN')}`}
+              icon={ReceiptIndianRupee}
+            />
 
-        {/* Main Form Card */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+            <StatCard
+              title="This Month"
+              value={`₹${thisMonthReceived.toLocaleString('en-IN')}`}
+              icon={Calendar}
+            />
+
+            <StatCard
+              title="Today"
+              value={`₹${todayReceived.toLocaleString('en-IN')}`}
+              icon={Clock}
+            />
+
+            <StatCard
+              title="Total Advance"
+              value={`₹${totalAdvance.toLocaleString('en-IN')}`}
+              icon={AlertCircle}
+            />
+          </div>
+
+          {/* Main Form Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 card-hover card-animate">
           <div className="p-8">
             <form className="space-y-8">
               {/* Basic Info Section */}
@@ -485,12 +518,6 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Choose the client who made the payment
-                    </p>
                     {selectedClient && clientAdvanceBalance > 0 && (
                       <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                         <div className="flex items-center gap-2 text-green-700">
@@ -615,12 +642,7 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                         </div>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {multiSelectMode ? 'Select multiple bookings for this payment' : 'Link payment to a specific booking for better tracking'}
-                    </p>
+                    
                   </div>
                 </div>
               </div>
@@ -857,7 +879,7 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                   type="button"
                   onClick={submit} 
                   disabled={saving} 
-                  className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-3 shadow-lg"
+                  className="px-8 py-3 bg-primary-500 text-white rounded-lg hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-3 shadow-lg"
                 >
                   {saving ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
@@ -949,26 +971,26 @@ const ReceivePayment: React.FC<{ onDone?: () => void }> = ({ onDone }) => {
                           <button
                             type="button"
                             onClick={() => openInvoiceWindow(p)}
-                            className="px-2 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-700"
+                            className="px-2 py-1 bg-primary-300 text-white rounded text-xs hover:bg-emerald-700"
                             title="Download Receipt"
                           >
-                            📄
+                            <File className='w-4 h-4'/>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleEdit(p)}
-                            className="px-2 py-1 bg-yellow-400 text-black rounded text-xs hover:bg-yellow-500"
+                            className="px-2 py-1 bg-primary-300 text-black rounded text-xs hover:bg-yellow-500"
                             title="Edit Payment"
                           >
-                            ✏️
+                            <Pencil className='w-4 h-4'/>
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(p)}
-                            className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                            className="px-2 py-1 bg-primary-300 text-white rounded text-xs hover:bg-red-600"
                             title="Delete Payment"
                           >
-                            🗑️
+                            <Trash className='w-4 h-4'/>
                           </button>
                         </div>
                       </td>

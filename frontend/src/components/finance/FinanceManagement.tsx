@@ -7,7 +7,7 @@ import {
   inventoryAPI,
 } from "../../services/api";
 import {
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   TrendingDown,
   CreditCard,
@@ -484,54 +484,58 @@ const FinanceManagement = () => {
   const branchKeys = Array.from(branchKeysSet);
 
   return (
-    <div className="space-y-6">
-      {}
+    <div className="space-y-6 page-animate">
+      {/* Receive Payment Section */}
       {showReceivePayment && (
-        <div className="p-4">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <ReceivePayment onDone={() => setShowReceivePayment(false)} />
         </div>
       )}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Finance Management
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Track revenue, expenses, and financial performance
-          </p>
-          <div className="text-sm text-gray-500 mt-1">
-            Total Bookings:{" "}
-            <span className="font-medium text-gray-700">{bookings.length}</span>
+      
+      {/* Header */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Finance Management
+            </h1>
+            <p className="text-gray-500 mt-1 text-sm">
+              Track revenue, expenses, and financial performance
+            </p>
+            <div className="text-sm text-gray-500 mt-2">
+              Total Bookings:{" "}
+              <span className="font-medium text-gray-700">{bookings.length}</span>
+            </div>
+            <div className="mt-3">
+              <button onClick={() => setShowReceivePayment(s => !s)} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md">
+                {showReceivePayment ? 'Close Receive Payment' : 'Receive Payment'}
+              </button>
+            </div>
           </div>
-          <div className="mt-3">
-            <button onClick={() => setShowReceivePayment(s => !s)} className="px-3 py-2 bg-emerald-600 text-white rounded">
-              {showReceivePayment ? 'Close Receive Payment' : 'Receive Payment'}
+          <div className="flex space-x-3">
+            <button
+              onClick={handleGenerateReport}
+              className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-all font-medium shadow-sm hover:shadow-md flex items-center"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export Report
+            </button>
+            <button onClick={() => setShowFixedExpenses(s => !s)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all font-medium shadow-sm hover:shadow-md flex items-center">
+              <Receipt className="w-4 h-4 mr-2" /> Fixed Expenses
             </button>
           </div>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={handleGenerateReport}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-all duration-200 flex items-center"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export Report
-          </button>
-          <button onClick={() => setShowFixedExpenses(s => !s)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center">
-            <Receipt className="w-4 h-4 mr-2" /> Fixed Expenses
-          </button>
-        </div>
       </div>
 
-      {}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 card-hover card-animate">
           <div className="flex items-center">
-            <div className="bg-emerald-500 p-3 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-white" />
+            <div className="bg-emerald-50 p-3 rounded-full">
+              <TrendingUp className="w-6 h-6 text-emerald-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+              <p className="text-sm font-medium text-gray-500">Total Revenue</p>
               <p className="text-2xl font-bold text-gray-900">
                 ₹{financialStats.totalRevenue.toLocaleString()}
               </p>
@@ -539,13 +543,13 @@ const FinanceManagement = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 card-hover card-animate">
           <div className="flex items-center">
-            <div className="bg-red-500 p-3 rounded-lg">
-              <TrendingDown className="w-6 h-6 text-white" />
+            <div className="bg-red-50 p-3 rounded-full">
+              <TrendingDown className="w-6 h-6 text-red-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-500">
                 Total Expenses
               </p>
               <p className="text-2xl font-bold text-gray-900">
@@ -555,10 +559,10 @@ const FinanceManagement = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 card-hover card-animate">
           <div className="flex items-center">
-            <div className="bg-blue-500 p-3 rounded-lg">
-              <DollarSign className="w-6 h-6 text-white" />
+            <div className="bg-blue-50 p-3 rounded-full">
+              <IndianRupee className="w-6 h-6 text-white" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Net Profit</p>

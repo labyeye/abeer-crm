@@ -1,19 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Building2, 
+import {
   Plus, 
   Search, 
   MapPin,
   Phone,
   Mail,
-  Calendar,
-  Users,
   Edit,
   Trash2,
   X,
   CheckCircle,
   AlertTriangle,
-  IndianRupee,
   Globe
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -324,11 +320,7 @@ const BranchManagement = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col gap-6">
         {/* Header section */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 className="w-6 h-6" />
-            Branch Management
-          </h1>
+        <div className="flex justify-between items-center"> 
           <button
             onClick={() => setShowCreateModal(true)}
             className="bg-primary text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-primary-dark"

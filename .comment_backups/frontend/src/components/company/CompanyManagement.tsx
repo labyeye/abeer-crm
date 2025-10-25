@@ -13,7 +13,7 @@ import {
   X,
   CheckCircle,
   AlertTriangle,
-  DollarSign,
+  IndianRupee,
   Globe
 } from 'lucide-react';
 import { useNotification } from '../../contexts/NotificationContext';
@@ -367,7 +367,7 @@ const CompanyManagement = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center">
               <div className="bg-indigo-500 p-3 rounded-lg">
-                <DollarSign className="w-6 h-6 text-white" />
+                <IndianRupee className="w-6 h-6 text-white" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
