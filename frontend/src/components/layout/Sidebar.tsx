@@ -163,6 +163,14 @@ const Sidebar: React.FC<SidebarProps> = ({
       roles: ["chairman", "admin", "company_admin", "branch_head"],
       color: "primary",
     },
+    {
+      id: "special-reports",
+      name: "Special Reports",
+      icon: FileText,
+      permission: "special_reports",
+      roles: ["chairman", "admin", "company_admin", "branch_head"],
+      color: "purple",
+    },
   ];
 
   const filteredMenuItems = menuItems.filter((item) => {

@@ -12,6 +12,7 @@ import InventoryManagement from '../inventory/InventoryManagement';
 import AttendanceManagement from '../attendance/AttendanceManagement';
 import BranchManagement from '../branch/BranchManagement';
 import EntityReport from '../reports/EntityReport';
+import SpecialReports from '../../pages/SpecialReports';
 import ProfilePage from '../profile/ProfilePage';
 import TaskManagement from '../tasks/TaskManagement';
 import SalaryManagement from '../staff/SalaryManagement';
@@ -69,7 +70,9 @@ const DashboardLayout = () => {
       case 'company':
         return <BranchManagement />;
       case 'reports':
-  return <EntityReport />;
+        return <EntityReport />;
+      case 'special-reports':
+        return <SpecialReports />;
       case 'profile':
         return <ProfilePage />;
       case 'daily-expenses':
